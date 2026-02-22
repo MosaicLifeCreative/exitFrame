@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 const updateClientSchema = z.object({
   name: z.string().min(1).optional(),
@@ -62,6 +63,16 @@ export async function PUT(
       include: { services: true },
     });
 
+    logActivity({
+      domain: "mlc",
+      domainRefId: client.id,
+      module: "clients",
+      activityType: "updated",
+      title: "Updated client",
+      refType: "client",
+      refId: client.id,
+    });
+
     return NextResponse.json({ data: client });
   } catch (error) {
     console.error("Failed to update client:", error);
@@ -78,6 +89,16 @@ export async function DELETE(
     const client = await prisma.client.update({
       where: { id: params.id },
       data: { isActive: false },
+    });
+
+    logActivity({
+      domain: "mlc",
+      domainRefId: client.id,
+      module: "clients",
+      activityType: "archived",
+      title: "Archived client",
+      refType: "client",
+      refId: client.id,
     });
 
     return NextResponse.json({ data: client });

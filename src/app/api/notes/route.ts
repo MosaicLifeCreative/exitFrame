@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 const createNoteSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -66,6 +67,16 @@ export async function POST(request: NextRequest) {
         noteType: parsed.data.noteType || "general",
         isPinned: parsed.data.isPinned || false,
       },
+    });
+
+    logActivity({
+      domain: note.domain,
+      domainRefId: note.domainRefId ?? undefined,
+      module: "notes",
+      activityType: "created",
+      title: `Created note '${note.title}'`,
+      refType: "note",
+      refId: note.id,
     });
 
     return NextResponse.json({ data: note }, { status: 201 });

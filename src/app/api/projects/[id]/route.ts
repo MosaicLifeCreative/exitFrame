@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 const updateProjectSchema = z.object({
   name: z.string().min(1).optional(),
@@ -81,6 +82,16 @@ export async function PUT(
       data,
     });
 
+    logActivity({
+      domain: project.domain,
+      domainRefId: project.domainRefId ?? undefined,
+      module: "projects",
+      activityType: "updated",
+      title: "Updated project",
+      refType: "project",
+      refId: project.id,
+    });
+
     return NextResponse.json({ data: project });
   } catch (error) {
     console.error("Failed to update project:", error);
@@ -96,6 +107,16 @@ export async function DELETE(
     const project = await prisma.project.update({
       where: { id: params.id },
       data: { status: "archived" },
+    });
+
+    logActivity({
+      domain: project.domain,
+      domainRefId: project.domainRefId ?? undefined,
+      module: "projects",
+      activityType: "archived",
+      title: "Archived project",
+      refType: "project",
+      refId: project.id,
     });
 
     return NextResponse.json({ data: project });

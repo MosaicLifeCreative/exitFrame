@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 const createProductSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -52,6 +53,16 @@ export async function POST(request: NextRequest) {
           : undefined,
       },
       include: { modules: true },
+    });
+
+    logActivity({
+      domain: "product",
+      domainRefId: product.id,
+      module: "products",
+      activityType: "created",
+      title: `Created product '${product.name}'`,
+      refType: "product",
+      refId: product.id,
     });
 
     return NextResponse.json({ data: product }, { status: 201 });

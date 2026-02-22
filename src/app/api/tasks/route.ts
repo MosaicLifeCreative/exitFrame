@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 const createTaskSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -78,6 +79,16 @@ export async function POST(request: NextRequest) {
       include: {
         project: { select: { id: true, name: true, domain: true, domainRefId: true } },
       },
+    });
+
+    logActivity({
+      domain: task.project?.domain ?? "life",
+      domainRefId: task.project?.domainRefId ?? undefined,
+      module: "tasks",
+      activityType: "created",
+      title: `Created task '${task.title}'`,
+      refType: "task",
+      refId: task.id,
     });
 
     return NextResponse.json({ data: task }, { status: 201 });

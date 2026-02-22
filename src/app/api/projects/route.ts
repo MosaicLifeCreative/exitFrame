@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 const createProjectSchema = z.object({
   name: z.string().min(1, "Project name is required"),
@@ -71,6 +72,16 @@ export async function POST(request: NextRequest) {
         dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
         estimatedBudget: parsed.data.estimatedBudget ?? null,
       },
+    });
+
+    logActivity({
+      domain: project.domain,
+      domainRefId: project.domainRefId ?? undefined,
+      module: "projects",
+      activityType: "created",
+      title: `Created project '${project.name}'`,
+      refType: "project",
+      refId: project.id,
     });
 
     return NextResponse.json({ data: project }, { status: 201 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 const updateNoteSchema = z.object({
   title: z.string().min(1).optional(),
@@ -54,6 +55,16 @@ export async function PUT(
       data: parsed.data,
     });
 
+    logActivity({
+      domain: note.domain,
+      domainRefId: note.domainRefId ?? undefined,
+      module: "notes",
+      activityType: "updated",
+      title: "Updated note",
+      refType: "note",
+      refId: note.id,
+    });
+
     return NextResponse.json({ data: note });
   } catch (error) {
     console.error("Failed to update note:", error);
@@ -67,6 +78,16 @@ export async function DELETE(
 ) {
   try {
     await prisma.note.delete({ where: { id: params.id } });
+
+    logActivity({
+      domain: "life",
+      module: "notes",
+      activityType: "deleted",
+      title: "Deleted note",
+      refType: "note",
+      refId: params.id,
+    });
+
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {
     console.error("Failed to delete note:", error);

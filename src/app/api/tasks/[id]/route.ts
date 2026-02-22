@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 const updateTaskSchema = z.object({
   title: z.string().min(1).optional(),
@@ -67,6 +68,18 @@ export async function PUT(
       },
     });
 
+    if (parsed.data.status === "done") {
+      logActivity({
+        domain: task.project?.domain ?? "life",
+        domainRefId: task.project?.domainRefId ?? undefined,
+        module: "tasks",
+        activityType: "completed",
+        title: "Completed task",
+        refType: "task",
+        refId: task.id,
+      });
+    }
+
     return NextResponse.json({ data: task });
   } catch (error) {
     console.error("Failed to update task:", error);
@@ -80,6 +93,16 @@ export async function DELETE(
 ) {
   try {
     await prisma.task.delete({ where: { id: params.id } });
+
+    logActivity({
+      domain: "life",
+      module: "tasks",
+      activityType: "deleted",
+      title: "Deleted task",
+      refType: "task",
+      refId: params.id,
+    });
+
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {
     console.error("Failed to delete task:", error);

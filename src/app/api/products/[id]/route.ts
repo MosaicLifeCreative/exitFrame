@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 const updateProductSchema = z.object({
   name: z.string().min(1).optional(),
@@ -51,6 +52,16 @@ export async function PUT(
       include: { modules: true },
     });
 
+    logActivity({
+      domain: "product",
+      domainRefId: product.id,
+      module: "products",
+      activityType: "updated",
+      title: "Updated product",
+      refType: "product",
+      refId: product.id,
+    });
+
     return NextResponse.json({ data: product });
   } catch (error) {
     console.error("Failed to update product:", error);
@@ -66,6 +77,16 @@ export async function DELETE(
     const product = await prisma.product.update({
       where: { id: params.id },
       data: { isActive: false },
+    });
+
+    logActivity({
+      domain: "product",
+      domainRefId: product.id,
+      module: "products",
+      activityType: "archived",
+      title: "Archived product",
+      refType: "product",
+      refId: product.id,
     });
 
     return NextResponse.json({ data: product });

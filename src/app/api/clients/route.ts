@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity";
 
 const createClientSchema = z.object({
   name: z.string().min(1, "Business name is required"),
@@ -75,6 +76,16 @@ export async function POST(request: NextRequest) {
           : undefined,
       },
       include: { services: true },
+    });
+
+    logActivity({
+      domain: "mlc",
+      domainRefId: client.id,
+      module: "clients",
+      activityType: "created",
+      title: `Created client '${client.name}'`,
+      refType: "client",
+      refId: client.id,
     });
 
     return NextResponse.json({ data: client }, { status: 201 });

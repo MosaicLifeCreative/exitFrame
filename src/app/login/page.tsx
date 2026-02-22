@@ -47,7 +47,7 @@ export default function LoginPage() {
             ── Restricted Access Terminal ──
           </div>
           <h1 className="text-2xl font-mono font-light tracking-[0.3em] text-green-500/40 uppercase">
-            ExitFrame
+            exitFrame
           </h1>
           <div className="mt-2 h-px w-48 mx-auto bg-gradient-to-r from-transparent via-green-500/20 to-transparent" />
         </div>

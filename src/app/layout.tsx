@@ -3,7 +3,7 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ExitFrame",
+  title: "exitFrame",
   description: "Restricted Access Terminal",
 };
 

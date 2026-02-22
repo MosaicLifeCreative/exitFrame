@@ -68,7 +68,7 @@ export default function LoginPage() {
 
         {/* Login form */}
         <div
-          className={`transition-all duration-500 ${
+          className={`w-full transition-all duration-500 ${
             stage === "login"
               ? "opacity-100 translate-y-0"
               : "opacity-0 -translate-y-4 absolute pointer-events-none"
@@ -79,7 +79,7 @@ export default function LoginPage() {
 
         {/* TOTP form */}
         <div
-          className={`transition-all duration-500 ${
+          className={`w-full transition-all duration-500 ${
             stage === "totp"
               ? "opacity-100 translate-y-0"
               : stage === "granted"
@@ -92,7 +92,7 @@ export default function LoginPage() {
 
         {/* ACCESS GRANTED */}
         <div
-          className={`transition-all duration-500 ${
+          className={`w-full transition-all duration-500 ${
             stage === "granted"
               ? "opacity-100 scale-100"
               : "opacity-0 scale-90 absolute pointer-events-none"

@@ -135,7 +135,7 @@ export default function Sidebar() {
       <div className="h-14 flex items-center justify-between px-4 border-b border-sidebar-border">
         {!collapsed && (
           <span className="text-sm font-semibold text-sidebar-foreground tracking-wider">
-            MOSAIC
+            MOSAIC LIFE
           </span>
         )}
         <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -8,54 +8,94 @@ export default function SetupTOTPPage() {
   const [qrCode, setQrCode] = useState<string>("");
   const [secret, setSecret] = useState<string>("");
   const [factorId, setFactorId] = useState<string>("");
+  const [oldFactorIds, setOldFactorIds] = useState<string[]>([]);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    enrollTOTP();
-  }, []);
-
-  const enrollTOTP = async () => {
+  const enrollTOTP = useCallback(async () => {
     const supabase = createClient();
 
-    // Unenroll any existing TOTP factors first (supports re-enrollment)
-    const { data: factors } = await supabase.auth.mfa.listFactors();
-    if (factors?.totp) {
-      for (const factor of factors.totp) {
-        const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
-        if (unenrollError) {
-          console.warn("[setup-totp] Failed to unenroll existing factor:", unenrollError.message);
-        }
-      }
+    // Ensure we have a valid session before calling MFA methods
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.warn("[setup-totp] No valid session:", userError?.message);
+      setError("No active session. Redirecting to login...");
+      setTimeout(() => router.push("/login"), 1500);
+      return;
     }
 
-    const { data, error } = await supabase.auth.mfa.enroll({
+    // List existing TOTP factors — we'll unenroll them AFTER the new one is verified
+    const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+    if (listError) {
+      console.warn("[setup-totp] listFactors failed:", listError.message);
+      setError(listError.message);
+      setLoading(false);
+      return;
+    }
+
+    // Track existing factor IDs so we can unenroll after successful verification
+    const existingIds = factors?.totp?.map((f) => f.id) ?? [];
+    setOldFactorIds(existingIds);
+
+    // Enroll a new TOTP factor (keep old ones until new one is verified)
+    const { data, error: enrollError } = await supabase.auth.mfa.enroll({
       factorType: "totp",
       issuer: "exitFrame",
       friendlyName: "Authenticator App",
     });
 
-    if (error || !data) {
-      setError(error?.message || "Failed to initialize TOTP enrollment");
+    if (enrollError || !data) {
+      // If enroll fails because max factors reached, unenroll old ones first
+      if (enrollError?.message?.includes("exceeded") || enrollError?.message?.includes("maximum")) {
+        for (const id of existingIds) {
+          await supabase.auth.mfa.unenroll({ factorId: id });
+        }
+        setOldFactorIds([]);
+        // Retry enrollment
+        const { data: retryData, error: retryError } = await supabase.auth.mfa.enroll({
+          factorType: "totp",
+          issuer: "exitFrame",
+          friendlyName: "Authenticator App",
+        });
+        if (retryError || !retryData) {
+          setError(retryError?.message || "Failed to initialize TOTP enrollment");
+          setLoading(false);
+          return;
+        }
+        setQrCode(retryData.totp.qr_code);
+        setSecret(retryData.totp.secret);
+        setFactorId(retryData.id);
+        setLoading(false);
+        return;
+      }
+      setError(enrollError?.message || "Failed to initialize TOTP enrollment");
+      setLoading(false);
       return;
     }
 
     setQrCode(data.totp.qr_code);
     setSecret(data.totp.secret);
     setFactorId(data.id);
-  };
+    setLoading(false);
+  }, [router]);
+
+  useEffect(() => {
+    enrollTOTP();
+  }, [enrollTOTP]);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     const supabase = createClient();
 
     const { data: challengeData, error: challengeError } =
       await supabase.auth.mfa.challenge({ factorId });
 
     if (challengeError || !challengeData) {
-      setError("Challenge failed");
+      setError(challengeError?.message || "Challenge failed — try refreshing the page");
       return;
     }
 
@@ -68,6 +108,14 @@ export default function SetupTOTPPage() {
     if (verifyError) {
       setError("Invalid code. Try again.");
       return;
+    }
+
+    // Verification succeeded — unenroll any old factors
+    for (const oldId of oldFactorIds) {
+      const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: oldId });
+      if (unenrollError) {
+        console.warn("[setup-totp] Failed to unenroll old factor:", unenrollError.message);
+      }
     }
 
     setSuccess(true);
@@ -89,7 +137,14 @@ export default function SetupTOTPPage() {
           </p>
         </div>
 
-        {success ? (
+        {loading ? (
+          <div className="text-center space-y-4">
+            <div className="inline-block w-6 h-6 border-2 border-green-400/30 border-t-green-400 rounded-full animate-spin" />
+            <p className="text-xs font-mono text-green-500/40">
+              Initializing secure enrollment...
+            </p>
+          </div>
+        ) : success ? (
           <div className="text-center space-y-4">
             <div className="text-xl font-mono font-bold tracking-[0.3em] text-green-400 uppercase">
               TOTP Enrolled

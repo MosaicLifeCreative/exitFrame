@@ -112,8 +112,19 @@ export default function ClientDetailPage() {
     .join(" ");
 
   const activeServices = client.services.filter((s) => s.isActive);
+  const SERVICE_LABELS: Record<string, string> = {
+    wordpress: "WordPress",
+    ga4: "GA4",
+    social_meta: "Social / Meta",
+    sendy: "Sendy",
+    notes: "Notes",
+    projects: "Projects",
+    twilio_sms: "Twilio SMS",
+    gmb: "GMB",
+    content_calendar: "Content Calendar",
+  };
   const serviceLabel = (type: string) =>
-    type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    SERVICE_LABELS[type] ?? type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <div className="space-y-6">

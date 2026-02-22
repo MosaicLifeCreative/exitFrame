@@ -13,7 +13,6 @@ export async function middleware(request: NextRequest) {
     "/login",
     "/auth/callback",
     "/auth/verify-totp",
-    "/auth/setup-totp",
     "/api/auth/check-trust",
     "/api/health",
   ];
@@ -53,6 +52,15 @@ export async function middleware(request: NextRequest) {
 
   // --- Allow other public routes through ---
   if (isPublicRoute) {
+    return response;
+  }
+
+  // --- TOTP setup: requires login but not MFA verification ---
+  if (pathname === "/auth/setup-totp") {
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    // Allow through — user is authenticated, just needs to (re-)enroll TOTP
     return response;
   }
 

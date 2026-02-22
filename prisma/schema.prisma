@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User profile (extends Supabase Auth user)
+// Supabase Auth manages the actual auth — this stores app-level user preferences
+model UserProfile {
+  id          String   @id @default(uuid()) @db.Uuid
+  authUserId  String   @unique @map("auth_user_id")
+  displayName String   @map("display_name")
+  timezone    String   @default("America/New_York")
+  theme       String   @default("dark")
+  preferences Json?    @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("user_profiles")
+}
+
+// Integration registry — tracks all external service connections
+model Integration {
+  id          String    @id @default(uuid()) @db.Uuid
+  serviceName String    @map("service_name")
+  status      String    @default("inactive")
+  config      Json?     @default("{}")
+  credentials Json?     @default("{}")
+  lastSyncAt  DateTime? @map("last_sync_at")
+  lastError   String?   @map("last_error")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("integrations")
+}
+
+// Audit log — tracks sensitive actions across the system
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  action     String
+  module     String?
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id") @db.Uuid
+  details    Json?    @default("{}")
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}

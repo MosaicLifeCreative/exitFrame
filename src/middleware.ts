@@ -55,10 +55,12 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // --- TOTP setup: requires login but not MFA verification ---
-  if (pathname === "/auth/setup-totp") {
+  // --- TOTP setup + reset: requires login but not MFA verification ---
+  if (pathname === "/auth/setup-totp" || pathname === "/api/auth/reset-totp") {
     if (!user) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return pathname.startsWith("/api")
+        ? NextResponse.json({ error: "Not authenticated" }, { status: 401 })
+        : NextResponse.redirect(new URL("/login", request.url));
     }
     // Allow through — user is authenticated, just needs to (re-)enroll TOTP
     return response;

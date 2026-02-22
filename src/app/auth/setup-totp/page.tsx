@@ -8,7 +8,6 @@ export default function SetupTOTPPage() {
   const [qrCode, setQrCode] = useState<string>("");
   const [secret, setSecret] = useState<string>("");
   const [factorId, setFactorId] = useState<string>("");
-  const [oldFactorIds, setOldFactorIds] = useState<string[]>([]);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -27,29 +26,32 @@ export default function SetupTOTPPage() {
       return;
     }
 
-    // List existing factors — we can't unenroll at AAL1 (requires AAL2),
-    // so enroll with a unique name, then unenroll old ones AFTER verification
-    // promotes the session to AAL2.
-    const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
-    if (listError) {
-      console.warn("[setup-totp] listFactors failed:", listError.message);
-      setError(listError.message);
+    // Delete existing TOTP factors via server-side admin API
+    // (client-side unenroll/enroll both require AAL2 which we don't have)
+    try {
+      const resetRes = await fetch("/api/auth/reset-totp", { method: "POST" });
+      if (!resetRes.ok) {
+        const resetJson = await resetRes.json();
+        console.warn("[setup-totp] reset-totp failed:", resetJson.error);
+        setError(resetJson.error || "Failed to reset existing TOTP factors");
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("[setup-totp] reset-totp network error:", err);
+      setError("Failed to connect to server");
       setLoading(false);
       return;
     }
 
-    const existingIds = factors?.totp?.map((f) => f.id) ?? [];
-    setOldFactorIds(existingIds);
+    // Refresh the session so the client sees the factor removal
+    await supabase.auth.refreshSession();
 
-    // Use a unique friendly name to avoid "already exists" collision
-    const friendlyName = existingIds.length > 0
-      ? `Authenticator App ${Date.now()}`
-      : "Authenticator App";
-
+    // Now enroll a fresh TOTP factor (no existing factors = no AAL2 requirement)
     const { data, error: enrollError } = await supabase.auth.mfa.enroll({
       factorType: "totp",
       issuer: "exitFrame",
-      friendlyName,
+      friendlyName: "Authenticator App",
     });
 
     if (enrollError || !data) {
@@ -90,14 +92,6 @@ export default function SetupTOTPPage() {
     if (verifyError) {
       setError("Invalid code. Try again.");
       return;
-    }
-
-    // Verification succeeded — session is now AAL2, so we can unenroll old factors
-    for (const oldId of oldFactorIds) {
-      const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: oldId });
-      if (unenrollError) {
-        console.warn("[setup-totp] Failed to unenroll old factor:", oldId, unenrollError.message);
-      }
     }
 
     setSuccess(true);

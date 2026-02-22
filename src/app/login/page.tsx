@@ -54,7 +54,7 @@ export default function LoginPage() {
       />
 
       {/* Main content */}
-      <div className="relative z-10 flex flex-col items-center px-4">
+      <div className="relative z-10 w-full max-w-lg flex flex-col items-center px-4">
         {/* Classification header */}
         <div className="mb-12 text-center">
           <div className="text-[10px] font-mono uppercase tracking-[0.5em] text-green-500/20 mb-4">

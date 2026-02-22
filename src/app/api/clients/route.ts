@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: clients });
   } catch (error) {
     console.error("Failed to list clients:", error);
-    return NextResponse.json({ error: "Failed to list clients" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: `Failed to list clients: ${msg}` }, { status: 500 });
   }
 }
 
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: client }, { status: 201 });
   } catch (error) {
     console.error("Failed to create client:", error);
-    return NextResponse.json({ error: "Failed to create client" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: `Failed to create client: ${msg}` }, { status: 500 });
   }
 }

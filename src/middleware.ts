@@ -15,6 +15,7 @@ export async function middleware(request: NextRequest) {
     "/auth/verify-totp",
     "/auth/setup-totp",
     "/api/auth/check-trust",
+    "/api/health",
   ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 

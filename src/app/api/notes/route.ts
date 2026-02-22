@@ -5,7 +5,7 @@ import { logActivity } from "@/lib/activity";
 
 const createNoteSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  content: z.string().min(1, "Content is required"),
+  content: z.string().default(""),
   domain: z.enum(["life", "mlc", "product"]),
   domainRefId: z.string().uuid().nullable().optional(),
   noteType: z.enum(["general", "meeting_notes", "reference", "checklist"]).optional(),

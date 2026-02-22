@@ -5,6 +5,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import MainContent from "@/components/layout/MainContent";
 import CommandPalette from "@/components/layout/CommandPalette";
+import { TimeTrackingProvider } from "@/components/providers/TimeTrackingProvider";
 
 export default function DashboardLayout({
   children,
@@ -14,16 +15,18 @@ export default function DashboardLayout({
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      <Header onCommandPalette={() => setCommandPaletteOpen(true)} />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <MainContent>{children}</MainContent>
+    <TimeTrackingProvider>
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header onCommandPalette={() => setCommandPaletteOpen(true)} />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar />
+          <MainContent>{children}</MainContent>
+        </div>
+        <CommandPalette
+          open={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+        />
       </div>
-      <CommandPalette
-        open={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-      />
-    </div>
+    </TimeTrackingProvider>
   );
 }

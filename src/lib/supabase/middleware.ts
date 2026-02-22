@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import type { AuthMFAGetAuthenticatorAssuranceLevelResponse } from "@supabase/supabase-js";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
@@ -42,5 +43,12 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { response, user };
+  // Check MFA assurance level
+  let aal: AuthMFAGetAuthenticatorAssuranceLevelResponse["data"] = null;
+  if (user) {
+    const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    aal = data;
+  }
+
+  return { response, user, aal };
 }

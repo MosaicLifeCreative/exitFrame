@@ -43,13 +43,14 @@ export default function LoginForm({
         </label>
         <input
           id="email"
+          name="email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="terminal-input w-full h-11 px-4 rounded-none text-sm tracking-wider"
           placeholder="enter credentials"
           required
-          autoComplete="email"
+          autoComplete="username"
           autoFocus
         />
       </div>
@@ -63,6 +64,7 @@ export default function LoginForm({
         </label>
         <input
           id="password"
+          name="password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

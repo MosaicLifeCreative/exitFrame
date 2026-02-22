@@ -78,7 +78,7 @@ src/
 │   ├── layout/       # Sidebar, Header, MainContent
 │   └── [module]/     # Module-specific components (auth/, health/, projects/, etc.)
 ├── lib/              # Shared utilities
-│   ├── supabase/     # Supabase client configs
+│   ├── supabase/     # Supabase client configs (client.ts, server.ts, admin.ts, middleware.ts)
 │   ├── prisma.ts     # Prisma client singleton
 │   ├── redis.ts      # Upstash Redis client
 │   ├── trustedDevice.ts # Trusted device constants + SHA-256 hash utility
@@ -95,6 +95,8 @@ src/
 - **No secrets on the client:** `NEXT_PUBLIC_` prefix only for Supabase URL and anon key. Everything else stays server-side.
 - **Middleware protects routes:** The Next.js middleware checks auth for all `/dashboard/*` routes. Individual API routes don't need to re-check. Middleware also checks trusted device cookies (via Redis) to allow AAL1 sessions through without TOTP.
 - **Trusted device flow:** After TOTP verification, user can check "Trust this browser". A random token is set as an httpOnly cookie, its SHA-256 hash stored in Redis with 90-day TTL. Middleware accepts valid trusted device cookies as equivalent to AAL2. `/api/auth/check-trust` is exempt from MFA checks so the login page can detect trust before showing TOTP.
+- **Supabase admin client:** `src/lib/supabase/admin.ts` uses `SUPABASE_SERVICE_ROLE_KEY` for server-only admin operations (e.g., deleting MFA factors). Never import in client components.
+- **MFA admin operations:** Supabase MFA methods (enroll, unenroll) require AAL2 when existing factors are present. Trusted device bypass is middleware-level only — the client-side Supabase session remains AAL1. Use the admin API via `/api/auth/reset-totp` for factor management.
 
 ## Design Principles
 

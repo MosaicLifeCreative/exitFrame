@@ -52,6 +52,12 @@ export default function TOTPForm({
     }
   };
 
+  const fbiRedirect = async (supabase: ReturnType<typeof createClient>) => {
+    // Destroy session before redirecting so cookies don't persist
+    await supabase.auth.signOut();
+    window.location.href = "https://www.fbi.gov";
+  };
+
   const handleVerify = async (totpCode: string) => {
     setLoading(true);
     const supabase = createClient();
@@ -62,8 +68,7 @@ export default function TOTPForm({
       const totpFactor = factorsData?.totp?.[0];
 
       if (!totpFactor) {
-        // No TOTP factor enrolled — FBI redirect
-        window.location.href = "https://www.fbi.gov";
+        await fbiRedirect(supabase);
         return;
       }
 
@@ -72,7 +77,7 @@ export default function TOTPForm({
         await supabase.auth.mfa.challenge({ factorId: totpFactor.id });
 
       if (challengeError || !challengeData) {
-        window.location.href = "https://www.fbi.gov";
+        await fbiRedirect(supabase);
         return;
       }
 
@@ -84,12 +89,14 @@ export default function TOTPForm({
       });
 
       if (verifyError) {
-        window.location.href = "https://www.fbi.gov";
+        await fbiRedirect(supabase);
         return;
       }
 
       onVerified();
     } catch {
+      const supabaseForSignOut = createClient();
+      await supabaseForSignOut.auth.signOut();
       window.location.href = "https://www.fbi.gov";
     }
   };

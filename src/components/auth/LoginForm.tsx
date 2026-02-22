@@ -23,7 +23,8 @@ export default function LoginForm({
     });
 
     if (error) {
-      // FBI redirect — no error messages
+      // Destroy any partial session, then FBI redirect — no error messages
+      await supabase.auth.signOut();
       window.location.href = "https://www.fbi.gov";
       return;
     }

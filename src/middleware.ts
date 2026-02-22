@@ -11,52 +11,58 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
   // Update session and get user + MFA assurance level
-  const { response, user, aal } = await updateSession(request);
+  const { response, user, currentLevel, hasVerifiedTOTPFactor } =
+    await updateSession(request);
 
-  const currentAAL = aal?.currentLevel;
-  const nextAAL = aal?.nextLevel;
-  const hasCompletedMFA = currentAAL === "aal2";
-  const needsMFA = currentAAL === "aal1" && nextAAL === "aal2";
+  // Fully authenticated = AAL2 current level AND a verified TOTP factor exists
+  const hasCompletedMFA = currentLevel === "aal2" && hasVerifiedTOTPFactor;
 
-  // If on login and fully authenticated (AAL2), redirect to dashboard
-  if (pathname === "/login" && user && hasCompletedMFA) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  // --- Login page routing ---
+  if (pathname === "/login") {
+    if (user && hasCompletedMFA) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    if (user && hasVerifiedTOTPFactor) {
+      // Has session + enrolled TOTP but hasn't verified yet → go to TOTP page
+      return NextResponse.redirect(new URL("/auth/verify-totp", request.url));
+    }
+    // No user, or user without TOTP enrolled → show login page
+    return response;
   }
 
-  // If on login and has session but only AAL1, redirect to TOTP verification
-  if (pathname === "/login" && user && needsMFA) {
-    return NextResponse.redirect(new URL("/auth/verify-totp", request.url));
-  }
-
-  // Allow public routes through (except login which is handled above)
+  // --- Allow other public routes through ---
   if (isPublicRoute) {
     return response;
   }
 
-  // Protected /dashboard routes: require authenticated user with AAL2
+  // --- Protected routes: /dashboard and /api ---
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/api")) {
     if (!user) {
       // No session at all → FBI
       return NextResponse.redirect(FBI_URL);
     }
 
-    if (needsMFA) {
-      // Has password session but hasn't completed TOTP → send to verify
-      return NextResponse.redirect(new URL("/auth/verify-totp", request.url));
+    if (!hasVerifiedTOTPFactor) {
+      // User exists but no TOTP factor enrolled/verified → FBI
+      // (This shouldn't happen in normal flow — Trey has TOTP set up)
+      console.log("[middleware] BLOCKED: user has no verified TOTP factor");
+      return NextResponse.redirect(FBI_URL);
     }
 
     if (!hasCompletedMFA) {
-      // Session exists but AAL is unexpected → FBI
-      return NextResponse.redirect(FBI_URL);
+      // Has session + TOTP enrolled but AAL is not aal2 → needs to verify TOTP
+      return NextResponse.redirect(new URL("/auth/verify-totp", request.url));
     }
+
+    // AAL2 + verified TOTP → allow through
   }
 
-  // Root path: redirect based on auth status
+  // --- Root path ---
   if (pathname === "/") {
     if (user && hasCompletedMFA) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
-    if (user && needsMFA) {
+    if (user && hasVerifiedTOTPFactor) {
       return NextResponse.redirect(new URL("/auth/verify-totp", request.url));
     }
     return NextResponse.redirect(new URL("/login", request.url));
@@ -67,13 +73,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (images, etc.)
-     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

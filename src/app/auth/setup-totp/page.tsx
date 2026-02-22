@@ -24,7 +24,10 @@ export default function SetupTOTPPage() {
     const { data: factors } = await supabase.auth.mfa.listFactors();
     if (factors?.totp) {
       for (const factor of factors.totp) {
-        await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        if (unenrollError) {
+          console.warn("[setup-totp] Failed to unenroll existing factor:", unenrollError.message);
+        }
       }
     }
 
@@ -35,7 +38,7 @@ export default function SetupTOTPPage() {
     });
 
     if (error || !data) {
-      setError("Failed to initialize TOTP enrollment");
+      setError(error?.message || "Failed to initialize TOTP enrollment");
       return;
     }
 

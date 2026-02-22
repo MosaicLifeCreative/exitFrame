@@ -6,8 +6,8 @@ const heartbeatSchema = z.object({
   route: z.string(),
   module: z.string(),
   domain: z.string(),
-  clientId: z.string().uuid().nullable().optional(),
-  projectId: z.string().uuid().nullable().optional(),
+  clientId: z.string().nullable().optional(),
+  projectId: z.string().nullable().optional(),
   activityDescription: z.string(),
 });
 

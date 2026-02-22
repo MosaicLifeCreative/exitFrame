@@ -97,6 +97,12 @@ const navSections: NavSection[] = [
       { label: "ClickUp Import", href: "/dashboard/import/clickup", icon: Upload },
     ],
   },
+  {
+    title: "System",
+    items: [
+      { label: "System Health", href: "/dashboard/system-health", icon: Activity },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -107,6 +113,7 @@ export default function Sidebar() {
     MLC: true,
     Products: true,
     Tools: false,
+    System: false,
   });
   const pathname = usePathname();
 

@@ -40,6 +40,7 @@ export default function OnboardingRunsPage() {
         const res = await fetch("/api/onboarding/runs");
         const json = await res.json();
         if (res.ok) setRuns(json.data);
+        else toast.error(json.error || "Failed to load runs");
       } catch {
         toast.error("Failed to load runs");
       } finally {
@@ -101,17 +102,21 @@ export default function OnboardingRunsPage() {
               return (
                 <TableRow key={run.id}>
                   <TableCell className="font-medium">
-                    {run.template.name}
+                    {run.template?.name ?? "Deleted template"}
                   </TableCell>
                   <TableCell>
-                    <button
-                      className="text-primary hover:underline"
-                      onClick={() =>
-                        router.push(`/dashboard/clients/${run.client.id}`)
-                      }
-                    >
-                      {run.client.name}
-                    </button>
+                    {run.client ? (
+                      <button
+                        className="text-primary hover:underline"
+                        onClick={() =>
+                          router.push(`/dashboard/clients/${run.client.id}`)
+                        }
+                      >
+                        {run.client.name}
+                      </button>
+                    ) : (
+                      <span className="text-muted-foreground">Deleted client</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge

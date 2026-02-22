@@ -22,7 +22,10 @@ export async function GET(
     const project = await prisma.project.findUnique({
       where: { id: params.id },
       include: {
-        phases: { orderBy: { sortOrder: "asc" } },
+        phases: {
+          orderBy: { sortOrder: "asc" },
+          include: { _count: { select: { tasks: true } } },
+        },
         tasks: { orderBy: { sortOrder: "asc" } },
         _count: { select: { tasks: true, phases: true } },
       },

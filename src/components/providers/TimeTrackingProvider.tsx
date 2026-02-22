@@ -3,6 +3,8 @@
 import { useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function parseRoute(pathname: string) {
   const parts = pathname.split("/").filter(Boolean);
   // /dashboard/clients/[id]/notes → module: "notes", domain: "mlc"
@@ -18,8 +20,8 @@ function parseRoute(pathname: string) {
     moduleName = parts[1]; // clients, products, projects, tasks, notes, etc.
   }
 
-  // Detect client context
-  if (parts[1] === "clients" && parts[2]) {
+  // Detect client context — only set clientId if it's actually a UUID
+  if (parts[1] === "clients" && parts[2] && UUID_RE.test(parts[2])) {
     domain = "mlc";
     clientId = parts[2];
     if (parts[3]) moduleName = parts[3]; // sub-tab like "notes", "tasks"

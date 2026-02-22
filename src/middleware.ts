@@ -1,4 +1,6 @@
 import { updateSession } from "@/lib/supabase/middleware";
+import { redis } from "@/lib/redis";
+import { COOKIE_NAME, REDIS_PREFIX, hashToken } from "@/lib/trustedDevice";
 import { NextResponse, type NextRequest } from "next/server";
 
 const FBI_URL = "https://www.fbi.gov";
@@ -7,7 +9,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't need auth
-  const publicRoutes = ["/login", "/auth/callback", "/auth/verify-totp", "/auth/setup-totp"];
+  const publicRoutes = [
+    "/login",
+    "/auth/callback",
+    "/auth/verify-totp",
+    "/auth/setup-totp",
+    "/api/auth/check-trust",
+  ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
   // Update session and get user + MFA assurance level
@@ -17,9 +25,21 @@ export async function middleware(request: NextRequest) {
   // Fully authenticated = AAL2 current level AND a verified TOTP factor exists
   const hasCompletedMFA = currentLevel === "aal2" && hasVerifiedTOTPFactor;
 
+  // Check trusted device cookie if user is logged in but hasn't completed MFA
+  let isTrusted = false;
+  if (user && hasVerifiedTOTPFactor && !hasCompletedMFA) {
+    const token = request.cookies.get(COOKIE_NAME)?.value;
+    if (token) {
+      const hash = await hashToken(token);
+      isTrusted = (await redis.exists(`${REDIS_PREFIX}${hash}`)) === 1;
+    }
+  }
+
+  const isFullyAuthenticated = hasCompletedMFA || isTrusted;
+
   // --- Login page routing ---
   if (pathname === "/login") {
-    if (user && hasCompletedMFA) {
+    if (user && isFullyAuthenticated) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
     if (user && hasVerifiedTOTPFactor) {
@@ -49,17 +69,17 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(FBI_URL);
     }
 
-    if (!hasCompletedMFA) {
-      // Has session + TOTP enrolled but AAL is not aal2 → needs to verify TOTP
+    if (!isFullyAuthenticated) {
+      // Has session + TOTP enrolled but not AAL2 and not trusted → needs to verify TOTP
       return NextResponse.redirect(new URL("/auth/verify-totp", request.url));
     }
 
-    // AAL2 + verified TOTP → allow through
+    // AAL2 or trusted device → allow through
   }
 
   // --- Root path ---
   if (pathname === "/") {
-    if (user && hasCompletedMFA) {
+    if (user && isFullyAuthenticated) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
     if (user && hasVerifiedTOTPFactor) {

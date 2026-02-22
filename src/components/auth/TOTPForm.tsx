@@ -10,6 +10,7 @@ export default function TOTPForm({
 }) {
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
+  const [trustBrowser, setTrustBrowser] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
@@ -93,6 +94,11 @@ export default function TOTPForm({
         return;
       }
 
+      // Register trusted device if checkbox was checked
+      if (trustBrowser) {
+        await fetch("/api/auth/trust-device", { method: "POST" });
+      }
+
       onVerified();
     } catch {
       const supabaseForSignOut = createClient();
@@ -134,6 +140,31 @@ export default function TOTPForm({
           />
         ))}
       </div>
+
+      {!loading && (
+        <label className="flex items-center justify-center gap-2 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={trustBrowser}
+            onChange={(e) => setTrustBrowser(e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-4 h-4 border border-green-500/30 rounded-none
+            peer-checked:bg-green-500/20 peer-checked:border-green-500/60
+            group-hover:border-green-500/50 transition-all duration-200
+            flex items-center justify-center">
+            {trustBrowser && (
+              <svg className="w-3 h-3 text-green-400" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+          <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-green-500/40
+            group-hover:text-green-500/60 transition-colors duration-200">
+            Trust this browser
+          </span>
+        </label>
+      )}
 
       {loading && (
         <div className="flex items-center justify-center gap-2 text-green-400/60 font-mono text-sm">

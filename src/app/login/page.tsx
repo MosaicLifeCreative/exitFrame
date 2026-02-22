@@ -11,7 +11,21 @@ export default function LoginPage() {
   const [stage, setStage] = useState<AuthStage>("login");
   const router = useRouter();
 
-  const handleAuthenticated = () => {
+  const handleAuthenticated = async () => {
+    // Check if this device is already trusted (skip TOTP)
+    try {
+      const res = await fetch("/api/auth/check-trust");
+      const { data } = await res.json();
+      if (data?.trusted) {
+        setStage("granted");
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 1500);
+        return;
+      }
+    } catch {
+      // If check fails, fall through to TOTP
+    }
     setStage("totp");
   };
 

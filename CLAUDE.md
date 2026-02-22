@@ -4,7 +4,7 @@
 
 Single-user command center for Trey (Mosaic Life Creative). Manages personal life (health, fitness, diet, finances, goals, custom trackers) and MLC business operations (WordPress agency, client management, analytics, content calendars, event pipeline). Replaces ClickUp, Trello, Airtable, Mealime, and Zapier.
 
-**Only one user ever logs in.** There is no multi-tenancy, no user management, no sign-up flow. Auth is email/password + TOTP 2FA. Failed auth redirects to fbi.gov.
+**Only one user ever logs in.** There is no multi-tenancy, no user management, no sign-up flow. Auth is email/password + TOTP 2FA. Failed auth redirects to fbi.gov. Trusted device support allows skipping TOTP on recognized browsers (cookie + Redis hash, 90-day TTL).
 
 ## Tech Stack
 
@@ -81,6 +81,7 @@ src/
 │   ├── supabase/     # Supabase client configs
 │   ├── prisma.ts     # Prisma client singleton
 │   ├── redis.ts      # Upstash Redis client
+│   ├── trustedDevice.ts # Trusted device constants + SHA-256 hash utility
 │   └── utils.ts      # General utilities (cn, formatters, etc.)
 ├── middleware.ts      # Next.js middleware (auth gating)
 └── styles/
@@ -92,7 +93,8 @@ src/
 - **API-first:** All data access goes through API routes. Components fetch from `/api/*`, never import Prisma directly in client components. This ensures the future Android app can use the same endpoints.
 - **Server components by default:** Use Next.js server components where possible. Only use `"use client"` when the component needs interactivity (forms, state, event handlers).
 - **No secrets on the client:** `NEXT_PUBLIC_` prefix only for Supabase URL and anon key. Everything else stays server-side.
-- **Middleware protects routes:** The Next.js middleware checks auth for all `/dashboard/*` routes. Individual API routes don't need to re-check.
+- **Middleware protects routes:** The Next.js middleware checks auth for all `/dashboard/*` routes. Individual API routes don't need to re-check. Middleware also checks trusted device cookies (via Redis) to allow AAL1 sessions through without TOTP.
+- **Trusted device flow:** After TOTP verification, user can check "Trust this browser". A random token is set as an httpOnly cookie, its SHA-256 hash stored in Redis with 90-day TTL. Middleware accepts valid trusted device cookies as equivalent to AAL2. `/api/auth/check-trust` is exempt from MFA checks so the login page can detect trust before showing TOTP.
 
 ## Design Principles
 

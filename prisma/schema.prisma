@@ -51,3 +51,278 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+
+// ============================================
+// CLIENTS & PRODUCTS
+// ============================================
+
+model Client {
+  id               String    @id @default(uuid()) @db.Uuid
+  name             String
+  contactFirstName String?   @map("contact_first_name")
+  contactLastName  String?   @map("contact_last_name")
+  contactEmail     String?   @map("contact_email")
+  contactPhone     String?   @map("contact_phone")
+  domain           String?
+  address          String?   @db.Text
+  notes            String?   @db.Text
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  services       ClientService[]
+  timeEntries    TimeEntry[]
+  onboardingRuns OnboardingRun[]
+
+  @@map("clients")
+}
+
+model ClientService {
+  id          String   @id @default(uuid()) @db.Uuid
+  clientId    String   @map("client_id") @db.Uuid
+  serviceType String   @map("service_type")
+  config      Json?    @default("{}")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_services")
+}
+
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  domain      String?
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  modules ProductModule[]
+
+  @@map("products")
+}
+
+model ProductModule {
+  id         String   @id @default(uuid()) @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  moduleType String   @map("module_type")
+  config     Json?    @default("{}")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_modules")
+}
+
+
+// ============================================
+// PROJECTS & TASKS
+// ============================================
+
+model Project {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String
+  description     String?   @db.Text
+  domain          String    // "life", "mlc", "product"
+  domainRefId     String?   @map("domain_ref_id") @db.Uuid
+  projectType     String    @map("project_type") @default("general")
+  status          String    @default("active")
+  priority        String    @default("medium")
+  dueDate         DateTime? @map("due_date")
+  estimatedBudget Decimal?  @map("estimated_budget") @db.Decimal(10, 2)
+  actualSpent     Decimal?  @map("actual_spent") @db.Decimal(10, 2)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // AI Project Manager fields — included in schema but NOT used until Phase 4
+  aiManaged      Boolean @default(false) @map("ai_managed")
+  aiProjectPlan  Json?   @map("ai_project_plan")
+  currentPhaseId String? @map("current_phase_id") @db.Uuid
+
+  tasks  Task[]
+  phases ProjectPhase[]
+
+  // Polymorphic: domainRefId points to Client (domain="mlc") or Product (domain="product")
+  // No FK constraint — resolved at the application layer based on domain field
+
+  @@map("projects")
+}
+
+model ProjectPhase {
+  id                    String    @id @default(uuid()) @db.Uuid
+  projectId             String    @map("project_id") @db.Uuid
+  name                  String
+  description           String?   @db.Text
+  status                String    @default("not_started")
+  sortOrder             Int       @map("sort_order")
+  dependsOnPhaseId      String?   @map("depends_on_phase_id") @db.Uuid
+  estimatedDurationDays Int?      @map("estimated_duration_days")
+  startedAt             DateTime? @map("started_at")
+  completedAt           DateTime? @map("completed_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  // AI fields — NOT used until Phase 4
+  aiGuidance String? @map("ai_guidance") @db.Text
+  aiTips     String? @map("ai_tips") @db.Text
+
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks        Task[]
+  dependsOn    ProjectPhase?  @relation("PhaseDependency", fields: [dependsOnPhaseId], references: [id])
+  dependedOnBy ProjectPhase[] @relation("PhaseDependency")
+
+  @@map("project_phases")
+}
+
+model Task {
+  id              String    @id @default(uuid()) @db.Uuid
+  projectId       String?   @map("project_id") @db.Uuid
+  phaseId         String?   @map("phase_id") @db.Uuid
+  title           String
+  description     String?   @db.Text
+  status          String    @default("todo")
+  priority        String    @default("medium")
+  dueDate         DateTime? @map("due_date")
+  sortOrder       Int       @default(0) @map("sort_order")
+  dependsOnTaskId String?   @map("depends_on_task_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  phase        ProjectPhase? @relation(fields: [phaseId], references: [id])
+  dependsOn    Task?         @relation("TaskDependency", fields: [dependsOnTaskId], references: [id])
+  dependedOnBy Task[]        @relation("TaskDependency")
+
+  @@map("tasks")
+}
+
+
+// ============================================
+// NOTES
+// ============================================
+
+model Note {
+  id                String    @id @default(uuid()) @db.Uuid
+  domain            String    // "life", "mlc", "product"
+  domainRefId       String?   @map("domain_ref_id") @db.Uuid
+  noteType          String    @map("note_type") @default("general")
+  title             String
+  content           String    @db.Text
+  isPinned          Boolean   @default(false) @map("is_pinned")
+  hasPendingActions Boolean   @default(false) @map("has_pending_actions")
+  importedFrom      String?   @map("imported_from")
+  importedAt        DateTime? @map("imported_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  actions NoteAction[]
+
+  // Polymorphic: domainRefId points to Client (domain="mlc") or Product (domain="product")
+  // No FK constraint — resolved at the application layer based on domain field
+
+  @@map("notes")
+}
+
+model NoteAction {
+  id                  String   @id @default(uuid()) @db.Uuid
+  noteId              String   @map("note_id") @db.Uuid
+  clientId            String?  @map("client_id") @db.Uuid
+  detectedText        String   @map("detected_text") @db.Text
+  suggestedActionType String   @map("suggested_action_type")
+  suggestedActionData Json?    @map("suggested_action_data")
+  status              String   @default("pending")
+  executedRefType     String?  @map("executed_ref_type")
+  executedRefId       String?  @map("executed_ref_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@map("note_actions")
+}
+
+
+// ============================================
+// PASSIVE TIME TRACKING
+// ============================================
+
+model TimeEntry {
+  id                  String    @id @default(uuid()) @db.Uuid
+  clientId            String?   @map("client_id") @db.Uuid
+  projectId           String?   @map("project_id") @db.Uuid
+  domain              String
+  module              String
+  activityDescription String    @map("activity_description")
+  startedAt           DateTime  @map("started_at")
+  endedAt             DateTime? @map("ended_at")
+  durationMinutes     Int?      @map("duration_minutes")
+  source              String    @default("auto")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  client Client? @relation(fields: [clientId], references: [id])
+
+  @@map("time_entries")
+}
+
+
+// ============================================
+// CLIENT ONBOARDING
+// ============================================
+
+model OnboardingTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  description String?  @db.Text
+  steps       Json
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  runs OnboardingRun[]
+
+  @@map("onboarding_templates")
+}
+
+model OnboardingRun {
+  id             String    @id @default(uuid()) @db.Uuid
+  templateId     String    @map("template_id") @db.Uuid
+  clientId       String    @map("client_id") @db.Uuid
+  status         String    @default("in_progress")
+  stepsCompleted Json?     @map("steps_completed") @default("[]")
+  startedAt      DateTime  @map("started_at") @default(now())
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  template OnboardingTemplate @relation(fields: [templateId], references: [id])
+  client   Client              @relation(fields: [clientId], references: [id])
+
+  @@map("onboarding_runs")
+}
+
+
+// ============================================
+// ACTIVITY FEED
+// ============================================
+
+model ActivityEntry {
+  id           String   @id @default(uuid()) @db.Uuid
+  domain       String
+  domainRefId  String?  @map("domain_ref_id") @db.Uuid
+  module       String
+  activityType String   @map("activity_type")
+  title        String
+  description  String?  @db.Text
+  refType      String?  @map("ref_type")
+  refId        String?  @map("ref_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("activity_entries")
+}

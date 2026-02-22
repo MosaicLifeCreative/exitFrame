@@ -8,7 +8,6 @@ export default function SetupTOTPPage() {
   const [qrCode, setQrCode] = useState<string>("");
   const [secret, setSecret] = useState<string>("");
   const [factorId, setFactorId] = useState<string>("");
-  const [oldFactorIds, setOldFactorIds] = useState<string[]>([]);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -27,7 +26,7 @@ export default function SetupTOTPPage() {
       return;
     }
 
-    // List existing TOTP factors — we'll unenroll them AFTER the new one is verified
+    // Unenroll ALL existing TOTP factors first (Supabase rejects duplicate friendly names)
     const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
     if (listError) {
       console.warn("[setup-totp] listFactors failed:", listError.message);
@@ -36,11 +35,16 @@ export default function SetupTOTPPage() {
       return;
     }
 
-    // Track existing factor IDs so we can unenroll after successful verification
-    const existingIds = factors?.totp?.map((f) => f.id) ?? [];
-    setOldFactorIds(existingIds);
+    if (factors?.totp && factors.totp.length > 0) {
+      for (const factor of factors.totp) {
+        const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        if (unenrollError) {
+          console.warn("[setup-totp] Failed to unenroll factor:", factor.id, unenrollError.message);
+        }
+      }
+    }
 
-    // Enroll a new TOTP factor (keep old ones until new one is verified)
+    // Now enroll a fresh TOTP factor
     const { data, error: enrollError } = await supabase.auth.mfa.enroll({
       factorType: "totp",
       issuer: "exitFrame",
@@ -48,29 +52,6 @@ export default function SetupTOTPPage() {
     });
 
     if (enrollError || !data) {
-      // If enroll fails because max factors reached, unenroll old ones first
-      if (enrollError?.message?.includes("exceeded") || enrollError?.message?.includes("maximum")) {
-        for (const id of existingIds) {
-          await supabase.auth.mfa.unenroll({ factorId: id });
-        }
-        setOldFactorIds([]);
-        // Retry enrollment
-        const { data: retryData, error: retryError } = await supabase.auth.mfa.enroll({
-          factorType: "totp",
-          issuer: "exitFrame",
-          friendlyName: "Authenticator App",
-        });
-        if (retryError || !retryData) {
-          setError(retryError?.message || "Failed to initialize TOTP enrollment");
-          setLoading(false);
-          return;
-        }
-        setQrCode(retryData.totp.qr_code);
-        setSecret(retryData.totp.secret);
-        setFactorId(retryData.id);
-        setLoading(false);
-        return;
-      }
       setError(enrollError?.message || "Failed to initialize TOTP enrollment");
       setLoading(false);
       return;
@@ -108,14 +89,6 @@ export default function SetupTOTPPage() {
     if (verifyError) {
       setError("Invalid code. Try again.");
       return;
-    }
-
-    // Verification succeeded — unenroll any old factors
-    for (const oldId of oldFactorIds) {
-      const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: oldId });
-      if (unenrollError) {
-        console.warn("[setup-totp] Failed to unenroll old factor:", unenrollError.message);
-      }
     }
 
     setSuccess(true);
@@ -195,9 +168,11 @@ export default function SetupTOTPPage() {
 
               <button
                 type="submit"
+                disabled={!factorId}
                 className="w-full h-11 bg-green-500/10 border border-green-500/30 text-green-400
                   font-mono text-sm uppercase tracking-[0.2em] rounded-none
                   hover:bg-green-500/20 hover:border-green-500/50
+                  disabled:opacity-50 disabled:cursor-not-allowed
                   transition-all duration-300"
               >
                 Verify & Enroll

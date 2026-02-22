@@ -33,7 +33,7 @@ export default function LoginForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-md">
+    <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-lg">
       <div className="space-y-2">
         <label
           htmlFor="email"

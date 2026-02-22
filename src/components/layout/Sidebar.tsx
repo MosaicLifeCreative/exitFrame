@@ -23,12 +23,16 @@ import {
   MessageSquare,
   Zap,
   ShoppingBag,
-  Shirt,
-  Briefcase,
-  MapPin,
   ChevronLeft,
   ChevronDown,
   ChevronRight,
+  Activity,
+  FolderOpen,
+  CheckSquare,
+  Clock,
+  StickyNote,
+  ClipboardList,
+  Upload,
 } from "lucide-react";
 
 type NavItem = {
@@ -44,9 +48,19 @@ type NavSection = {
 
 const navSections: NavSection[] = [
   {
-    title: "Life",
+    title: "Command Center",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Activity Feed", href: "/dashboard/activity", icon: Activity },
+      { label: "All Projects", href: "/dashboard/projects", icon: FolderOpen },
+      { label: "All Tasks", href: "/dashboard/tasks", icon: CheckSquare },
+      { label: "All Notes", href: "/dashboard/notes", icon: StickyNote },
+      { label: "Time Report", href: "/dashboard/time", icon: Clock },
+    ],
+  },
+  {
+    title: "Life",
+    items: [
       { label: "Health", href: "/dashboard/health", icon: Heart },
       { label: "Fitness", href: "/dashboard/fitness", icon: Dumbbell },
       { label: "Diet", href: "/dashboard/diet", icon: UtensilsCrossed },
@@ -62,6 +76,7 @@ const navSections: NavSection[] = [
     title: "MLC",
     items: [
       { label: "Clients", href: "/dashboard/clients", icon: Users },
+      { label: "Onboarding", href: "/dashboard/onboarding", icon: ClipboardList },
       { label: "WordPress", href: "/dashboard/wordpress", icon: Globe },
       { label: "Content", href: "/dashboard/content", icon: FileText },
       { label: "Analytics", href: "/dashboard/analytics", icon: TrendingUp },
@@ -73,10 +88,13 @@ const navSections: NavSection[] = [
   {
     title: "Products",
     items: [
-      { label: "GetShelfed", href: "/dashboard/getshelfed", icon: ShoppingBag },
-      { label: "ManlyMan", href: "/dashboard/manlyman", icon: Shirt },
-      { label: "MLC Website", href: "/dashboard/mlc-website", icon: Briefcase },
-      { label: "Grove City Events", href: "/dashboard/grove-city-events", icon: MapPin },
+      { label: "All Products", href: "/dashboard/products", icon: ShoppingBag },
+    ],
+  },
+  {
+    title: "Tools",
+    items: [
+      { label: "ClickUp Import", href: "/dashboard/import/clickup", icon: Upload },
     ],
   },
 ];
@@ -84,9 +102,11 @@ const navSections: NavSection[] = [
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    "Command Center": true,
     Life: true,
     MLC: true,
     Products: true,
+    Tools: false,
   });
   const pathname = usePathname();
 

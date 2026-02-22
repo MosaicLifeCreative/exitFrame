@@ -6,6 +6,7 @@ const SEED_PRODUCTS = [
   { name: "ManlyMan", domain: "manlyman.men", description: "Men's lifestyle brand" },
   { name: "MLC Website", domain: "mosaiclifecreative.com", description: "Agency website" },
   { name: "Grove City Events", domain: null, description: "Local events platform" },
+  { name: "Web Dev Tools", domain: null, description: "WordPress plugin — design and development utilities for web professionals." },
 ];
 
 export async function POST() {

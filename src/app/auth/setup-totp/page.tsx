@@ -19,8 +19,18 @@ export default function SetupTOTPPage() {
 
   const enrollTOTP = async () => {
     const supabase = createClient();
+
+    // Unenroll any existing TOTP factors first (supports re-enrollment)
+    const { data: factors } = await supabase.auth.mfa.listFactors();
+    if (factors?.totp) {
+      for (const factor of factors.totp) {
+        await supabase.auth.mfa.unenroll({ factorId: factor.id });
+      }
+    }
+
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: "totp",
+      issuer: "exitFrame",
       friendlyName: "Authenticator App",
     });
 

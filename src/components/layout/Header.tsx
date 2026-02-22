@@ -10,7 +10,14 @@ import { useEffect, useState } from "react";
 function getPageTitle(pathname: string): string {
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length <= 1) return "Dashboard";
-  const last = segments[segments.length - 1];
+
+  let last = segments[segments.length - 1];
+
+  // If the last segment is a UUID (detail page), show the parent section name instead
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(last)) {
+    last = segments.length > 2 ? segments[segments.length - 2] : "Dashboard";
+  }
+
   return last
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))

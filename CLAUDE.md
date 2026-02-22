@@ -105,8 +105,9 @@ src/
 
 - Trey uses **Git Bash (MINGW64) on Windows** — use forward slashes in paths, `source` for activate commands
 - **VS Code** with Claude Code
-- **Node.js v18.17+**
+- **Node.js v24.13.1**
 - Local dev: `npm run dev` on `localhost:3000`
+- **Env files:** Both `.env` and `.env.local` are needed locally. Prisma reads from `.env` (for `DATABASE_URL`, `DIRECT_URL`). Next.js reads from `.env.local` (for all vars including `NEXT_PUBLIC_*`). Neither is committed.
 
 ## Phased Build
 

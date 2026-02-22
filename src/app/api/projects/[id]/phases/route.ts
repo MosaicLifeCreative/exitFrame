@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+export const dynamic = "force-dynamic";
 
 const createPhaseSchema = z.object({
   name: z.string().min(1, "Phase name is required"),

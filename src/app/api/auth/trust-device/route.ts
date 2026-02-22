@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { redis } from "@/lib/redis";
 import { COOKIE_NAME, REDIS_PREFIX, TTL_SECONDS, hashToken } from "@/lib/trustedDevice";
+export const dynamic = "force-dynamic";
 
 export async function POST() {
   const supabase = createClient();

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { logActivity } from "@/lib/activity";
+export const dynamic = "force-dynamic";
 
 const runSchema = z.object({
   templateId: z.string().uuid(),

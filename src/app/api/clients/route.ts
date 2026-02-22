@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity";
+export const dynamic = "force-dynamic";
 
 const createClientSchema = z.object({
   name: z.string().min(1, "Business name is required"),

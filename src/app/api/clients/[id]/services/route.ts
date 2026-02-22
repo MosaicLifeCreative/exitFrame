@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+export const dynamic = "force-dynamic";
 
 const addServiceSchema = z.object({
   serviceType: z.string().min(1, "Service type is required"),

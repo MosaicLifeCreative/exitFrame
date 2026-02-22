@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+export const dynamic = "force-dynamic";
 
 const SYSTEM_PROMPT = `You are analyzing meeting notes for a small WordPress agency called Mosaic Life Creative.
 The owner (Trey) takes notes during client meetings and internal planning sessions.

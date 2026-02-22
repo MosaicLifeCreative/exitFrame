@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { COOKIE_NAME, REDIS_PREFIX, hashToken } from "@/lib/trustedDevice";
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const token = request.cookies.get(COOKIE_NAME)?.value;

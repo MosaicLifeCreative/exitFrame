@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity";
+export const dynamic = "force-dynamic";
 
 interface ClickUpTask {
   name?: string;

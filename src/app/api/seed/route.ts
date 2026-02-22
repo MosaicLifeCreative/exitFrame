@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+export const dynamic = "force-dynamic";
 
 const SEED_PRODUCTS = [
   { name: "GetShelfed", domain: "getshelfed.com", description: "Library management application" },

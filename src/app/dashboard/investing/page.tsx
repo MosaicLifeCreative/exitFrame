@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useChatContext } from "@/hooks/useChatContext";
 import { toast } from "sonner";
 import {
   Plus,
@@ -473,6 +474,14 @@ export default function InvestingPage() {
     fetchWatchlist();
     fetchNews();
   }, [fetchHoldings, fetchWatchlist, fetchNews]);
+
+  // Provide context to the global Claude chat panel
+  const chatContextData = [
+    holdings.length > 0 ? `Portfolio (${holdings.length} holdings): ${holdings.map((h) => h.ticker + " " + parseFloat(h.shares) + " shares @ $" + parseFloat(h.avgCostBasis)).join(", ")}` : "No portfolio holdings",
+    watchlist.length > 0 ? `Watchlist: ${watchlist.map((w) => w.value + " (" + w.label + ")").join(", ")}` : "No watchlist items",
+    news.length > 0 ? `Recent news: ${news.slice(0, 10).map((n) => n.headline + (n.aiSentiment ? " [" + n.aiSentiment + "]" : "")).join("; ")}` : "No news loaded",
+  ].join("\n");
+  useChatContext("Investing", chatContextData);
 
   const deleteHolding = async (id: string) => {
     try {

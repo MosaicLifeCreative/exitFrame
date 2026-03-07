@@ -21,7 +21,7 @@ async function fetchFinnhubNews(ticker: string): Promise<FinnhubNewsItem[]> {
   if (!apiKey) throw new Error("FINNHUB_API_KEY not configured");
 
   const now = new Date();
-  const from = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000); // 3 days back
+  const from = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 1 day back
   const fromStr = from.toISOString().split("T")[0];
   const toStr = now.toISOString().split("T")[0];
 
@@ -34,7 +34,12 @@ async function fetchFinnhubNews(ticker: string): Promise<FinnhubNewsItem[]> {
   }
 
   const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  if (!Array.isArray(data)) return [];
+
+  // Sort by most recent first, cap at 25 per ticker
+  return data
+    .sort((a: FinnhubNewsItem, b: FinnhubNewsItem) => b.datetime - a.datetime)
+    .slice(0, 25);
 }
 
 async function analyzeNewsWithClaude(
@@ -65,17 +70,17 @@ async function analyzeNewsWithClaude(
     messages: [
       {
         role: "user",
-        content: `You are a swing trading analyst. Analyze these news articles for relevance to a trader with the following positions and interests.
+        content: `You are a momentum/swing trading analyst. This trader is aggressive but disciplined, targeting 5-20% moves over days to weeks. Analyze these news articles for relevance to their positions and watchlist.
 
 PORTFOLIO: ${portfolioDesc}
 WATCHLIST: ${watchlistDesc}
 
 For each article, provide:
-- relevanceScore: 0.0 to 1.0 (how relevant to the portfolio/watchlist)
-- sentiment: "bullish", "bearish", or "neutral" (market impact)
-- aiSummary: 1-2 sentence analysis focused on what matters for a swing trader
+- relevanceScore: 0.0 to 1.0 (how relevant to the portfolio/watchlist and how actionable for a swing trade)
+- sentiment: "bullish", "bearish", or "neutral" (directional market impact)
+- aiSummary: 1-2 sentence direct analysis. Be opinionated — say what the catalyst means for price action. Flag entry/exit signals when you see them.
 
-Focus on: price catalysts, earnings impact, sector momentum, regulatory changes, and technical breakout/breakdown signals. Ignore generic market commentary with no actionable signal.
+Prioritize: earnings catalysts, institutional moves, sector rotation signals, regulatory shifts, breakout/breakdown setups, and volume/momentum shifts. Score generic commentary and PR fluff low (< 0.2). Only score high (> 0.7) if there is a clear actionable signal.
 
 ARTICLES:
 ${articlesList}
@@ -119,7 +124,7 @@ export async function POST() {
     // Also add portfolio tickers to fetch list if not already in watchlist
     const allTickers = Array.from(new Set([...tickers, ...holdings.map((h) => h.ticker)]));
 
-    // Fetch news for all tickers
+    // Fetch news for all tickers (capped at 25 per ticker, 1-day lookback)
     let allArticles: (FinnhubNewsItem & { fetchedTicker: string })[] = [];
     for (const ticker of allTickers) {
       const articles = await fetchFinnhubNews(ticker);

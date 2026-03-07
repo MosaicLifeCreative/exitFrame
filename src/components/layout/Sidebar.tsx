@@ -33,6 +33,7 @@ import {
   StickyNote,
   ClipboardList,
   Upload,
+  CandlestickChart,
 } from "lucide-react";
 
 type NavItem = {
@@ -65,6 +66,7 @@ const navSections: NavSection[] = [
       { label: "Fitness", href: "/dashboard/fitness", icon: Dumbbell },
       { label: "Diet", href: "/dashboard/diet", icon: UtensilsCrossed },
       { label: "Financial", href: "/dashboard/financial", icon: DollarSign },
+      { label: "Investing", href: "/dashboard/investing", icon: CandlestickChart },
       { label: "Goals", href: "/dashboard/goals", icon: Target },
       { label: "Trackers", href: "/dashboard/trackers", icon: BarChart3 },
       { label: "Plants", href: "/dashboard/plants", icon: Flower2 },

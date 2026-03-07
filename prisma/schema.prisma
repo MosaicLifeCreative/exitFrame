@@ -326,3 +326,73 @@ model ActivityEntry {
 
   @@map("activity_entries")
 }
+
+
+// ============================================
+// INVESTING
+// ============================================
+
+// Portfolio holdings — manually entered stock positions
+model PortfolioHolding {
+  id            String    @id @default(uuid()) @db.Uuid
+  ticker        String
+  companyName   String    @map("company_name")
+  shares        Decimal   @db.Decimal(12, 4)
+  avgCostBasis  Decimal   @map("avg_cost_basis") @db.Decimal(10, 2)
+  sector        String?
+  notes         String?   @db.Text
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("portfolio_holdings")
+}
+
+// Watchlist — tickers and sectors to monitor for news/analysis
+model WatchlistItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  type       String   // "ticker" or "sector"
+  value      String   // ticker symbol (e.g. "AAPL") or sector name (e.g. "AI/Semiconductors")
+  label      String   // display name (e.g. "Apple Inc." or "AI & Semiconductors")
+  notes      String?  @db.Text
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("watchlist_items")
+}
+
+// Crawled market news articles — stored for AI analysis
+model MarketNews {
+  id               String   @id @default(uuid()) @db.Uuid
+  source           String   // "finnhub", "alpha_vantage", etc.
+  externalId       String?  @map("external_id")
+  headline         String
+  summary          String?  @db.Text
+  url              String
+  imageUrl         String?  @map("image_url")
+  publishedAt      DateTime @map("published_at")
+  relatedTickers   String[] @map("related_tickers")
+  aiRelevanceScore Float?   @map("ai_relevance_score") // 0-1, how relevant to portfolio/watchlist
+  aiSummary        String?  @map("ai_summary") @db.Text
+  aiSentiment      String?  @map("ai_sentiment") // bullish, bearish, neutral
+  isRead           Boolean  @default(false) @map("is_read")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([source, externalId])
+  @@map("market_news")
+}
+
+// AI-generated investing insights and recommendations
+model InvestingInsight {
+  id          String   @id @default(uuid()) @db.Uuid
+  insightType String   @map("insight_type") // "daily_digest", "recommendation", "alert", "analysis"
+  title       String
+  content     String   @db.Text
+  tickers     String[] // related ticker symbols
+  priority    String   @default("normal") // "low", "normal", "high", "urgent"
+  isDismissed Boolean  @default(false) @map("is_dismissed")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("investing_insights")
+}

@@ -396,3 +396,93 @@ model InvestingInsight {
 
   @@map("investing_insights")
 }
+
+// Cached stock quotes — updated hourly during market hours
+model StockQuote {
+  id        String   @id @default(uuid()) @db.Uuid
+  ticker    String   @unique
+  price     Decimal  @db.Decimal(10, 2)
+  change    Decimal? @db.Decimal(10, 2)  // daily change in dollars
+  changePct Decimal? @map("change_pct") @db.Decimal(6, 2)  // daily change percentage
+  high      Decimal? @db.Decimal(10, 2)
+  low       Decimal? @db.Decimal(10, 2)
+  volume    BigInt?
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("stock_quotes")
+}
+
+
+// ============================================
+// AI PAPER TRADING
+// ============================================
+
+// Claude's autonomous paper trading portfolio
+model AiPortfolio {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String   @default("Claude's Portfolio")
+  cashBalance     Decimal  @map("cash_balance") @db.Decimal(12, 2)
+  startingCapital Decimal  @map("starting_capital") @db.Decimal(12, 2)
+  inceptionDate   DateTime @map("inception_date") @default(now())
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  positions AiPosition[]
+  trades    AiTrade[]
+
+  @@map("ai_portfolios")
+}
+
+// Claude's current open positions
+model AiPosition {
+  id           String   @id @default(uuid()) @db.Uuid
+  portfolioId  String   @map("portfolio_id") @db.Uuid
+  ticker       String
+  companyName  String   @map("company_name")
+  shares       Decimal  @db.Decimal(12, 4)
+  avgCostBasis Decimal  @map("avg_cost_basis") @db.Decimal(10, 2)
+  openedAt     DateTime @map("opened_at") @default(now())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  portfolio AiPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, ticker])
+  @@map("ai_positions")
+}
+
+// Claude's trade history with reasoning
+model AiTrade {
+  id          String   @id @default(uuid()) @db.Uuid
+  portfolioId String   @map("portfolio_id") @db.Uuid
+  ticker      String
+  companyName String   @map("company_name")
+  side        String   // "BUY" or "SELL"
+  shares      Decimal  @db.Decimal(12, 4)
+  price       Decimal  @db.Decimal(10, 2)
+  total       Decimal  @db.Decimal(12, 2)
+  reasoning   String   @db.Text
+  newsIds     String[] @map("news_ids") // IDs of MarketNews that triggered this trade
+  executedAt  DateTime @map("executed_at") @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  portfolio AiPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@map("ai_trades")
+}
+
+// Daily portfolio value snapshots — powers comparison charts
+model PortfolioSnapshot {
+  id             String   @id @default(uuid()) @db.Uuid
+  portfolioType  String   @map("portfolio_type") // "USER" or "AI"
+  totalValue     Decimal  @map("total_value") @db.Decimal(12, 2)
+  cashValue      Decimal  @map("cash_value") @db.Decimal(12, 2)
+  holdingsValue  Decimal  @map("holdings_value") @db.Decimal(12, 2)
+  positionCount  Int      @map("position_count")
+  snapshotDate   DateTime @map("snapshot_date") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([portfolioType, snapshotDate])
+  @@map("portfolio_snapshots")
+}

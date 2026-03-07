@@ -1,21 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Receiver } from "@upstash/qstash";
 import { prisma } from "@/lib/prisma";
 import { fetchAndStoreQuotes, isMarketOpen, isMarketCloseWindow, shouldCrawlNews } from "@/lib/investing/quotes";
 import { evaluateTrades, executeTrades } from "@/lib/investing/aiTrader";
 import { takePortfolioSnapshots } from "@/lib/investing/snapshots";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Allow up to 60s for this endpoint
+export const maxDuration = 60;
 
-export async function GET(request: NextRequest) {
-  // Verify cron secret to prevent unauthorized calls
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
+async function verifyRequest(request: NextRequest): Promise<boolean> {
+  // QStash signature verification
+  const qstashCurrentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
+  const qstashNextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (qstashCurrentSigningKey && qstashNextSigningKey) {
+    const receiver = new Receiver({
+      currentSigningKey: qstashCurrentSigningKey,
+      nextSigningKey: qstashNextSigningKey,
+    });
+
+    const signature = request.headers.get("upstash-signature");
+    if (!signature) return false;
+
+    const body = await request.text();
+    try {
+      await receiver.verify({ signature, body, url: request.url });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
+  // Fallback: CRON_SECRET bearer token (Vercel cron or manual calls)
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true;
+
+  // No auth configured — allow (dev mode)
+  if (!cronSecret && !qstashCurrentSigningKey) return true;
+
+  return false;
+}
+
+async function runCron(request: NextRequest) {
   const log: string[] = [];
   const marketOpen = isMarketOpen();
   const closeWindow = isMarketCloseWindow();
@@ -55,7 +82,11 @@ export async function GET(request: NextRequest) {
     // Step 2: News crawl (3x/day: open, midday, close)
     if (crawlTime) {
       try {
-        const crawlRes = await fetch(new URL("/api/investing/crawl-news", request.url), {
+        const baseUrl = request.headers.get("x-forwarded-proto") && request.headers.get("x-forwarded-host")
+          ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get("x-forwarded-host")}`
+          : new URL(request.url).origin;
+
+        const crawlRes = await fetch(`${baseUrl}/api/investing/crawl-news`, {
           method: "POST",
         });
         if (crawlRes.ok) {
@@ -110,4 +141,22 @@ export async function GET(request: NextRequest) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: `Cron failed: ${msg}`, log }, { status: 500 });
   }
+}
+
+// GET: Vercel daily cron
+export async function GET(request: NextRequest) {
+  const authorized = await verifyRequest(request);
+  if (!authorized) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return runCron(request);
+}
+
+// POST: QStash hourly schedule
+export async function POST(request: NextRequest) {
+  const authorized = await verifyRequest(request);
+  if (!authorized) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return runCron(request);
 }

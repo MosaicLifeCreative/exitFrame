@@ -538,6 +538,7 @@ export default function InvestingPage() {
   const [loadingAi, setLoadingAi] = useState(true);
   const [loadingSnapshots, setLoadingSnapshots] = useState(true);
   const [crawling, setCrawling] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
   const [newsFilter, setNewsFilter] = useState<string>("all");
 
   const quoteMap = new Map(quotes.map((q) => [q.ticker, q]));
@@ -609,6 +610,26 @@ export default function InvestingPage() {
       } else { toast.error(json.error); }
     } catch { toast.error("Failed to crawl news"); }
     finally { setCrawling(false); }
+  };
+
+  const evaluateNow = async () => {
+    setEvaluating(true);
+    try {
+      const res = await fetch("/api/investing/ai-portfolio/evaluate", { method: "POST" });
+      const json = await res.json();
+      if (res.ok) {
+        const d = json.data;
+        toast.success(`Evaluated: ${d.decisions} decisions, ${d.executed} trades`);
+        fetchAiPortfolio();
+        fetchQuotes();
+      } else {
+        toast.error(json.error);
+      }
+    } catch {
+      toast.error("Failed to evaluate trades");
+    } finally {
+      setEvaluating(false);
+    }
   };
 
   useEffect(() => {
@@ -821,9 +842,15 @@ export default function InvestingPage() {
         <TabsContent value="ai" className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Claude&apos;s Portfolio</h2>
-            {aiPortfolio && (
-              <ResetPortfolioDialog onReset={fetchAiPortfolio} currentValue={totalMarketValue} />
-            )}
+            <div className="flex gap-2">
+              <Button size="sm" onClick={evaluateNow} disabled={evaluating}>
+                <RefreshCw className={"h-4 w-4 mr-1" + (evaluating ? " animate-spin" : "")} />
+                {evaluating ? "Evaluating..." : "Evaluate Now"}
+              </Button>
+              {aiPortfolio && (
+                <ResetPortfolioDialog onReset={fetchAiPortfolio} currentValue={totalMarketValue} />
+              )}
+            </div>
           </div>
 
           {loadingAi ? (

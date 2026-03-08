@@ -614,6 +614,62 @@ model ExerciseSet {
 }
 
 
+// ============================================
+// HEALTH — Supplements, Symptoms
+// ============================================
+
+// Supplement definitions — what you take and how much
+model Supplement {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  dosage    String?  // e.g. "5g", "2000 IU", "1 capsule"
+  frequency String   @default("daily") // "daily", "twice-daily", "as-needed", "weekly"
+  category  String?  // "vitamin", "mineral", "amino-acid", "herb", "other"
+  notes     String?  @db.Text
+  isActive  Boolean  @default(true) @map("is_active")
+  startDate DateTime? @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  logs SupplementLog[]
+
+  @@map("supplements")
+}
+
+// Daily supplement intake tracking
+model SupplementLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  supplementId String   @map("supplement_id") @db.Uuid
+  date         DateTime @db.Date
+  taken        Boolean  @default(true)
+  timeTaken    String?  @map("time_taken") // "morning", "afternoon", "evening", "night"
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  supplement Supplement @relation(fields: [supplementId], references: [id], onDelete: Cascade)
+
+  @@unique([supplementId, date])
+  @@map("supplement_logs")
+}
+
+// Illness and symptom logging
+model SymptomLog {
+  id           String    @id @default(uuid()) @db.Uuid
+  date         DateTime  @db.Date
+  symptoms     String[]  // ["congestion", "sore-throat", "fatigue", ...]
+  severity     Int       @default(3) // 1-5 scale
+  notes        String?   @db.Text
+  source       String    @default("manual") // "manual", "claude"
+  resolved     Boolean   @default(false)
+  resolvedDate DateTime? @map("resolved_date") @db.Date
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("symptom_logs")
+}
+
+
 // Chat conversations — persists chat history per page context
 model ChatConversation {
   id        String   @id @default(uuid()) @db.Uuid

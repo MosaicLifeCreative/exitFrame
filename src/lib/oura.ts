@@ -23,7 +23,7 @@ export function getOuraAuthUrl(redirectUri: string): string {
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: "daily heartrate personal workout session",
+    scope: "daily heartrate personal workout session spo2",
     state: "oura-connect",
   });
 
@@ -653,15 +653,22 @@ export async function syncOuraData(daysBack = 7): Promise<SyncResults> {
 
 // ─── Data retrieval for dashboard ────────────────────────
 
-export async function getRecentOuraData(days = 30): Promise<{
+export interface OuraDashboardData {
   sleep: Array<{ date: string; score: number | null; hrvAverage: number | null; data: Record<string, unknown> }>;
   readiness: Array<{ date: string; score: number | null; data: Record<string, unknown> }>;
   activity: Array<{ date: string; score: number | null; data: Record<string, unknown> }>;
-}> {
+  sleepSessions: Array<{ date: string; data: Record<string, unknown> }>;
+  heartrate: Array<{ date: string; data: Record<string, unknown> }>;
+  spo2: Array<{ date: string; data: Record<string, unknown> }>;
+  stress: Array<{ date: string; data: Record<string, unknown> }>;
+  resilience: Array<{ date: string; data: Record<string, unknown> }>;
+}
+
+export async function getRecentOuraData(days = 30): Promise<OuraDashboardData> {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  const [sleepRows, readinessRows, activityRows] = await Promise.all([
+  const [sleepRows, readinessRows, activityRows, sleepSessionRows, heartrateRows, spo2Rows, stressRows, resilienceRows] = await Promise.all([
     prisma.ouraData.findMany({
       where: { dataType: "sleep", date: { gte: startDate } },
       orderBy: { date: "asc" },
@@ -672,6 +679,26 @@ export async function getRecentOuraData(days = 30): Promise<{
     }),
     prisma.ouraData.findMany({
       where: { dataType: "activity", date: { gte: startDate } },
+      orderBy: { date: "asc" },
+    }),
+    prisma.ouraData.findMany({
+      where: { dataType: "sleep_session", date: { gte: startDate } },
+      orderBy: { date: "asc" },
+    }),
+    prisma.ouraData.findMany({
+      where: { dataType: "heartrate", date: { gte: startDate } },
+      orderBy: { date: "asc" },
+    }),
+    prisma.ouraData.findMany({
+      where: { dataType: "spo2", date: { gte: startDate } },
+      orderBy: { date: "asc" },
+    }),
+    prisma.ouraData.findMany({
+      where: { dataType: "stress", date: { gte: startDate } },
+      orderBy: { date: "asc" },
+    }),
+    prisma.ouraData.findMany({
+      where: { dataType: "resilience", date: { gte: startDate } },
       orderBy: { date: "asc" },
     }),
   ]);
@@ -691,6 +718,26 @@ export async function getRecentOuraData(days = 30): Promise<{
     activity: activityRows.map((r) => ({
       date: formatDate(r.date),
       score: r.activityScore,
+      data: r.data as Record<string, unknown>,
+    })),
+    sleepSessions: sleepSessionRows.map((r) => ({
+      date: formatDate(r.date),
+      data: r.data as Record<string, unknown>,
+    })),
+    heartrate: heartrateRows.map((r) => ({
+      date: formatDate(r.date),
+      data: r.data as Record<string, unknown>,
+    })),
+    spo2: spo2Rows.map((r) => ({
+      date: formatDate(r.date),
+      data: r.data as Record<string, unknown>,
+    })),
+    stress: stressRows.map((r) => ({
+      date: formatDate(r.date),
+      data: r.data as Record<string, unknown>,
+    })),
+    resilience: resilienceRows.map((r) => ({
+      date: formatDate(r.date),
       data: r.data as Record<string, unknown>,
     })),
   };

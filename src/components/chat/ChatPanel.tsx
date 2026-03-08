@@ -12,6 +12,8 @@ import {
   Loader2,
   Bot,
   User,
+  Wrench,
+  Check,
 } from "lucide-react";
 
 function MarkdownContent({ content }: { content: string }) {
@@ -144,6 +146,23 @@ function processEmphasis(text: string, key: number): React.ReactNode {
   }
 
   return <span key={key}>{text}</span>;
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  list_exercises: "Searching exercises",
+  get_recent_workouts: "Reviewing workout history",
+  create_workout: "Creating workout",
+  log_symptoms: "Logging symptoms",
+  get_symptom_history: "Checking symptom history",
+  resolve_symptoms: "Resolving symptoms",
+  add_supplement: "Adding supplement",
+  list_supplements: "Checking supplements",
+  update_supplement: "Updating supplement",
+  log_supplement_intake: "Logging supplement intake",
+};
+
+function formatToolName(name: string): string {
+  return TOOL_LABELS[name] || name.replace(/_/g, " ");
 }
 
 export default function ChatPanel() {
@@ -292,13 +311,35 @@ export default function ChatPanel() {
               >
                 {msg.role === "user" ? (
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                ) : msg.content ? (
-                  <MarkdownContent content={msg.content} />
                 ) : (
-                  <div className="flex items-center gap-2 py-1">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Thinking...</span>
-                  </div>
+                  <>
+                    {msg.toolUses && msg.toolUses.length > 0 && (
+                      <div className="mb-2 space-y-1">
+                        {msg.toolUses.map((tool, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                          >
+                            {tool.status === "executing" ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Check className="h-3 w-3 text-green-500" />
+                            )}
+                            <Wrench className="h-3 w-3" />
+                            <span>{formatToolName(tool.name)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {msg.content ? (
+                      <MarkdownContent content={msg.content} />
+                    ) : (
+                      <div className="flex items-center gap-2 py-1">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Thinking...</span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

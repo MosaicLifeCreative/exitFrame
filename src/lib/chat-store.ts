@@ -1,10 +1,16 @@
 import { create } from "zustand";
 
+interface ToolUseStatus {
+  name: string;
+  status: "executing" | "done";
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  toolUses?: ToolUseStatus[];
 }
 
 interface PageContext {
@@ -181,6 +187,27 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                   messages: s.messages.map((m) =>
                     m.id === assistantMsg.id ? { ...m, content: accumulated } : m
                   ),
+                }));
+              }
+              if (parsed.toolUse) {
+                const tool = parsed.toolUse as ToolUseStatus;
+                set((s) => ({
+                  messages: s.messages.map((m) => {
+                    if (m.id !== assistantMsg.id) return m;
+                    const existing = m.toolUses || [];
+                    if (tool.status === "done") {
+                      return {
+                        ...m,
+                        toolUses: existing.map((t) =>
+                          t.name === tool.name ? { ...t, status: "done" as const } : t
+                        ),
+                      };
+                    }
+                    return {
+                      ...m,
+                      toolUses: [...existing, tool],
+                    };
+                  }),
                 }));
               }
               if (parsed.error) {

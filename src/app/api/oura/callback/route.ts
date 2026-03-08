@@ -13,11 +13,11 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     console.error("Oura OAuth error:", error);
-    return NextResponse.redirect(`${baseUrl}/dashboard/sleep?oura=error&message=${encodeURIComponent(error)}`);
+    return NextResponse.redirect(`${baseUrl}/dashboard/health/sleep?oura=error&message=${encodeURIComponent(error)}`);
   }
 
   if (!code) {
-    return NextResponse.redirect(`${baseUrl}/dashboard/sleep?oura=error&message=no_code`);
+    return NextResponse.redirect(`${baseUrl}/dashboard/health/sleep?oura=error&message=no_code`);
   }
 
   try {
@@ -32,10 +32,10 @@ export async function GET(request: NextRequest) {
       // Non-fatal — connection succeeded, sync can retry later
     }
 
-    return NextResponse.redirect(`${baseUrl}/dashboard/sleep?oura=connected`);
+    return NextResponse.redirect(`${baseUrl}/dashboard/health/sleep?oura=connected`);
   } catch (err) {
     console.error("Oura token exchange error:", err);
     const msg = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.redirect(`${baseUrl}/dashboard/sleep?oura=error&message=${encodeURIComponent(msg)}`);
+    return NextResponse.redirect(`${baseUrl}/dashboard/health/sleep?oura=error&message=${encodeURIComponent(msg)}`);
   }
 }

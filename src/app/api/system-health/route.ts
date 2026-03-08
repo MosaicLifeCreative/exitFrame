@@ -193,7 +193,26 @@ export async function GET() {
     });
   }
 
-  // 7. Table row counts (only if DB is up)
+  // 8. Twilio SMS
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+  const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+  const twilioMyPhone = process.env.TWILIO_MY_NUMBER;
+  services.push({
+    name: "Twilio SMS",
+    status: twilioSid && twilioToken && twilioPhone && twilioMyPhone ? "healthy" : "degraded",
+    responseTime: 0,
+    details: twilioSid && twilioToken && twilioPhone && twilioMyPhone
+      ? "All credentials configured"
+      : [
+          !twilioSid && "SID missing",
+          !twilioToken && "Auth token missing",
+          !twilioPhone && "Phone number missing",
+          !twilioMyPhone && "My number missing",
+        ].filter(Boolean).join(", "),
+  });
+
+  // 9. Table row counts (only if DB is up)
   const dbUp = services.find((s) => s.name === "Supabase Database")?.status !== "down";
   if (dbUp) {
     const tables = [
@@ -252,6 +271,10 @@ export async function GET() {
     cronSecretSet: !!process.env.CRON_SECRET,
     ouraClientIdSet: !!process.env.OURA_CLIENT_ID,
     ouraClientSecretSet: !!process.env.OURA_CLIENT_SECRET,
+    twilioSidSet: !!process.env.TWILIO_ACCOUNT_SID,
+    twilioTokenSet: !!process.env.TWILIO_AUTH_TOKEN,
+    twilioPhoneSet: !!process.env.TWILIO_PHONE_NUMBER,
+    twilioMyNumberSet: !!process.env.TWILIO_MY_NUMBER,
   };
 
   const overallStatus = services.every((s) => s.status === "healthy")

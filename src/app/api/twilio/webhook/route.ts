@@ -240,10 +240,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Only respond to Trey's number
+    // Only respond to Trey's number — forward unknown senders as a notification
     if (!isAuthorizedSender(from)) {
       console.log(`Twilio webhook: unauthorized sender ${from}`);
-      // Return TwiML with no response (don't reveal we exist)
+      if (body.trim()) {
+        try {
+          const preview = body.length > 300 ? body.substring(0, 300) + "..." : body;
+          await sendSms(`SMS from ${from}:\n${preview}`);
+        } catch (err) {
+          console.error("Failed to forward unknown sender SMS:", err);
+        }
+      }
       return new NextResponse(
         '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
         { headers: { "Content-Type": "text/xml" } }

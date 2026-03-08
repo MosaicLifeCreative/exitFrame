@@ -231,17 +231,6 @@ function HealthPage() {
     }
   }, [searchParams, fetchData]);
 
-  // Chat context
-  const latestSleep = data?.oura?.sleep?.at(-1)?.score;
-  const latestReadiness = data?.oura?.readiness?.at(-1)?.score;
-  const latestActivity = data?.oura?.activity?.at(-1)?.score;
-  useChatContext(
-    "Health",
-    data?.status?.connected
-      ? `Oura Ring connected. Latest scores — Sleep: ${latestSleep ?? "N/A"}, Readiness: ${latestReadiness ?? "N/A"}, Activity: ${latestActivity ?? "N/A"}. ${data?.oura?.sleep?.length || 0} days of sleep data available.`
-      : "Oura Ring not connected."
-  );
-
   const handleConnect = async () => {
     setConnecting(true);
     try {
@@ -328,6 +317,47 @@ function HealthPage() {
 
   // Latest HRV
   const latestHrv = oura?.sleep?.filter((d) => d.hrvAverage).at(-1)?.hrvAverage;
+
+  // Chat context — rich detail for Claude to analyze
+  const chatContext = (() => {
+    if (!connected || !oura) return "Oura Ring not connected.";
+
+    const recent7Sleep = oura.sleep.slice(-7);
+    const recent7Readiness = oura.readiness.slice(-7);
+    const recent7Activity = oura.activity.slice(-7);
+
+    const sleepScores = recent7Sleep.map((d) => `${d.date}: ${d.score ?? "N/A"}`).join(", ");
+    const readinessScores = recent7Readiness.map((d) => `${d.date}: ${d.score ?? "N/A"}`).join(", ");
+    const activityScores = recent7Activity.map((d) => `${d.date}: ${d.score ?? "N/A"}`).join(", ");
+    const hrvValues = recent7Sleep.filter((d) => d.hrvAverage).map((d) => `${d.date}: ${Math.round(d.hrvAverage!)} bpm`).join(", ");
+
+    // Extract contributor details from latest day (illness signals like temp deviation, HRV)
+    const latestReadinessRaw = oura.readiness.at(-1)?.data as Record<string, unknown> | undefined;
+    const latestSleepRaw = oura.sleep.at(-1)?.data as Record<string, unknown> | undefined;
+
+    let contributors = "";
+    if (latestReadinessRaw?.contributors) {
+      const c = latestReadinessRaw.contributors as Record<string, number>;
+      contributors += `\nReadiness contributors: ${Object.entries(c).map(([k, v]) => `${k}=${v}`).join(", ")}`;
+    }
+    if (latestSleepRaw?.contributors) {
+      const c = latestSleepRaw.contributors as Record<string, number>;
+      contributors += `\nSleep contributors: ${Object.entries(c).map(([k, v]) => `${k}=${v}`).join(", ")}`;
+    }
+
+    const fmt = (t: number | null) => t !== null ? (t > 0 ? "+" : "") + t : "N/A";
+
+    return [
+      `Oura Ring connected. ${oura.sleep.length} days of data.`,
+      `Last 7 days sleep scores: ${sleepScores}`,
+      `Last 7 days readiness: ${readinessScores}`,
+      `Last 7 days activity: ${activityScores}`,
+      hrvValues ? `Resting HR (avg BPM): ${hrvValues}` : "",
+      contributors,
+      `Trends vs 7-day avg — Sleep: ${fmt(sleepTrend)}, Readiness: ${fmt(readinessTrend)}, Activity: ${fmt(activityTrend)}`,
+    ].filter(Boolean).join("\n");
+  })();
+  useChatContext("Health", chatContext);
 
   return (
     <div className="space-y-6">

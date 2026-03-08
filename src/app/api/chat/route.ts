@@ -256,6 +256,19 @@ export async function POST(request: Request) {
                   content: result,
                 });
 
+                // Check if result contains a workout draft to send to client
+                try {
+                  const parsed = JSON.parse(result);
+                  if (parsed.draft && parsed.workout) {
+                    const draftChunk = `data: ${JSON.stringify({
+                      workoutDraft: parsed.workout,
+                    })}\n\n`;
+                    controller.enqueue(encoder.encode(draftChunk));
+                  }
+                } catch {
+                  // Not JSON or no draft — ignore
+                }
+
                 // Notify client of completion
                 const doneChunk = `data: ${JSON.stringify({
                   toolUse: { name: tool.name, status: "done" },

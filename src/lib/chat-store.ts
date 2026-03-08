@@ -18,6 +18,25 @@ interface PageContext {
   data?: string;
 }
 
+interface WorkoutDraftExercise {
+  exerciseId: string;
+  exerciseName: string;
+  notes: string;
+  sets: Array<{
+    setNumber: number;
+    weight: string;
+    reps: string;
+    rpe: string;
+    setType: string;
+  }>;
+}
+
+interface WorkoutDraft {
+  name: string;
+  notes: string;
+  exercises: WorkoutDraftExercise[];
+}
+
 interface ChatStore {
   isOpen: boolean;
   messages: ChatMessage[];
@@ -26,6 +45,7 @@ interface ChatStore {
   pageContext: PageContext | null;
   conversationId: string | null;
   toolExecutedFlag: number;
+  workoutDraft: WorkoutDraft | null;
 
   toggleChat: () => void;
   openChat: () => void;
@@ -34,6 +54,7 @@ interface ChatStore {
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => void;
   loadConversation: (context: string) => Promise<void>;
+  clearWorkoutDraft: () => void;
 }
 
 function generateId(): string {
@@ -48,6 +69,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   pageContext: null,
   conversationId: null,
   toolExecutedFlag: 0,
+  workoutDraft: null,
 
   toggleChat: () => {
     const { isOpen, pageContext } = get();
@@ -66,6 +88,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
   closeChat: () => set({ isOpen: false }),
   setPageContext: (ctx) => set({ pageContext: ctx }),
+  clearWorkoutDraft: () => set({ workoutDraft: null }),
 
   loadConversation: async (context: string) => {
     set({ isLoadingHistory: true });
@@ -217,6 +240,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                     };
                   }),
                 }));
+              }
+              if (parsed.workoutDraft) {
+                set({ workoutDraft: parsed.workoutDraft as WorkoutDraft });
               }
               if (parsed.error) {
                 accumulated += `\n\nError: ${parsed.error}`;

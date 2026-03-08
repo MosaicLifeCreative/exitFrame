@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useChatContext } from "@/hooks/useChatContext";
 import { useToolRefresh } from "@/hooks/useToolRefresh";
+import { useChatStore } from "@/lib/chat-store";
 import { toast } from "sonner";
 import {
   Dumbbell,
@@ -18,6 +19,7 @@ import {
   Library,
   LayoutTemplate,
   Upload,
+  Pencil,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -189,6 +191,23 @@ export default function FitnessPage() {
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingSession, setEditingSession] = useState<WorkoutSession | null>(null);
+
+  // Watch for workout drafts from Claude chat
+  const workoutDraft = useChatStore((s) => s.workoutDraft);
+  const draftProcessed = useRef(false);
+
+  useEffect(() => {
+    if (workoutDraft && !draftProcessed.current) {
+      draftProcessed.current = true;
+      setActiveTab("log");
+      setEditingSession(null);
+      // Draft will be consumed by LogWorkoutTab via the store
+    }
+    if (!workoutDraft) {
+      draftProcessed.current = false;
+    }
+  }, [workoutDraft]);
 
   // Chat context
   const chatData = useMemo(() => {
@@ -236,9 +255,15 @@ export default function FitnessPage() {
   const refreshAll = useCallback(() => {
     fetchExercises();
     fetchSessions();
-  }, [fetchExercises, fetchSessions]);
+    fetchTemplates();
+  }, [fetchExercises, fetchSessions, fetchTemplates]);
 
   useToolRefresh(refreshAll);
+
+  const handleEditSession = useCallback((session: WorkoutSession) => {
+    setEditingSession(session);
+    setActiveTab("log");
+  }, []);
 
   // Stats
   const thisWeekSessions = sessions.filter((s) => {
@@ -382,13 +407,16 @@ export default function FitnessPage() {
         <LogWorkoutTab
           exercises={exercises}
           templates={templates}
+          editingSession={editingSession}
           onLogged={() => {
+            setEditingSession(null);
             fetchSessions();
           }}
+          onCancelEdit={() => setEditingSession(null)}
         />
       )}
       {activeTab === "history" && (
-        <HistoryTab sessions={sessions} onDelete={fetchSessions} />
+        <HistoryTab sessions={sessions} onDelete={fetchSessions} onEdit={handleEditSession} />
       )}
       {activeTab === "exercises" && (
         <ExercisesTab exercises={exercises} onUpdate={fetchExercises} />
@@ -409,11 +437,15 @@ export default function FitnessPage() {
 function LogWorkoutTab({
   exercises,
   templates,
+  editingSession,
   onLogged,
+  onCancelEdit,
 }: {
   exercises: Exercise[];
   templates: WorkoutTemplate[];
+  editingSession: WorkoutSession | null;
   onLogged: () => void;
+  onCancelEdit: () => void;
 }) {
   const [name, setName] = useState("");
   const [entries, setEntries] = useState<ExerciseEntry[]>([]);
@@ -421,6 +453,48 @@ function LogWorkoutTab({
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [expandedExercise, setExpandedExercise] = useState<number | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+
+  // Watch for workout drafts from Claude
+  const workoutDraft = useChatStore((s) => s.workoutDraft);
+  const clearWorkoutDraft = useChatStore((s) => s.clearWorkoutDraft);
+
+  // Load workout draft from Claude
+  useEffect(() => {
+    if (workoutDraft) {
+      setName(workoutDraft.name);
+      setNotes(workoutDraft.notes || "");
+      setEntries(workoutDraft.exercises);
+      setEditingSessionId(null);
+      setExpandedExercise(0);
+      clearWorkoutDraft();
+    }
+  }, [workoutDraft, clearWorkoutDraft]);
+
+  // Load editing session
+  useEffect(() => {
+    if (editingSession) {
+      setName(editingSession.name);
+      setNotes(editingSession.notes || "");
+      setDuration(editingSession.durationMinutes?.toString() || "");
+      setEditingSessionId(editingSession.id);
+      setEntries(
+        editingSession.exercises.map((ex) => ({
+          exerciseId: ex.exercise.id,
+          exerciseName: ex.exercise.name,
+          notes: ex.notes || "",
+          sets: ex.sets.map((s) => ({
+            setNumber: s.setNumber,
+            weight: s.weight ? s.weight.toString() : "",
+            reps: s.reps.toString(),
+            rpe: s.rpe ? s.rpe.toString() : "",
+            setType: s.setType,
+          })),
+        }))
+      );
+      setExpandedExercise(0);
+    }
+  }, [editingSession]);
 
   const loadTemplate = (templateId: string) => {
     const template = templates.find((t) => t.id === templateId);
@@ -518,6 +592,14 @@ function LogWorkoutTab({
     );
   };
 
+  const clearForm = () => {
+    setName("");
+    setEntries([]);
+    setDuration("");
+    setNotes("");
+    setEditingSessionId(null);
+  };
+
   const saveWorkout = async () => {
     if (!name.trim()) {
       toast.error("Give your workout a name");
@@ -535,7 +617,7 @@ function LogWorkoutTab({
         performedAt: new Date().toISOString(),
         durationMinutes: duration ? parseInt(duration) : undefined,
         notes: notes.trim() || undefined,
-        source: "manual",
+        source: editingSessionId ? undefined : "manual",
         exercises: entries.map((e, i) => ({
           exerciseId: e.exerciseId,
           sortOrder: i,
@@ -550,18 +632,21 @@ function LogWorkoutTab({
         })),
       };
 
-      const res = await fetch("/api/fitness/sessions", {
-        method: "POST",
+      const url = editingSessionId
+        ? `/api/fitness/sessions/${editingSessionId}`
+        : "/api/fitness/sessions";
+      const method = editingSessionId ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       if (res.ok) {
-        toast.success("Workout logged");
-        setName("");
-        setEntries([]);
-        setDuration("");
-        setNotes("");
+        toast.success(editingSessionId ? "Workout updated" : "Workout logged");
+        clearForm();
+        onCancelEdit();
         onLogged();
       } else {
         const json = await res.json();
@@ -754,20 +839,34 @@ function LogWorkoutTab({
         </Select>
       </div>
 
-      {/* Save */}
-      <Button
-        onClick={saveWorkout}
-        disabled={saving || entries.length === 0}
-        className="w-full"
-        size="lg"
-      >
-        {saving ? (
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        ) : (
-          <ListChecks className="h-4 w-4 mr-2" />
+      {/* Save / Cancel */}
+      <div className="flex gap-2">
+        {editingSessionId && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              clearForm();
+              onCancelEdit();
+            }}
+            size="lg"
+          >
+            Cancel Edit
+          </Button>
         )}
-        Log Workout
-      </Button>
+        <Button
+          onClick={saveWorkout}
+          disabled={saving || entries.length === 0}
+          className="flex-1"
+          size="lg"
+        >
+          {saving ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <ListChecks className="h-4 w-4 mr-2" />
+          )}
+          {editingSessionId ? "Update Workout" : "Log Workout"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -777,9 +876,11 @@ function LogWorkoutTab({
 function HistoryTab({
   sessions,
   onDelete,
+  onEdit,
 }: {
   sessions: WorkoutSession[];
   onDelete: () => void;
+  onEdit: (session: WorkoutSession) => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
@@ -913,6 +1014,14 @@ function HistoryTab({
                       </Badge>
                     ))}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onEdit(session)}
+                    title="Edit workout"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
                   {session.source !== "import" && (
                     <Button
                       variant="ghost"

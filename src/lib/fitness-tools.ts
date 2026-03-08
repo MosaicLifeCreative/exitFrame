@@ -269,51 +269,36 @@ async function createTemplate(input: CreateWorkoutInput): Promise<string> {
 }
 
 async function createSession(input: CreateWorkoutInput): Promise<string> {
-  const session = await prisma.workoutSession.create({
-    data: {
-      name: input.name,
-      performedAt: new Date(),
-      notes: input.notes,
-      source: "claude",
-      exercises: {
-        create: input.exercises.map((ex, idx) => ({
-          exerciseId: ex.exerciseId,
-          sortOrder: idx,
-          notes: ex.notes,
-          sets: {
-            create: ex.sets.map((s, setIdx) => ({
-              setNumber: setIdx + 1,
-              weight: s.weight ?? null,
-              reps: s.reps,
-              setType: s.setType || "working",
-              isCompleted: false,
-            })),
-          },
-        })),
-      },
-    },
-    include: {
-      exercises: {
-        include: {
-          exercise: { select: { name: true, muscleGroup: true } },
-          sets: { orderBy: { setNumber: "asc" } },
-        },
-        orderBy: { sortOrder: "asc" },
-      },
-    },
+  // Look up exercise names for the draft
+  const exerciseIds = input.exercises.map((e) => e.exerciseId);
+  const exerciseLookup = await prisma.exercise.findMany({
+    where: { id: { in: exerciseIds } },
+    select: { id: true, name: true },
   });
+  const nameMap = new Map(exerciseLookup.map((e) => [e.id, e.name]));
 
-  const summary = {
-    id: session.id,
-    name: session.name,
-    savedAs: "session" as const,
-    message: "Session created! It appears in your History tab ready to perform.",
-    createdAt: session.createdAt.toISOString(),
-    exercises: session.exercises.map((ex) => ({
-      name: ex.exercise.name,
-      sets: ex.sets.length,
+  // Return as a draft — the frontend will load it into the Log tab
+  const draft = {
+    name: input.name,
+    notes: input.notes || "",
+    exercises: input.exercises.map((ex) => ({
+      exerciseId: ex.exerciseId,
+      exerciseName: nameMap.get(ex.exerciseId) || "Unknown",
+      notes: ex.notes || "",
+      sets: ex.sets.map((s, idx) => ({
+        setNumber: idx + 1,
+        weight: s.weight?.toString() || "",
+        reps: s.reps.toString(),
+        rpe: "",
+        setType: s.setType || "working",
+      })),
     })),
   };
 
-  return JSON.stringify({ success: true, workout: summary });
+  return JSON.stringify({
+    success: true,
+    draft: true,
+    workout: draft,
+    message: "Workout loaded into your Log tab — edit anything before saving.",
+  });
 }

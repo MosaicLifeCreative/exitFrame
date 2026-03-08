@@ -11,7 +11,7 @@ import {
   Send,
   Trash2,
   Loader2,
-  Bot,
+  Sparkles,
   User,
   Wrench,
   Check,
@@ -298,8 +298,8 @@ export default function ChatPanel() {
         {/* Header */}
         <div className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-sm">Claude</span>
+            <Sparkles className="h-5 w-5 text-primary" />
+            <span className="font-semibold text-sm">Ayden</span>
             {pageContext && (
               <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                 {pageContext.page}
@@ -346,9 +346,9 @@ export default function ChatPanel() {
 
           {!isLoadingHistory && messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center">
-              <Bot className="h-12 w-12 text-muted-foreground/30 mb-4" />
+              <Sparkles className="h-12 w-12 text-muted-foreground/30 mb-4" />
               <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                Ask me anything
+                Hey, I&apos;m Ayden
               </h3>
               <p className="text-xs text-muted-foreground/60 max-w-[280px]">
                 I have context about the page you&apos;re viewing. Ask about your data, get analysis, or brainstorm ideas.
@@ -375,7 +375,7 @@ export default function ChatPanel() {
                 {msg.role === "user" ? (
                   <User className="h-3.5 w-3.5" />
                 ) : (
-                  <Bot className="h-3.5 w-3.5" />
+                  <Sparkles className="h-3.5 w-3.5" />
                 )}
               </div>
               <div
@@ -443,7 +443,7 @@ export default function ChatPanel() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Claude..."
+              placeholder="Ask Ayden..."
               className="min-h-[44px] max-h-[120px] resize-none text-sm"
               rows={1}
             />

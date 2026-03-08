@@ -168,15 +168,19 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
       const decoder = new TextDecoder();
       let accumulated = "";
+      let toolsWereUsed = false;
+      let sseBuffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+        sseBuffer += decoder.decode(value, { stream: true });
+        const parts = sseBuffer.split("\n");
+        // Keep the last element — it may be an incomplete line
+        sseBuffer = parts.pop() || "";
 
-        for (const line of lines) {
+        for (const line of parts) {
           if (line.startsWith("data: ")) {
             const data = line.slice(6);
             if (data === "[DONE]") continue;
@@ -192,6 +196,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 }));
               }
               if (parsed.toolUse) {
+                toolsWereUsed = true;
                 const tool = parsed.toolUse as ToolUseStatus;
                 set((s) => ({
                   messages: s.messages.map((m) => {
@@ -252,13 +257,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         ),
       }));
     } finally {
-      // Check if any tools were executed during this exchange
-      const finalMessages = get().messages;
-      const lastAssistant = finalMessages.filter((m) => m.role === "assistant").at(-1);
-      const hadTools = lastAssistant?.toolUses && lastAssistant.toolUses.length > 0;
+      // Increment flag if any tools were executed — triggers page data refresh
       set((s) => ({
         isStreaming: false,
-        toolExecutedFlag: hadTools ? s.toolExecutedFlag + 1 : s.toolExecutedFlag,
+        toolExecutedFlag: toolsWereUsed ? s.toolExecutedFlag + 1 : s.toolExecutedFlag,
       }));
     }
   },

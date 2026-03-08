@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { fitnessTools, executeFitnessTool } from "@/lib/fitness-tools";
 import { healthTools, executeHealthTool } from "@/lib/health-tools";
+import { getUserPreferencesContext } from "@/lib/userPreferences";
 
 export const dynamic = "force-dynamic";
 
@@ -106,10 +107,16 @@ FAMILY HISTORY:
 - Connect the dots: if family has heart disease history and user's LDL is high, flag the pattern
 - Use consistent relation names: mother, father, sibling, grandparent-maternal, grandparent-paternal, uncle-paternal, aunt-maternal, etc.`;
 
-function buildSystemPrompt(context?: ChatRequest["context"]): string {
+async function buildSystemPrompt(context?: ChatRequest["context"]): Promise<string> {
   let system = `You are an AI assistant embedded in the Mosaic Life Dashboard — a personal command center for managing life (health, fitness, finances, investing) and business operations (WordPress agency, clients, analytics).
 
 You are concise and helpful. Keep responses focused and actionable. Use markdown formatting when it improves readability. Do not use emojis unless asked.`;
+
+  // Inject user preferences context (available on every page)
+  const userContext = await getUserPreferencesContext();
+  if (userContext) {
+    system += `\n\nUser context:\n${userContext}`;
+  }
 
   if (context?.page === "Investing") {
     system += "\n" + INVESTING_SYSTEM;
@@ -170,7 +177,7 @@ export async function POST(request: Request) {
     }
 
     const anthropic = new Anthropic({ apiKey });
-    const systemPrompt = buildSystemPrompt(body.context);
+    const systemPrompt = await buildSystemPrompt(body.context);
     const tools = getToolsForPage(body.context?.page);
 
     const encoder = new TextEncoder();

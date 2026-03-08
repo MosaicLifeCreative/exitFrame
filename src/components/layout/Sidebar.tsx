@@ -38,6 +38,7 @@ import {
   Pill,
   FlaskConical,
   Users2,
+  Settings,
 } from "lucide-react";
 
 interface NavItem {
@@ -118,6 +119,7 @@ const navSections: NavSection[] = [
     title: "System",
     items: [
       { label: "System Health", href: "/dashboard/system-health", icon: Activity },
+      { label: "Settings", href: "/dashboard/settings/preferences", icon: Settings },
     ],
   },
 ];

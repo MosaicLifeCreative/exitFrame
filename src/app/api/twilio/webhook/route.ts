@@ -55,7 +55,7 @@ You have full access to Trey's dashboard data and tools (fitness, health, goals)
   }
 
   // SMS gets all tools — health + fitness + goals
-  system += `\n\nYou have fitness, health, and goal tools. Use them to answer questions about workouts, symptoms, supplements, goals, sleep, etc. When using tools, still keep your final response SMS-short.`;
+  system += `\n\nYou have fitness, health, and goal tools. Use them to answer questions about workouts, symptoms, supplements, goals, sleep, etc. ALWAYS use your tools to look up real data before answering — never say you don't have access to something without trying first. When using tools, still keep your final response SMS-short.`;
 
   return system;
 }

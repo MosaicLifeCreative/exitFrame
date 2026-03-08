@@ -57,7 +57,6 @@ interface SupplementEntry {
   frequency: string;
   category: string | null;
   isActive: boolean;
-  takenToday: boolean;
 }
 
 // ─── Page ────────────────────────────────────────────────
@@ -103,10 +102,9 @@ export default function HealthOverviewPage() {
     }
 
     if (supplements.length > 0) {
-      const taken = supplements.filter((s) => s.takenToday).length;
-      parts.push(`\nSupplements: ${supplements.length} active, ${taken}/${supplements.length} taken today`);
+      parts.push(`\nCurrent supplements (${supplements.length}):`);
       for (const s of supplements) {
-        parts.push(`  ${s.name} ${s.dosage || ""} (${s.frequency}) — ${s.takenToday ? "taken" : "not taken"}`);
+        parts.push(`  ${s.name} ${s.dosage || ""} (${s.frequency})`);
       }
     }
 
@@ -127,8 +125,6 @@ export default function HealthOverviewPage() {
   const latestReadiness = ouraData?.oura?.readiness?.at(-1);
   const latestActivity = ouraData?.oura?.activity?.at(-1);
   const activeSymptoms = symptoms.filter((s) => !s.resolved);
-  const supplementsTaken = supplements.filter((s) => s.takenToday).length;
-
   return (
     <div className="space-y-6">
       <div>
@@ -196,7 +192,7 @@ export default function HealthOverviewPage() {
                     <div className="text-sm font-medium">Supplements</div>
                     <div className="text-xs text-muted-foreground">
                       {supplements.length > 0
-                        ? `${supplementsTaken}/${supplements.length} taken today`
+                        ? `${supplements.length} in your stack`
                         : "No supplements tracked"}
                     </div>
                   </div>
@@ -297,7 +293,7 @@ export default function HealthOverviewPage() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Pill className="h-4 w-4" />
-              Today&apos;s Supplements
+              Current Supplements
             </CardTitle>
             <Link href="/dashboard/health/supplements">
               <Button variant="ghost" size="sm" className="text-xs h-7">
@@ -322,13 +318,8 @@ export default function HealthOverviewPage() {
                   className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "h-6 w-6 rounded-full flex items-center justify-center text-xs",
-                      sup.takenToday
-                        ? "bg-emerald-500/10 text-emerald-500"
-                        : "bg-muted text-muted-foreground"
-                    )}>
-                      {sup.takenToday ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Pill className="h-3 w-3" />}
+                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Pill className="h-3 w-3 text-primary" />
                     </div>
                     <div>
                       <div className="text-sm font-medium">{sup.name}</div>
@@ -346,9 +337,6 @@ export default function HealthOverviewPage() {
                   )}
                 </div>
               ))}
-              <div className="text-xs text-muted-foreground text-center pt-2">
-                {supplementsTaken}/{supplements.length} taken today
-              </div>
             </div>
           )}
         </CardContent>

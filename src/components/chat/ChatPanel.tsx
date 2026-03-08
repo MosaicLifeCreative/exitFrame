@@ -158,7 +158,6 @@ const TOOL_LABELS: Record<string, string> = {
   add_supplement: "Adding supplement",
   list_supplements: "Checking supplements",
   update_supplement: "Updating supplement",
-  log_supplement_intake: "Logging supplement intake",
 };
 
 function formatToolName(name: string): string {

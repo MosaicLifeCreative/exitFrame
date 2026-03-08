@@ -144,30 +144,6 @@ export const healthTools: Anthropic.Tool[] = [
       required: ["id"],
     },
   },
-  {
-    name: "log_supplement_intake",
-    description:
-      "Log that supplements were taken today. Can log a specific supplement or mark all daily supplements as taken.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        supplementId: {
-          type: "string",
-          description: "UUID of specific supplement. If omitted, logs all active daily supplements.",
-        },
-        date: {
-          type: "string",
-          description: "Date in YYYY-MM-DD format (defaults to today)",
-        },
-        timeTaken: {
-          type: "string",
-          enum: ["morning", "afternoon", "evening", "night"],
-          description: "Time of day taken",
-        },
-      },
-      required: [],
-    },
-  },
 ];
 
 // ─── Tool Execution ─────────────────────────────────────
@@ -189,8 +165,6 @@ export async function executeHealthTool(
       return listSupplements(toolInput as unknown as ListSupplementsInput);
     case "update_supplement":
       return updateSupplement(toolInput as unknown as UpdateSupplementInput);
-    case "log_supplement_intake":
-      return logSupplementIntake(toolInput as unknown as LogSupplementIntakeInput);
     default:
       return JSON.stringify({ error: `Unknown health tool: ${toolName}` });
   }
@@ -233,12 +207,6 @@ interface UpdateSupplementInput {
   frequency?: string;
   notes?: string;
   isActive?: boolean;
-}
-
-interface LogSupplementIntakeInput {
-  supplementId?: string;
-  date?: string;
-  timeTaken?: string;
 }
 
 // ─── Tool Implementations ────────────────────────────────
@@ -356,12 +324,6 @@ async function listSupplements(input: ListSupplementsInput): Promise<string> {
   const supplements = await prisma.supplement.findMany({
     where,
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
-    include: {
-      logs: {
-        where: { date: new Date(todayStr() + "T00:00:00Z") },
-        take: 1,
-      },
-    },
   });
 
   const result = supplements.map((s) => ({
@@ -374,7 +336,6 @@ async function listSupplements(input: ListSupplementsInput): Promise<string> {
     isActive: s.isActive,
     startDate: s.startDate?.toISOString().slice(0, 10) ?? null,
     endDate: s.endDate?.toISOString().slice(0, 10) ?? null,
-    takenToday: s.logs.length > 0,
   }));
 
   return JSON.stringify({ supplements: result, count: result.length });
@@ -412,69 +373,3 @@ async function updateSupplement(input: UpdateSupplementInput): Promise<string> {
   });
 }
 
-async function logSupplementIntake(input: LogSupplementIntakeInput): Promise<string> {
-  const date = new Date((input.date || todayStr()) + "T00:00:00Z");
-
-  if (input.supplementId) {
-    // Log a specific supplement
-    const log = await prisma.supplementLog.upsert({
-      where: {
-        supplementId_date: {
-          supplementId: input.supplementId,
-          date,
-        },
-      },
-      create: {
-        supplementId: input.supplementId,
-        date,
-        taken: true,
-        timeTaken: input.timeTaken,
-      },
-      update: {
-        taken: true,
-        timeTaken: input.timeTaken,
-      },
-      include: { supplement: { select: { name: true } } },
-    });
-
-    return JSON.stringify({
-      success: true,
-      logged: [{ name: log.supplement.name, date: date.toISOString().slice(0, 10) }],
-    });
-  }
-
-  // Log all active daily supplements
-  const activeDailies = await prisma.supplement.findMany({
-    where: { isActive: true, frequency: { in: ["daily", "twice-daily"] } },
-  });
-
-  const results = [];
-  for (const sup of activeDailies) {
-    await prisma.supplementLog.upsert({
-      where: {
-        supplementId_date: {
-          supplementId: sup.id,
-          date,
-        },
-      },
-      create: {
-        supplementId: sup.id,
-        date,
-        taken: true,
-        timeTaken: input.timeTaken,
-      },
-      update: {
-        taken: true,
-        timeTaken: input.timeTaken,
-      },
-    });
-    results.push({ name: sup.name });
-  }
-
-  return JSON.stringify({
-    success: true,
-    logged: results,
-    count: results.length,
-    date: date.toISOString().slice(0, 10),
-  });
-}

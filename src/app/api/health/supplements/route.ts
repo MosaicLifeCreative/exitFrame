@@ -3,20 +3,12 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-// GET: Active supplements with today's intake status
+// GET: Active supplements
 export async function GET() {
   try {
-    const today = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
-
     const supplements = await prisma.supplement.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
-      include: {
-        logs: {
-          where: { date: today },
-          take: 1,
-        },
-      },
     });
 
     const data = supplements.map((s) => ({
@@ -28,7 +20,6 @@ export async function GET() {
       notes: s.notes,
       isActive: s.isActive,
       startDate: s.startDate?.toISOString().slice(0, 10) ?? null,
-      takenToday: s.logs.length > 0 && s.logs[0].taken,
     }));
 
     return NextResponse.json({ data });

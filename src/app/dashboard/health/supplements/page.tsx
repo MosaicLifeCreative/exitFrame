@@ -5,18 +5,14 @@ import { useChatContext } from "@/hooks/useChatContext";
 import {
   Pill,
   Plus,
-  CheckCircle2,
-  Circle,
   Trash2,
   Loader2,
   X,
-  Pencil,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -29,32 +25,19 @@ interface Supplement {
   notes: string | null;
   isActive: boolean;
   startDate: string | null;
-  takenToday: boolean;
-}
-
-interface SupplementLog {
-  date: string;
-  supplements: Array<{ name: string; taken: boolean }>;
 }
 
 // ─── Page ────────────────────────────────────────────────
 
 export default function SupplementsPage() {
   const [supplements, setSupplements] = useState<Supplement[]>([]);
-  const [recentLogs, setRecentLogs] = useState<SupplementLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [supRes, logRes] = await Promise.all([
-        fetch("/api/health/supplements").then((r) => r.json()),
-        fetch("/api/health/supplements/logs?days=7").then((r) => r.json()),
-      ]);
-      if (supRes.data) setSupplements(supRes.data);
-      if (logRes.data) setRecentLogs(logRes.data);
+      const res = await fetch("/api/health/supplements").then((r) => r.json());
+      if (res.data) setSupplements(res.data);
     } catch (err) {
       console.error("Supplements fetch error:", err);
     } finally {
@@ -66,34 +49,6 @@ export default function SupplementsPage() {
     fetchData();
   }, [fetchData]);
 
-  const toggleTaken = async (supplementId: string) => {
-    setTogglingId(supplementId);
-    try {
-      await fetch("/api/health/supplements/log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ supplementId }),
-      });
-      await fetchData();
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
-  const markAllTaken = async () => {
-    setTogglingId("all");
-    try {
-      await fetch("/api/health/supplements/log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ all: true }),
-      });
-      await fetchData();
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
   const deleteSupplement = async (id: string) => {
     await fetch(`/api/health/supplements/${id}`, { method: "DELETE" });
     await fetchData();
@@ -102,10 +57,9 @@ export default function SupplementsPage() {
   const chatContext = useMemo(() => {
     const parts = ["Page: Supplements"];
     if (supplements.length > 0) {
-      const taken = supplements.filter((s) => s.takenToday).length;
-      parts.push(`${taken}/${supplements.length} taken today`);
+      parts.push(`Current supplement stack (${supplements.length}):`);
       for (const s of supplements) {
-        parts.push(`  ${s.name} ${s.dosage || ""} (${s.frequency}) — ${s.takenToday ? "taken" : "not taken"}`);
+        parts.push(`  ${s.name} ${s.dosage || ""} (${s.frequency})${s.notes ? ` — ${s.notes}` : ""}`);
       }
     }
     return parts.join("\n");
@@ -121,9 +75,6 @@ export default function SupplementsPage() {
     );
   }
 
-  const takenCount = supplements.filter((s) => s.takenToday).length;
-  const allTaken = supplements.length > 0 && takenCount === supplements.length;
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -131,31 +82,14 @@ export default function SupplementsPage() {
           <h1 className="text-2xl font-bold">Supplements</h1>
           <p className="text-sm text-muted-foreground">
             {supplements.length > 0
-              ? `${takenCount}/${supplements.length} taken today`
-              : "Track your daily supplement stack"}
+              ? `${supplements.length} supplement${supplements.length !== 1 ? "s" : ""} in your stack`
+              : "Track what you're currently taking"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {supplements.length > 0 && !allTaken && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={markAllTaken}
-              disabled={togglingId === "all"}
-            >
-              {togglingId === "all" ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4 mr-1" />
-              )}
-              Mark All Taken
-            </Button>
-          )}
-          <Button size="sm" onClick={() => setShowAddForm(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            Add
-          </Button>
-        </div>
+        <Button size="sm" onClick={() => setShowAddForm(true)}>
+          <Plus className="h-4 w-4 mr-1" />
+          Add
+        </Button>
       </div>
 
       {/* Add Form */}
@@ -166,10 +100,13 @@ export default function SupplementsPage() {
         />
       )}
 
-      {/* Today's Checklist */}
+      {/* Supplement List */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Today&apos;s Checklist</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Pill className="h-4 w-4" />
+            Current Stack
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {supplements.length === 0 ? (
@@ -183,31 +120,13 @@ export default function SupplementsPage() {
               {supplements.map((sup) => (
                 <div
                   key={sup.id}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg transition-colors group",
-                    sup.takenToday ? "bg-emerald-500/5" : "hover:bg-muted/50"
-                  )}
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors group"
                 >
-                  <button
-                    onClick={() => toggleTaken(sup.id)}
-                    disabled={togglingId === sup.id}
-                    className="shrink-0"
-                  >
-                    {togglingId === sup.id ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    ) : sup.takenToday ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
-                    )}
-                  </button>
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Pill className="h-4 w-4 text-primary" />
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <div className={cn(
-                      "text-sm font-medium",
-                      sup.takenToday && "text-muted-foreground line-through"
-                    )}>
-                      {sup.name}
-                    </div>
+                    <div className="text-sm font-medium">{sup.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {[sup.dosage, sup.frequency !== "daily" ? sup.frequency : null, sup.notes]
                         .filter(Boolean)
@@ -219,75 +138,19 @@ export default function SupplementsPage() {
                       {sup.category}
                     </Badge>
                   )}
-                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                    <button
-                      onClick={() => setEditingId(editingId === sup.id ? null : sup.id)}
-                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => deleteSupplement(sup.id)}
-                      className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => deleteSupplement(sup.id)}
+                    className="p-1.5 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                    title="Remove supplement"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* 7-Day History */}
-      {recentLogs.length > 0 && supplements.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">7-Day History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-2 pr-4 text-muted-foreground font-medium">Supplement</th>
-                    {recentLogs.map((log) => (
-                      <th
-                        key={log.date}
-                        className="text-center py-2 px-2 text-muted-foreground font-medium min-w-[40px]"
-                      >
-                        {new Date(log.date + "T00:00:00").toLocaleDateString("en-US", {
-                          weekday: "short",
-                        })}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {supplements.map((sup) => (
-                    <tr key={sup.id} className="border-b border-border/50">
-                      <td className="py-2 pr-4 font-medium">{sup.name}</td>
-                      {recentLogs.map((log) => {
-                        const entry = log.supplements.find((s) => s.name === sup.name);
-                        return (
-                          <td key={log.date} className="text-center py-2 px-2">
-                            {entry?.taken ? (
-                              <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
-                            ) : (
-                              <Circle className="h-4 w-4 text-muted-foreground/30 mx-auto" />
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

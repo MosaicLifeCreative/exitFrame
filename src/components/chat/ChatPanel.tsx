@@ -374,7 +374,6 @@ export default function ChatPanel() {
               placeholder="Ask Claude..."
               className="min-h-[44px] max-h-[120px] resize-none text-sm"
               rows={1}
-              disabled={isStreaming}
             />
             <Button
               size="sm"

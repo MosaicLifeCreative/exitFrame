@@ -250,11 +250,29 @@ export default function FitnessPage() {
     if (res.ok) setTemplates(json.data);
   }, []);
 
+  // Check for persisted draft sessions on mount
+  const checkForDrafts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/fitness/sessions?includeDrafts=true&limit=5");
+      const json = await res.json();
+      if (!res.ok) return;
+      const draft = json.data.sessions.find(
+        (s: WorkoutSession) => s.source === "draft"
+      );
+      if (draft && !workoutDraft) {
+        setEditingSession(draft);
+        setActiveTab("log");
+      }
+    } catch {
+      // Best-effort
+    }
+  }, [workoutDraft]);
+
   useEffect(() => {
-    Promise.all([fetchExercises(), fetchSessions(), fetchTemplates()]).finally(() =>
-      setLoading(false)
-    );
-  }, [fetchExercises, fetchSessions, fetchTemplates]);
+    Promise.all([fetchExercises(), fetchSessions(), fetchTemplates()])
+      .then(() => checkForDrafts())
+      .finally(() => setLoading(false));
+  }, [fetchExercises, fetchSessions, fetchTemplates, checkForDrafts]);
 
   const refreshAll = useCallback(() => {
     fetchExercises();
@@ -458,6 +476,7 @@ function LogWorkoutTab({
   const [saving, setSaving] = useState(false);
   const [expandedExercise, setExpandedExercise] = useState<number | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [isDraftSession, setIsDraftSession] = useState(false);
 
   // Watch for workout drafts from Claude
   const workoutDraft = useChatStore((s) => s.workoutDraft);
@@ -469,7 +488,9 @@ function LogWorkoutTab({
       setName(workoutDraft.name);
       setNotes(workoutDraft.notes || "");
       setEntries(workoutDraft.exercises);
-      setEditingSessionId(null);
+      // If draft was saved to DB, set editing ID so save PATCHes instead of POSTing
+      setEditingSessionId(workoutDraft.sessionId || null);
+      setIsDraftSession(!!workoutDraft.sessionId);
       setExpandedExercise(0);
       clearWorkoutDraft();
     }
@@ -482,6 +503,7 @@ function LogWorkoutTab({
       setNotes(editingSession.notes || "");
       setDuration(editingSession.durationMinutes?.toString() || "");
       setEditingSessionId(editingSession.id);
+      setIsDraftSession(editingSession.source === "draft");
       setEntries(
         editingSession.exercises.map((ex) => ({
           exerciseId: ex.exercise.id,
@@ -602,6 +624,7 @@ function LogWorkoutTab({
     setDuration("");
     setNotes("");
     setEditingSessionId(null);
+    setIsDraftSession(false);
   };
 
   const saveWorkout = async () => {
@@ -621,7 +644,7 @@ function LogWorkoutTab({
         performedAt: new Date().toISOString(),
         durationMinutes: duration ? parseInt(duration) : undefined,
         notes: notes.trim() || undefined,
-        source: editingSessionId ? undefined : "manual",
+        source: isDraftSession ? "claude" : editingSessionId ? undefined : "manual",
         exercises: entries.map((e, i) => ({
           exerciseId: e.exerciseId,
           sortOrder: i,

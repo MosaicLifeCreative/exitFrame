@@ -26,7 +26,7 @@ const sessionSchema = z.object({
   performedAt: z.string().datetime({ offset: true }).or(z.string().datetime()),
   durationMinutes: z.number().int().min(0).optional(),
   notes: z.string().optional(),
-  source: z.enum(["manual", "claude", "oura", "import"]).default("manual"),
+  source: z.enum(["manual", "claude", "oura", "import", "draft"]).default("manual"),
   exercises: z.array(sessionExerciseSchema),
 });
 
@@ -39,7 +39,11 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
 
+    const includeDrafts = searchParams.get("includeDrafts") === "true";
     const where: Record<string, unknown> = {};
+    if (!includeDrafts) {
+      where.source = { not: "draft" };
+    }
     if (startDate || endDate) {
       const dateFilter: Record<string, unknown> = {};
       if (startDate) dateFilter.gte = new Date(startDate);

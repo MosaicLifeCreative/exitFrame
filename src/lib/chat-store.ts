@@ -34,6 +34,7 @@ interface WorkoutDraftExercise {
 interface WorkoutDraft {
   name: string;
   notes: string;
+  sessionId?: string;
   exercises: WorkoutDraftExercise[];
 }
 

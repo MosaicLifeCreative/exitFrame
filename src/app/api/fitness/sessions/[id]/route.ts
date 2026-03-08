@@ -53,7 +53,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, durationMinutes, notes, exercises } = body;
+    const { name, durationMinutes, notes, exercises, source, performedAt } = body;
 
     // Update session fields
     await prisma.workoutSession.update({
@@ -62,6 +62,8 @@ export async function PATCH(
         ...(name !== undefined && { name }),
         ...(durationMinutes !== undefined && { durationMinutes }),
         ...(notes !== undefined && { notes: notes || null }),
+        ...(source !== undefined && { source }),
+        ...(performedAt !== undefined && { performedAt: new Date(performedAt) }),
       },
     });
 

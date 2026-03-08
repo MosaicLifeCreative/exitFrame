@@ -384,28 +384,59 @@ async function createTemplate(input: CreateWorkoutInput): Promise<string> {
 }
 
 async function createSession(input: CreateWorkoutInput): Promise<string> {
-  // Look up exercise names for the draft
-  const exerciseIds = input.exercises.map((e) => e.exerciseId);
-  const exerciseLookup = await prisma.exercise.findMany({
-    where: { id: { in: exerciseIds } },
-    select: { id: true, name: true },
-  });
-  const nameMap = new Map(exerciseLookup.map((e) => [e.id, e.name]));
+  // Save to DB as a draft session — persists across devices/reloads
+  // Delete any existing drafts first (only one active draft at a time)
+  await prisma.workoutSession.deleteMany({ where: { source: "draft" } });
 
-  // Return as a draft — the frontend will load it into the Log tab
+  const session = await prisma.workoutSession.create({
+    data: {
+      name: input.name,
+      performedAt: new Date(),
+      notes: input.notes,
+      source: "draft",
+      exercises: {
+        create: input.exercises.map((ex, idx) => ({
+          exerciseId: ex.exerciseId,
+          sortOrder: idx,
+          notes: ex.notes,
+          sets: {
+            create: ex.sets.map((s, sIdx) => ({
+              setNumber: sIdx + 1,
+              weight: s.weight ?? null,
+              reps: s.reps,
+              setType: s.setType || "working",
+              isCompleted: false,
+            })),
+          },
+        })),
+      },
+    },
+    include: {
+      exercises: {
+        include: {
+          exercise: { select: { id: true, name: true } },
+          sets: { orderBy: { setNumber: "asc" } },
+        },
+        orderBy: { sortOrder: "asc" },
+      },
+    },
+  });
+
+  // Also return draft data for immediate SSE pickup (if user is on the page)
   const draft = {
-    name: input.name,
+    name: session.name,
     notes: input.notes || "",
-    exercises: input.exercises.map((ex) => ({
-      exerciseId: ex.exerciseId,
-      exerciseName: nameMap.get(ex.exerciseId) || "Unknown",
+    sessionId: session.id,
+    exercises: session.exercises.map((ex) => ({
+      exerciseId: ex.exercise.id,
+      exerciseName: ex.exercise.name,
       notes: ex.notes || "",
-      sets: ex.sets.map((s, idx) => ({
-        setNumber: idx + 1,
-        weight: s.weight?.toString() || "",
+      sets: ex.sets.map((s) => ({
+        setNumber: s.setNumber,
+        weight: s.weight ? Number(s.weight).toString() : "",
         reps: s.reps.toString(),
         rpe: "",
-        setType: s.setType || "working",
+        setType: s.setType,
       })),
     })),
   };

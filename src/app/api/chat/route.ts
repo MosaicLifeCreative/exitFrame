@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { fitnessTools, executeFitnessTool } from "@/lib/fitness-tools";
 import { healthTools, executeHealthTool } from "@/lib/health-tools";
 import { goalTools, executeGoalTool } from "@/lib/goal-tools";
+import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 
@@ -240,15 +241,15 @@ function getToolsForPage(page?: string): Anthropic.Tool[] | undefined {
 
   // Every tool-enabled page gets all tools — Claude has cross-domain awareness
   // Primary tools listed first for the current domain, then secondary
-  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools];
-  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools];
+  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools];
+  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools];
   if (page === "Sleep" || page === "Supplements" || page === "Bloodwork" || page === "Family History" || page === "Family")
-    return [...healthTools, ...fitnessTools, ...goalTools];
-  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools];
-  if (page === "Investing") return [...goalTools];
+    return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools];
+  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools, ...investingTools];
+  if (page === "Investing") return [...investingTools, ...goalTools, ...fitnessTools, ...healthTools];
 
-  // All other pages get goal tools (lightweight, universally useful)
-  return [...goalTools];
+  // All other pages get goal + investing tools (lightweight, universally useful)
+  return [...goalTools, ...investingTools];
 }
 
 type AnthropicMessage = Anthropic.MessageParam;
@@ -371,6 +372,7 @@ export async function POST(request: Request) {
                 const fitnessToolNames = new Set(fitnessTools.map((t) => t.name));
                 const healthToolNames = new Set(healthTools.map((t) => t.name));
                 const goalToolNames = new Set(goalTools.map((t) => t.name));
+                const investingToolNames = new Set(investingTools.map((t) => t.name));
                 let result: string;
                 if (fitnessToolNames.has(tool.name)) {
                   result = await executeFitnessTool(tool.name, tool.input);
@@ -378,6 +380,8 @@ export async function POST(request: Request) {
                   result = await executeHealthTool(tool.name, tool.input);
                 } else if (goalToolNames.has(tool.name)) {
                   result = await executeGoalTool(tool.name, tool.input);
+                } else if (investingToolNames.has(tool.name)) {
+                  result = await executeInvestingTool(tool.name, tool.input);
                 } else {
                   result = JSON.stringify({ error: `Unknown tool: ${tool.name}` });
                 }

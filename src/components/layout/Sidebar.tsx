@@ -6,6 +6,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
+  Heart,
   Moon,
   Dumbbell,
   UtensilsCrossed,
@@ -62,6 +63,7 @@ const navSections: NavSection[] = [
   {
     title: "Life",
     items: [
+      { label: "Health", href: "/dashboard/health", icon: Heart },
       { label: "Sleep", href: "/dashboard/sleep", icon: Moon },
       { label: "Fitness", href: "/dashboard/fitness", icon: Dumbbell },
       { label: "Diet", href: "/dashboard/diet", icon: UtensilsCrossed },

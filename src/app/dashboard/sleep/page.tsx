@@ -60,6 +60,62 @@ interface SleepPageData {
   oura: OuraData | null;
 }
 
+function ScoreCard({
+  title,
+  icon: Icon,
+  score,
+  trend,
+  color,
+  subtitle,
+}: {
+  title: string;
+  icon: React.ElementType;
+  score: number | null;
+  trend: number | null;
+  color: string;
+  subtitle?: string;
+}) {
+  const scoreColor =
+    score === null
+      ? "text-muted-foreground"
+      : score >= 85
+        ? "text-emerald-500"
+        : score >= 70
+          ? "text-amber-500"
+          : "text-red-500";
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`h-10 w-10 rounded-full flex items-center justify-center ${color}`}>
+              <Icon className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">{title}</div>
+              <div className={`text-2xl font-bold tabular-nums ${scoreColor}`}>
+                {score ?? "--"}
+              </div>
+            </div>
+          </div>
+          {trend !== null && (
+            <div className={`flex items-center gap-1 text-xs ${
+              trend > 0 ? "text-emerald-500" : trend < 0 ? "text-red-500" : "text-muted-foreground"
+            }`}>
+              {trend > 0 ? <TrendingUp className="h-3 w-3" /> : trend < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+              {trend > 0 ? "+" : ""}{trend}
+            </div>
+          )}
+        </div>
+        {subtitle && (
+          <div className="text-xs text-muted-foreground mt-2">{subtitle}</div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 type SystemStatus = "optimal" | "good" | "attention" | "critical";
 
 function getScoreStatus(score: number | null): SystemStatus {
@@ -449,6 +505,22 @@ function SleepPage() {
   const activityDays = (oura?.activity || []).map((d) => ({ date: d.date, value: d.score }));
   const hrDays = (oura?.sleep || []).map((d) => ({ date: d.date, value: d.hrvAverage ? Math.round(d.hrvAverage) : null }));
 
+  // Compute trends (today vs 7-day average)
+  function computeTrend(days: OuraDay[]): number | null {
+    if (!days || days.length < 2) return null;
+    const latest = days.at(-1)?.score;
+    if (latest === null || latest === undefined) return null;
+    const prev7 = days.slice(-8, -1).filter((d) => d.score !== null);
+    if (prev7.length === 0) return null;
+    const avg = prev7.reduce((sum, d) => sum + (d.score ?? 0), 0) / prev7.length;
+    return Math.round(latest - avg);
+  }
+
+  const sleepTrend = oura ? computeTrend(oura.sleep) : null;
+  const readinessTrend = oura ? computeTrend(oura.readiness) : null;
+  const activityTrend = oura ? computeTrend(oura.activity) : null;
+  const latestHrvValue = oura?.sleep?.filter((d) => d.hrvAverage).at(-1)?.hrvAverage;
+
   // Current statuses for overall banner
   const latestSleep = sleepDays.at(-1)?.value ?? null;
   const latestReadiness = readinessDays.at(-1)?.value ?? null;
@@ -634,6 +706,42 @@ function SleepPage() {
               />
             </CardContent>
           </Card>
+
+          {/* Score Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <ScoreCard
+              title="Sleep Score"
+              icon={Moon}
+              score={oura.sleep.at(-1)?.score ?? null}
+              trend={sleepTrend}
+              color="bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
+              subtitle={oura.sleep.at(-1)?.date ? "Last night" : undefined}
+            />
+            <ScoreCard
+              title="Readiness"
+              icon={Zap}
+              score={oura.readiness.at(-1)?.score ?? null}
+              trend={readinessTrend}
+              color="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+              subtitle="How recovered you are"
+            />
+            <ScoreCard
+              title="Activity"
+              icon={Activity}
+              score={oura.activity.at(-1)?.score ?? null}
+              trend={activityTrend}
+              color="bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400"
+              subtitle="Daily movement goal"
+            />
+            <ScoreCard
+              title="Resting HR"
+              icon={Heart}
+              score={latestHrvValue ? Math.round(latestHrvValue) : null}
+              trend={null}
+              color="bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"
+              subtitle="Average BPM"
+            />
+          </div>
 
           {/* Detail Table */}
           {oura.sleep.length > 0 && (

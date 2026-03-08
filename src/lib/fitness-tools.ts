@@ -42,13 +42,19 @@ export const fitnessTools: Anthropic.Tool[] = [
   {
     name: "create_workout",
     description:
-      "Create a workout session in the database. Use this ONLY after the user has approved the workout plan you suggested. Include all exercises with their sets.",
+      "Save a workout plan to the database. Use this ONLY after the user has approved the workout plan you suggested. Ask the user whether they want it saved as a reusable template or as a one-time session ready to perform.",
     input_schema: {
       type: "object" as const,
       properties: {
         name: {
           type: "string",
-          description: "Workout name (e.g. 'Push Day', 'Upper Body Strength')",
+          description: "Workout name (e.g. 'Push Day', 'Full Body - Recovery')",
+        },
+        saveAs: {
+          type: "string",
+          enum: ["template", "session"],
+          description:
+            "How to save: 'template' creates a reusable workout template (appears in Templates tab), 'session' creates a one-time workout session ready to perform (appears in History tab as incomplete). Always ask the user which they prefer.",
         },
         notes: {
           type: "string",
@@ -96,7 +102,7 @@ export const fitnessTools: Anthropic.Tool[] = [
           },
         },
       },
-      required: ["name", "exercises"],
+      required: ["name", "saveAs", "exercises"],
     },
   },
 ];
@@ -114,6 +120,7 @@ interface GetRecentWorkoutsInput {
 
 interface CreateWorkoutInput {
   name: string;
+  saveAs: "template" | "session";
   notes?: string;
   exercises: Array<{
     exerciseId: string;
@@ -211,6 +218,57 @@ async function createWorkout(input: CreateWorkoutInput): Promise<string> {
     });
   }
 
+  if (input.saveAs === "template") {
+    return createTemplate(input);
+  }
+  return createSession(input);
+}
+
+async function createTemplate(input: CreateWorkoutInput): Promise<string> {
+  const template = await prisma.workoutTemplate.create({
+    data: {
+      name: input.name,
+      description: input.notes,
+      exercises: {
+        create: input.exercises.map((ex, idx) => {
+          // Use first set's values as defaults for the template
+          const firstSet = ex.sets[0];
+          return {
+            exerciseId: ex.exerciseId,
+            sortOrder: idx,
+            defaultSets: ex.sets.length,
+            defaultReps: firstSet?.reps ?? 10,
+            defaultWeight: firstSet?.weight ?? null,
+            notes: ex.notes,
+          };
+        }),
+      },
+    },
+    include: {
+      exercises: {
+        include: { exercise: { select: { name: true } } },
+        orderBy: { sortOrder: "asc" },
+      },
+    },
+  });
+
+  const summary = {
+    id: template.id,
+    name: template.name,
+    savedAs: "template" as const,
+    message: "Template saved! You can start it from the Templates tab.",
+    exercises: template.exercises.map((ex) => ({
+      name: ex.exercise.name,
+      sets: ex.defaultSets,
+      reps: ex.defaultReps,
+      weight: ex.defaultWeight ? Number(ex.defaultWeight) : null,
+    })),
+  };
+
+  return JSON.stringify({ success: true, workout: summary });
+}
+
+async function createSession(input: CreateWorkoutInput): Promise<string> {
   const session = await prisma.workoutSession.create({
     data: {
       name: input.name,
@@ -248,6 +306,8 @@ async function createWorkout(input: CreateWorkoutInput): Promise<string> {
   const summary = {
     id: session.id,
     name: session.name,
+    savedAs: "session" as const,
+    message: "Session created! It appears in your History tab ready to perform.",
     createdAt: session.createdAt.toISOString(),
     exercises: session.exercises.map((ex) => ({
       name: ex.exercise.name,

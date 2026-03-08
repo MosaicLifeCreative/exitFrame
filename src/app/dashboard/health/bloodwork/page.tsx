@@ -383,14 +383,21 @@ function MarkerTable({
             {category === "cbc" ? "CBC" : category}
           </h4>
           <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-[40%]" />
+                <col className="w-[20%]" />
+                <col className="w-[20%]" />
+                <col className="w-[12%]" />
+                <col className="w-[8%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="text-left px-3 py-2 font-medium text-xs">Marker</th>
                   <th className="text-right px-3 py-2 font-medium text-xs">Value</th>
                   <th className="text-right px-3 py-2 font-medium text-xs">Ref Range</th>
-                  <th className="text-center px-3 py-2 font-medium text-xs w-16">Flag</th>
-                  <th className="text-center px-3 py-2 font-medium text-xs w-10"></th>
+                  <th className="text-center px-3 py-2 font-medium text-xs">Flag</th>
+                  <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -399,7 +406,7 @@ function MarkerTable({
                     key={marker.id}
                     className="border-b last:border-b-0 hover:bg-muted/30 transition-colors"
                   >
-                    <td className="px-3 py-2 text-sm">{marker.name}</td>
+                    <td className="px-3 py-2 text-sm truncate">{marker.name}</td>
                     <td className="px-3 py-2 text-sm text-right font-mono">
                       {marker.value} <span className="text-muted-foreground text-xs">{marker.unit}</span>
                     </td>

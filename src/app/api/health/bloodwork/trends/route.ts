@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       date: m.panel.date.toISOString().slice(0, 10),
       value: Number(m.value),
       unit: m.unit,
-      isFlagged: m.isFlagged,
+      flag: m.isFlagged ? m.flagDirection : null,
       panelName: m.panel.name,
     }));
 

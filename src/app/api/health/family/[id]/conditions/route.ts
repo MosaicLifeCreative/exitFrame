@@ -11,13 +11,13 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { condition, ageOfOnset, notes } = body as {
-      condition: string;
+    const { conditionName, ageOfOnset, notes } = body as {
+      conditionName: string;
       ageOfOnset?: number;
       notes?: string;
     };
 
-    if (!condition) {
+    if (!conditionName) {
       return NextResponse.json({ error: "Condition is required" }, { status: 400 });
     }
 
@@ -30,7 +30,7 @@ export async function POST(
     const created = await prisma.familyCondition.create({
       data: {
         familyMemberId: id,
-        condition,
+        condition: conditionName,
         ageOfOnset: ageOfOnset ?? null,
         notes: notes || null,
       },
@@ -40,7 +40,7 @@ export async function POST(
       data: {
         id: created.id,
         familyMemberId: created.familyMemberId,
-        condition: created.condition,
+        conditionName: created.condition,
         ageOfOnset: created.ageOfOnset,
         notes: created.notes,
       },

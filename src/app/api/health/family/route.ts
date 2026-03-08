@@ -21,7 +21,7 @@ export async function GET() {
       updatedAt: m.updatedAt.toISOString(),
       conditions: m.conditions.map((c) => ({
         id: c.id,
-        condition: c.condition,
+        conditionName: c.condition,
         ageOfOnset: c.ageOfOnset,
         notes: c.notes,
         createdAt: c.createdAt.toISOString(),
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
         notes: member.notes,
         conditions: member.conditions.map((c) => ({
           id: c.id,
-          condition: c.condition,
+          conditionName: c.condition,
           ageOfOnset: c.ageOfOnset,
           notes: c.notes,
         })),

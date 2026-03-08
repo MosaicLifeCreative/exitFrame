@@ -471,7 +471,7 @@ function SleepPage() {
       const res = await fetch("/api/oura", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "sync", daysBack: 30 }),
+        body: JSON.stringify({ action: "sync", daysBack: 7 }),
       });
       const json = await res.json();
       if (res.ok) {

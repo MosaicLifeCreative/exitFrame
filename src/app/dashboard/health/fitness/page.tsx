@@ -21,6 +21,9 @@ import {
   Upload,
   Pencil,
   Waves,
+  Trophy,
+  ArrowLeft,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1112,6 +1115,21 @@ function HistoryTab({
 
 // ─── Exercises Tab ──────────────────────────────────────
 
+interface ExerciseStats {
+  totalSessions: number;
+  lastPerformed: string | null;
+  lastPerformedSessionName: string | null;
+  lastSets: Array<{ setNumber: number; weight: number | null; reps: number; rpe: number | null; setType: string }>;
+  maxWeight: number | null;
+  maxWeightDate: string | null;
+  maxWeightReps: number | null;
+  history: Array<{
+    date: string;
+    sessionName: string;
+    sets: Array<{ setNumber: number; weight: number | null; reps: number; rpe: number | null; setType: string }>;
+  }>;
+}
+
 function ExercisesTab({
   exercises,
   onUpdate,
@@ -1126,6 +1144,8 @@ function ExercisesTab({
   const [newGroup, setNewGroup] = useState("");
   const [newEquip, setNewEquip] = useState("none");
   const [newInstructions, setNewInstructions] = useState("");
+  const [selectedExercise, setSelectedExercise] = useState<(Exercise & { stats?: ExerciseStats }) | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   const filtered = exercises.filter((e) => {
     if (filterGroup !== "all" && e.muscleGroup !== filterGroup) return false;
@@ -1139,6 +1159,22 @@ function ExercisesTab({
     acc[g].push(ex);
     return acc;
   }, {});
+
+  const openExercise = async (ex: Exercise) => {
+    setSelectedExercise(ex);
+    setLoadingStats(true);
+    try {
+      const res = await fetch(`/api/fitness/exercises/${ex.id}`);
+      if (res.ok) {
+        const json = await res.json();
+        setSelectedExercise({ ...json.data, stats: json.data.stats });
+      }
+    } catch {
+      // Stats failed to load — still show exercise details
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const addExercise = async () => {
     if (!newName.trim() || !newGroup) return;
@@ -1194,6 +1230,147 @@ function ExercisesTab({
       toast.error("Import failed");
     }
   };
+
+  // Exercise detail view
+  if (selectedExercise) {
+    const stats = selectedExercise.stats;
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setSelectedExercise(null)} className="gap-1 -ml-2">
+          <ArrowLeft className="h-4 w-4" /> Back to exercises
+        </Button>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-lg">{selectedExercise.name}</CardTitle>
+                <div className="flex gap-2 mt-1.5">
+                  <Badge className={cn("text-xs", muscleGroupColors[selectedExercise.muscleGroup])}>
+                    {muscleGroupLabels[selectedExercise.muscleGroup] || selectedExercise.muscleGroup}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {equipmentLabels[selectedExercise.equipment] || selectedExercise.equipment}
+                  </Badge>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setSelectedExercise(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-4">
+            {selectedExercise.instructions && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Instructions</p>
+                <p className="text-sm whitespace-pre-wrap">{selectedExercise.instructions}</p>
+              </div>
+            )}
+
+            {loadingStats && (
+              <div className="flex items-center gap-2 py-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm text-muted-foreground">Loading stats...</span>
+              </div>
+            )}
+
+            {stats && (
+              <>
+                {/* Stat cards */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-muted rounded-lg p-3 text-center">
+                    <Calendar className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                    <p className="text-lg font-semibold">{stats.totalSessions}</p>
+                    <p className="text-xs text-muted-foreground">Sessions</p>
+                  </div>
+                  <div className="bg-muted rounded-lg p-3 text-center">
+                    <Clock className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                    <p className="text-sm font-semibold">
+                      {stats.lastPerformed
+                        ? new Date(stats.lastPerformed).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                        : "Never"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Last performed</p>
+                  </div>
+                  <div className="bg-muted rounded-lg p-3 text-center">
+                    <Trophy className="h-4 w-4 mx-auto mb-1 text-amber-500" />
+                    <p className="text-lg font-semibold">
+                      {stats.maxWeight != null ? `${stats.maxWeight}` : "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {stats.maxWeight != null
+                        ? `Max lbs (${stats.maxWeightReps} reps)`
+                        : "Max weight"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Last time */}
+                {stats.lastSets.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Last time — {stats.lastPerformedSessionName}
+                    </p>
+                    <div className="bg-muted rounded-lg p-3">
+                      <div className="grid grid-cols-4 gap-2 text-xs font-medium text-muted-foreground mb-1 px-1">
+                        <span>Set</span>
+                        <span>Weight</span>
+                        <span>Reps</span>
+                        <span>Type</span>
+                      </div>
+                      {stats.lastSets.map((s) => (
+                        <div key={s.setNumber} className="grid grid-cols-4 gap-2 text-sm px-1 py-0.5">
+                          <span>{s.setNumber}</span>
+                          <span>{s.weight != null ? `${s.weight} lbs` : "BW"}</span>
+                          <span>{s.reps}</span>
+                          <span className="text-xs text-muted-foreground">{s.setType}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* History */}
+                {stats.history.length > 1 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Recent history ({stats.history.length} sessions)
+                    </p>
+                    <div className="space-y-2">
+                      {stats.history.slice(1).map((h, idx) => {
+                        const workingSets = h.sets.filter((s) => s.setType === "working");
+                        const topWeight = Math.max(...h.sets.map((s) => s.weight ?? 0));
+                        const topReps = Math.max(...h.sets.map((s) => s.reps));
+                        return (
+                          <div key={idx} className="flex items-center justify-between bg-muted/50 rounded px-3 py-2 text-sm">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-muted-foreground w-16">
+                                {new Date(h.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              </span>
+                              <span className="text-xs">{h.sessionName}</span>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {workingSets.length} sets, {topWeight > 0 ? `${topWeight} lbs` : "BW"} x {topReps}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {stats.totalSessions === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No workout history for this exercise yet.
+                  </p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -1289,9 +1466,16 @@ function ExercisesTab({
               {exs
                 .sort((a, b) => a.name.localeCompare(b.name))
                 .map((ex) => (
-                  <Card key={ex.id} className="hover:border-primary/30 transition-colors">
+                  <Card
+                    key={ex.id}
+                    className="hover:border-primary/30 transition-colors cursor-pointer"
+                    onClick={() => openExercise(ex)}
+                  >
                     <CardContent className="pt-3 pb-3">
-                      <p className="text-sm font-medium">{ex.name}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">{ex.name}</p>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </div>
                       <div className="flex gap-2 mt-1">
                         <span className="text-xs text-muted-foreground">
                           {equipmentLabels[ex.equipment] || ex.equipment}

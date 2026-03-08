@@ -55,7 +55,13 @@ async function runHealthCron() {
   // Sync last 3 days of data (catches any gaps)
   try {
     const results = await syncOuraData(3);
-    log.push(`Oura sync: ${results.sleep} sleep, ${results.readiness} readiness, ${results.activity} activity, ${results.hrv} HR days`);
+    log.push(
+      `Oura sync: ${results.sleep} sleep, ${results.readiness} readiness, ${results.activity} activity, ` +
+      `${results.hrv} HRV, ${results.heartrate} HR, ${results.sleepSessions} sleep sessions, ` +
+      `${results.spo2} SpO2, ${results.stress} stress, ${results.resilience} resilience, ` +
+      `${results.sleepTime} sleep time, ${results.workouts} workouts, ${results.sessions} sessions, ` +
+      `${results.ringConfig} ring config`
+    );
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     log.push(`Oura sync error: ${msg}`);

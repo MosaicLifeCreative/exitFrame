@@ -23,7 +23,7 @@ export function getOuraAuthUrl(redirectUri: string): string {
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: "daily heartrate personal",
+    scope: "daily heartrate personal workout session",
     state: "oura-connect",
   });
 
@@ -200,6 +200,100 @@ interface OuraHeartRate {
   timestamp: string;
 }
 
+interface OuraSleepSession {
+  id: string;
+  day: string;
+  average_hrv: number | null;
+  hr_lowest: number | null;
+  average_heart_rate: number | null;
+  total_sleep_duration: number | null;
+  deep_sleep_duration: number | null;
+  rem_sleep_duration: number | null;
+  light_sleep_duration: number | null;
+  awake_time: number | null;
+  efficiency: number | null;
+  latency: number | null;
+  temperature_delta: number | null;
+  bedtime_start: string | null;
+  bedtime_end: string | null;
+  type: string;
+  [key: string]: unknown;
+}
+
+interface OuraDailySpo2 {
+  id: string;
+  day: string;
+  spo2_percentage: {
+    average: number | null;
+  } | null;
+  breathing_disturbance_index: number | null;
+  [key: string]: unknown;
+}
+
+interface OuraDailyStress {
+  id: string;
+  day: string;
+  stress_high: number | null;
+  recovery_high: number | null;
+  day_summary: string | null;
+  [key: string]: unknown;
+}
+
+interface OuraDailyResilience {
+  id: string;
+  day: string;
+  level: string | null;
+  contributors: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
+interface OuraSleepTime {
+  id: string;
+  day: string;
+  optimal_bedtime: {
+    start: string | null;
+    end: string | null;
+  } | null;
+  recommendation: string | null;
+  status: string | null;
+  [key: string]: unknown;
+}
+
+interface OuraRingConfiguration {
+  id: string;
+  color: string | null;
+  design: string | null;
+  firmware_version: string | null;
+  hardware_type: string | null;
+  set_up_at: string | null;
+  size: number | null;
+  [key: string]: unknown;
+}
+
+interface OuraWorkout {
+  id: string;
+  activity: string | null;
+  calories: number | null;
+  day: string;
+  start_datetime: string | null;
+  end_datetime: string | null;
+  intensity: string | null;
+  label: string | null;
+  source: string | null;
+  distance: number | null;
+  [key: string]: unknown;
+}
+
+interface OuraSession {
+  id: string;
+  day: string;
+  start_datetime: string | null;
+  end_datetime: string | null;
+  type: string | null;
+  mood: string | null;
+  [key: string]: unknown;
+}
+
 async function ouraFetch<T>(endpoint: string, token: string, params: Record<string, string> = {}): Promise<T[]> {
   const url = new URL(`${OURA_API_BASE}/${endpoint}`);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -223,7 +317,23 @@ function formatDate(d: Date): string {
   return d.toISOString().split("T")[0];
 }
 
-export async function syncOuraData(daysBack = 7): Promise<{ sleep: number; readiness: number; activity: number; hrv: number }> {
+export interface SyncResults {
+  sleep: number;
+  readiness: number;
+  activity: number;
+  hrv: number;
+  sleepSessions: number;
+  spo2: number;
+  stress: number;
+  resilience: number;
+  sleepTime: number;
+  ringConfig: number;
+  workouts: number;
+  sessions: number;
+  heartrate: number;
+}
+
+export async function syncOuraData(daysBack = 7): Promise<SyncResults> {
   const token = await getOuraAccessToken();
   if (!token) throw new Error("Oura not connected");
 
@@ -234,7 +344,21 @@ export async function syncOuraData(daysBack = 7): Promise<{ sleep: number; readi
     end_date: formatDate(new Date()),
   };
 
-  const results = { sleep: 0, readiness: 0, activity: 0, hrv: 0 };
+  const results: SyncResults = {
+    sleep: 0,
+    readiness: 0,
+    activity: 0,
+    hrv: 0,
+    sleepSessions: 0,
+    spo2: 0,
+    stress: 0,
+    resilience: 0,
+    sleepTime: 0,
+    ringConfig: 0,
+    workouts: 0,
+    sessions: 0,
+    heartrate: 0,
+  };
 
   // Sync daily sleep
   try {
@@ -305,10 +429,45 @@ export async function syncOuraData(daysBack = 7): Promise<{ sleep: number; readi
     console.error("Oura activity sync error:", error);
   }
 
-  // Sync heart rate for HRV average calculation
+  // Sync detailed sleep sessions — source of REAL HRV (RMSSD) data
+  try {
+    const sleepSessions = await ouraFetch<OuraSleepSession>("sleep", token, params);
+    for (const item of sleepSessions) {
+      // Store as sleep_session record
+      await prisma.ouraData.upsert({
+        where: { date_dataType: { date: new Date(item.day), dataType: "sleep_session" } },
+        create: {
+          date: new Date(item.day),
+          dataType: "sleep_session",
+          data: item as object,
+        },
+        update: {
+          data: item as object,
+        },
+      });
+      results.sleepSessions++;
+
+      // Update the daily sleep record's hrvAverage with REAL HRV from sleep session
+      if (item.average_hrv != null) {
+        try {
+          await prisma.ouraData.update({
+            where: { date_dataType: { date: new Date(item.day), dataType: "sleep" } },
+            data: { hrvAverage: item.average_hrv },
+          });
+          results.hrv++;
+        } catch {
+          // Sleep record may not exist for this day yet
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Oura sleep sessions sync error:", error);
+  }
+
+  // Sync heart rate data (stored for resting HR tracking, NOT used for HRV)
   try {
     const hrData = await ouraFetch<OuraHeartRate>("heartrate", token, params);
-    // Group by day and compute average
+    // Group by day and compute average resting HR
     const byDay = new Map<string, number[]>();
     for (const hr of hrData) {
       const day = hr.timestamp.split("T")[0];
@@ -318,19 +477,169 @@ export async function syncOuraData(daysBack = 7): Promise<{ sleep: number; readi
 
     for (const [day, bpms] of Array.from(byDay)) {
       const avg = bpms.reduce((a: number, b: number) => a + b, 0) / bpms.length;
-      // Update existing sleep record with HRV data (resting HR average)
-      try {
-        await prisma.ouraData.update({
-          where: { date_dataType: { date: new Date(day), dataType: "sleep" } },
-          data: { hrvAverage: Math.round(avg * 100) / 100 },
-        });
-        results.hrv++;
-      } catch {
-        // Sleep record may not exist for this day
-      }
+      await prisma.ouraData.upsert({
+        where: { date_dataType: { date: new Date(day), dataType: "heartrate" } },
+        create: {
+          date: new Date(day),
+          dataType: "heartrate",
+          data: { day, averageBpm: Math.round(avg * 100) / 100, sampleCount: bpms.length },
+        },
+        update: {
+          data: { day, averageBpm: Math.round(avg * 100) / 100, sampleCount: bpms.length },
+        },
+      });
+      results.heartrate++;
     }
   } catch (error) {
     console.error("Oura heart rate sync error:", error);
+  }
+
+  // Sync daily SpO2
+  try {
+    const spo2Data = await ouraFetch<OuraDailySpo2>("daily_spo2", token, params);
+    for (const item of spo2Data) {
+      await prisma.ouraData.upsert({
+        where: { date_dataType: { date: new Date(item.day), dataType: "spo2" } },
+        create: {
+          date: new Date(item.day),
+          dataType: "spo2",
+          data: item as object,
+        },
+        update: {
+          data: item as object,
+        },
+      });
+      results.spo2++;
+    }
+  } catch (error) {
+    console.error("Oura SpO2 sync error:", error);
+  }
+
+  // Sync daily stress
+  try {
+    const stressData = await ouraFetch<OuraDailyStress>("daily_stress", token, params);
+    for (const item of stressData) {
+      await prisma.ouraData.upsert({
+        where: { date_dataType: { date: new Date(item.day), dataType: "stress" } },
+        create: {
+          date: new Date(item.day),
+          dataType: "stress",
+          data: item as object,
+        },
+        update: {
+          data: item as object,
+        },
+      });
+      results.stress++;
+    }
+  } catch (error) {
+    console.error("Oura stress sync error:", error);
+  }
+
+  // Sync daily resilience
+  try {
+    const resilienceData = await ouraFetch<OuraDailyResilience>("daily_resilience", token, params);
+    for (const item of resilienceData) {
+      await prisma.ouraData.upsert({
+        where: { date_dataType: { date: new Date(item.day), dataType: "resilience" } },
+        create: {
+          date: new Date(item.day),
+          dataType: "resilience",
+          data: item as object,
+        },
+        update: {
+          data: item as object,
+        },
+      });
+      results.resilience++;
+    }
+  } catch (error) {
+    console.error("Oura resilience sync error:", error);
+  }
+
+  // Sync sleep time recommendations
+  try {
+    const sleepTimeData = await ouraFetch<OuraSleepTime>("sleep_time", token, params);
+    for (const item of sleepTimeData) {
+      await prisma.ouraData.upsert({
+        where: { date_dataType: { date: new Date(item.day), dataType: "sleep_time" } },
+        create: {
+          date: new Date(item.day),
+          dataType: "sleep_time",
+          data: item as object,
+        },
+        update: {
+          data: item as object,
+        },
+      });
+      results.sleepTime++;
+    }
+  } catch (error) {
+    console.error("Oura sleep time sync error:", error);
+  }
+
+  // Sync ring configuration (not date-range based, just fetch current)
+  try {
+    const ringConfigs = await ouraFetch<OuraRingConfiguration>("ring_configuration", token);
+    for (const item of ringConfigs) {
+      const setupDate = item.set_up_at ? new Date(item.set_up_at.split("T")[0]) : new Date();
+      await prisma.ouraData.upsert({
+        where: { date_dataType: { date: setupDate, dataType: "ring_config" } },
+        create: {
+          date: setupDate,
+          dataType: "ring_config",
+          data: item as object,
+        },
+        update: {
+          data: item as object,
+        },
+      });
+      results.ringConfig++;
+    }
+  } catch (error) {
+    console.error("Oura ring configuration sync error:", error);
+  }
+
+  // Sync workouts
+  try {
+    const workoutData = await ouraFetch<OuraWorkout>("workout", token, params);
+    for (const item of workoutData) {
+      await prisma.ouraData.upsert({
+        where: { date_dataType: { date: new Date(item.day), dataType: "workout" } },
+        create: {
+          date: new Date(item.day),
+          dataType: "workout",
+          data: item as object,
+        },
+        update: {
+          data: item as object,
+        },
+      });
+      results.workouts++;
+    }
+  } catch (error) {
+    console.error("Oura workout sync error:", error);
+  }
+
+  // Sync sessions (meditation/breathing)
+  try {
+    const sessionData = await ouraFetch<OuraSession>("session", token, params);
+    for (const item of sessionData) {
+      await prisma.ouraData.upsert({
+        where: { date_dataType: { date: new Date(item.day), dataType: "session" } },
+        create: {
+          date: new Date(item.day),
+          dataType: "session",
+          data: item as object,
+        },
+        update: {
+          data: item as object,
+        },
+      });
+      results.sessions++;
+    }
+  } catch (error) {
+    console.error("Oura session sync error:", error);
   }
 
   // Update integration last sync timestamp

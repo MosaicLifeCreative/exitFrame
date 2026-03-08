@@ -1,0 +1,362 @@
+[
+  {
+    "name": "Chest Stretch",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Stand in a doorway, place hands on each side. Lean forward gently to stretch chest and shoulders."
+  },
+  {
+    "name": "Front Raises",
+    "muscleGroup": "Shoulders",
+    "equipment": "Dumbbell",
+    "instructions": "Hold dumbbells at thighs, palms down. Raise arms straight to shoulder height, lower slowly."
+  },
+  {
+    "name": "Arm Circles",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Stand tall, extend arms to the sides. Rotate forward in small circles, then reverse."
+  },
+  {
+    "name": "Trap Bar Deadlift",
+    "muscleGroup": "Legs",
+    "equipment": "Trap Bar",
+    "instructions": "Stand inside trap bar, feet hip-width apart. Grip the handles, chest up, core tight. Drive through heels to stand up, keeping bar close to body. Lower with control. Safer alternative to barbell deadlifts - more quad-dominant, neutral grip reduces lower back stress."
+  },
+  {
+    "name": "Heel Slides",
+    "muscleGroup": "Knee",
+    "equipment": "None",
+    "instructions": "Lie on back, slide heel toward glutes then back out."
+  },
+  {
+    "name": "Leg Curl Machine",
+    "muscleGroup": "Legs",
+    "equipment": "Machine",
+    "instructions": "Sit, place legs under pad. Curl legs towards glutes, keeping torso stable."
+  },
+  {
+    "name": "Glute Bridges",
+    "muscleGroup": "Knee",
+    "equipment": "Resistance Band",
+    "instructions": "Lie on back, knees bent. Drive through heels to lift hips, squeeze glutes at top."
+  },
+  {
+    "name": "Figure Four Glute Stretch",
+    "muscleGroup": "Knee",
+    "equipment": "None",
+    "instructions": "Lie on back, cross one ankle over opposite knee, pull uncrossed leg toward chest."
+  },
+  {
+    "name": "Landmine Row",
+    "muscleGroup": "Back",
+    "equipment": "Landmine",
+    "instructions": "Stand with feet shoulder-width apart, hinge at hips. Grip the end of the barbell with one or both hands. Pull the bar toward your chest, keeping elbow(s) close to body. Lower with control. Works lats, rhomboids, and core stability."
+  },
+  {
+    "name": "Side-Lying Leg Raises",
+    "muscleGroup": "Knee",
+    "equipment": "None",
+    "instructions": "Lie on side, legs straight. Raise top leg without rotating hips."
+  },
+  {
+    "name": "Cross Leg/Wide Leg Sit-Ups",
+    "muscleGroup": "Core",
+    "equipment": "None",
+    "instructions": "Lie on your back, cross one leg over the other or spread legs wide. Reach toward the opposite foot with your hand while sitting up."
+  },
+  {
+    "name": "Hollow Body Hold",
+    "muscleGroup": "Core",
+    "equipment": "Bodyweight",
+    "instructions": "Lie on back, press lower back flat to floor. Extend arms overhead and legs straight out, hovering 6-12 inches off ground. Maintain lower back contact with floor throughout - if back arches, raise legs higher or bend knees. Hold position. Works entire anterior core with emphasis on lower abs. Think of it as a reverse plank - same anti-extension benefits from a supine position."
+  },
+  {
+    "name": "Tricep Stretch",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Pull bent arm overhead with opposite hand to stretch."
+  },
+  {
+    "name": "Tricep Extensions",
+    "muscleGroup": "Triceps",
+    "equipment": "Dumbbell",
+    "instructions": "Hinge at the hips with a flat back, elbows bent at 90\u00b0. Extend the dumbbells straight back by straightening your arms, then return to starting position."
+  },
+  {
+    "name": "Tricep Extension",
+    "muscleGroup": "Arms",
+    "equipment": "None",
+    "instructions": "Hold weight overhead, extend arms to full lockout."
+  },
+  {
+    "name": "Overhead Tricep Extensions",
+    "muscleGroup": "Triceps",
+    "equipment": "Dumbbell",
+    "instructions": "Hold one or two dumbbells overhead, elbows close to your head. Lower the weight behind your head by bending your elbows, then extend to full lockout."
+  },
+  {
+    "name": "Overhead Cable Tricep Extension",
+    "muscleGroup": "Arms",
+    "equipment": "Cable Machine",
+    "instructions": "Grip cable handle behind head. Extend arms upward, keeping elbows stationary."
+  },
+  {
+    "name": "Hamstring Stretch",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Stand tall, one foot forward. Hinge at hips, keeping back flat, and reach toward the toes."
+  },
+  {
+    "name": "Quad Stretch",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Stand, pull one foot to glute with opposite hand. Keep knees close together."
+  },
+  {
+    "name": "DB Bicep Curl",
+    "muscleGroup": "Arms",
+    "equipment": "Dumbbell",
+    "instructions": "Stand tall, hold dumbbells at sides. Curl weights to shoulders without swinging, then lower slowly."
+  },
+  {
+    "name": "Thrusters",
+    "muscleGroup": "Legs",
+    "equipment": "None",
+    "instructions": "Squat holding dumbbells, then press overhead in one motion."
+  },
+  {
+    "name": "Preacher Curl",
+    "muscleGroup": "Arms",
+    "equipment": "Curl Bar",
+    "instructions": "Sit at preacher bench, curl weight upward, keeping upper arms on the pad."
+  },
+  {
+    "name": "Leg Press",
+    "muscleGroup": "Legs",
+    "equipment": "Machine",
+    "instructions": "Sit with feet shoulder-width on the platform. Push away without locking knees, then return slowly."
+  },
+  {
+    "name": "Landmine Romanian Deadlift",
+    "muscleGroup": "Legs",
+    "equipment": "Landmine",
+    "instructions": "Stand holding the end of the barbell with both hands. Hinge at hips, keeping back flat and knees slightly bent. Lower the bar toward the ground until you feel a stretch in hamstrings. Drive hips forward to return to standing. Targets hamstrings and glutes."
+  },
+  {
+    "name": "Deadlifts",
+    "muscleGroup": "Back",
+    "equipment": "Barbell",
+    "instructions": "Stand with feet hip-width, grip barbell. Hinge at hips, keep back flat, lift by driving hips forward."
+  },
+  {
+    "name": "HS Seated Row",
+    "muscleGroup": "Back",
+    "equipment": "Machine",
+    "instructions": "Sit at the machine, grip handles. Pull back towards chest, keeping elbows close and back straight."
+  },
+  {
+    "name": "Plank to Push-Up",
+    "muscleGroup": "Core",
+    "equipment": "Bodyweight",
+    "instructions": "Start in plank, push up to hands one at a time, then lower back down."
+  },
+  {
+    "name": "Lateral Raises",
+    "muscleGroup": "Shoulders",
+    "equipment": "Dumbbell",
+    "instructions": "Stand tall, hold dumbbells at sides. Raise arms to shoulder height, leading with elbows."
+  },
+  {
+    "name": "Plank Dips",
+    "muscleGroup": "Core",
+    "equipment": "None",
+    "instructions": "From plank, dip hips side to side while keeping upper body stable."
+  },
+  {
+    "name": "Plank Bosu",
+    "muscleGroup": "Core",
+    "equipment": "Bosu Ball",
+    "instructions": "Place forearms on Bosu, hold plank position. Keep core tight and back flat."
+  },
+  {
+    "name": "Push-Ups",
+    "muscleGroup": "Chest",
+    "equipment": "Bodyweight",
+    "instructions": "Start in plank, lower chest to the ground, push back up keeping body straight."
+  },
+  {
+    "name": "Pull-Ups",
+    "muscleGroup": "Back",
+    "equipment": "Pull-Up Bar",
+    "instructions": "Hang from the bar with a shoulder-width grip. Pull your chin above the bar, then lower back down with control."
+  },
+  {
+    "name": "Leg Raises",
+    "muscleGroup": "Core",
+    "equipment": "None",
+    "instructions": "Lie flat, hands under hips. Lift legs up to vertical, then lower slowly without touching the floor."
+  },
+  {
+    "name": "Hanging Knee Raises",
+    "muscleGroup": "Core",
+    "equipment": "Pull-Up Bar",
+    "instructions": "Hang from a pull-up bar with a shoulder-width grip. Lift your knees toward your chest, keeping your core tight, and lower them back down with control. Avoid swinging or using momentum."
+  },
+  {
+    "name": "Straight-Leg Raises",
+    "muscleGroup": "Knee",
+    "equipment": "None",
+    "instructions": "Lie on back, one leg bent, the other straight. Raise straight leg slowly."
+  },
+  {
+    "name": "Terminal Knee Extensions (TKEs)",
+    "muscleGroup": "Knee",
+    "equipment": "Resistance Band",
+    "instructions": "Anchor band behind knee, loop around it. Step back to create tension. Slightly bend and straighten knee."
+  },
+  {
+    "name": "Calf Stretch",
+    "muscleGroup": "Knee",
+    "equipment": "Wall",
+    "instructions": "Step one foot back, press heel into floor, lean forward until stretch is felt in calf."
+  },
+  {
+    "name": "Hip Flexor Stretch",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Kneel with one leg forward, other knee on the ground. Push hips forward gently, feeling the stretch."
+  },
+  {
+    "name": "Leg Extensions",
+    "muscleGroup": "",
+    "equipment": "",
+    "instructions": ""
+  },
+  {
+    "name": "Bodyweight Squats",
+    "muscleGroup": "Legs",
+    "equipment": "Bodyweight",
+    "instructions": "Stand feet shoulder-width apart. Lower hips back and down, keeping chest up. Push through heels to stand."
+  },
+  {
+    "name": "Mini Bodyweight Squats",
+    "muscleGroup": "Knee",
+    "equipment": "None",
+    "instructions": "Stand with feet hip-width apart. Lower down just a few inches, keeping knees behind toes. Rise slowly."
+  },
+  {
+    "name": "Cable Bicep Curl",
+    "muscleGroup": "Arms",
+    "equipment": "Cable Machine",
+    "instructions": "Stand at cable machine, handle at low setting. Curl handle to shoulders, keeping elbows tight to sides."
+  },
+  {
+    "name": "Cable Seated Row",
+    "muscleGroup": "Back",
+    "equipment": "Cable Machine",
+    "instructions": "Sit upright, grip handle. Pull towards torso while keeping elbows close, squeeze shoulder blades together."
+  },
+  {
+    "name": "Torso Twists (Standing)",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Stand tall and gently twist torso side to side. Great for warming up the spine."
+  },
+  {
+    "name": "Incline Dumbell Press",
+    "muscleGroup": "Chest",
+    "equipment": "Dumbbell",
+    "instructions": "Lie on incline bench, press dumbbells upward from chest, keeping elbows angled slightly outward. Bench at 30-45 degree angle (30 is better for chest)."
+  },
+  {
+    "name": "Standing Forward Fold",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Hinge at waist, reach hands toward floor, keeping knees slightly bent."
+  },
+  {
+    "name": "Resistance Band Rows (Standing)",
+    "muscleGroup": "Back",
+    "equipment": "Resistance Band",
+    "instructions": "Anchor band, pull handles toward torso while squeezing shoulder blades."
+  },
+  {
+    "name": "Hip Circles (Standing)",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Hands on hips, draw circles with hips in both directions."
+  },
+  {
+    "name": "Skull Crushers",
+    "muscleGroup": "Arms",
+    "equipment": "None",
+    "instructions": "Lie on bench, extend arms overhead, lower weight to forehead, then extend back up."
+  },
+  {
+    "name": "Seated Hamstring Stretch",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "Mat",
+    "instructions": "Extend one leg, reach toward foot while keeping back straight."
+  },
+  {
+    "name": "Standing Hamstring Curls",
+    "muscleGroup": "Knee",
+    "equipment": "None",
+    "instructions": "Stand on one leg, curl other leg toward glutes."
+  },
+  {
+    "name": "Jump Squats",
+    "muscleGroup": "Legs",
+    "equipment": "Bodyweight",
+    "instructions": "Squat down, then jump up explosively. Land softly and go straight into the next squat."
+  },
+  {
+    "name": "Leg Swings",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Hold onto a support, swing one leg forward and backward in a controlled motion."
+  },
+  {
+    "name": "Pallof Press",
+    "muscleGroup": "Core",
+    "equipment": "Cable Machine",
+    "instructions": "Stand perpendicular to cable anchor at chest height. Grip band with both hands at chest. Press straight out in front of you, resisting the rotational pull. Hold for 2-3 seconds, then return to chest. Keep core tight, hips square forward. Works obliques and anti-rotation strength without twisting your spine or loading your hip."
+  },
+  {
+    "name": "Arm Swings (Cross-Body)",
+    "muscleGroup": "Stretching/Mobility",
+    "equipment": "None",
+    "instructions": "Swing arms forward and back, crossing over chest. Opens chest and shoulders."
+  },
+  {
+    "name": "Chest-Supported Row",
+    "muscleGroup": "Back",
+    "equipment": "Dumbbell",
+    "instructions": "Lie prone on an incline bench, hold dumbbells. Pull weights toward ribcage, squeezing shoulder blades."
+  },
+  {
+    "name": "Shoulder Press",
+    "muscleGroup": "Shoulders",
+    "equipment": "None",
+    "instructions": "Press dumbbells from shoulder height to overhead, keeping palms facing forward."
+  },
+  {
+    "name": "Standing Shoulder Press (Band)",
+    "muscleGroup": "Shoulders",
+    "equipment": "Resistance Band",
+    "instructions": "Stand on band, press handles overhead while keeping core tight."
+  },
+  {
+    "name": "Bench Press",
+    "muscleGroup": "Chest",
+    "equipment": "Barbell",
+    "instructions": "Lie flat on bench, grip barbell slightly wider than shoulder width. Lower to chest, press up to full extension."
+  },
+  {
+    "name": "Cable Rotation",
+    "muscleGroup": "Core",
+    "equipment": "Cable Machine",
+    "instructions": "Stand perpendicular to cable anchor at chest height. Extend arms straight out in front of you, gripping handle with both hands. Rotate your torso AWAY from the anchor point, keeping arms straight and hips square. Control the return. This is a ROTATION exercise - you're actively twisting against resistance. Works obliques and rotational power. Can also be done with resistance band."
+  }
+]

@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const error = request.nextUrl.searchParams.get("error");
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  const baseUrl = vercelUrl ? `https://${vercelUrl}` : "http://localhost:3000";
   const redirectUri = `${baseUrl}/api/oura/callback`;
 
   if (error) {

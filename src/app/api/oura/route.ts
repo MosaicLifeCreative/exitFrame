@@ -35,7 +35,8 @@ export async function POST(request: Request) {
 
     switch (action) {
       case "connect": {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+        const baseUrl = vercelUrl ? `https://${vercelUrl}` : "http://localhost:3000";
         const redirectUri = `${baseUrl}/api/oura/callback`;
         const authUrl = getOuraAuthUrl(redirectUri);
         return NextResponse.json({ data: { authUrl } });

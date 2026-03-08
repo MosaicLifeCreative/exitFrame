@@ -11,6 +11,9 @@ import {
   Server,
   Shield,
   Loader2,
+  TrendingUp,
+  Clock,
+  Bot,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +39,10 @@ interface EnvInfo {
   directUrlSet: boolean;
   redisUrlSet: boolean;
   anthropicKeySet: boolean;
+  finnhubKeySet: boolean;
+  qstashTokenSet: boolean;
+  qstashSigningSet: boolean;
+  cronSecretSet: boolean;
 }
 
 interface HealthData {
@@ -77,6 +84,9 @@ const serviceIcons: Record<string, React.ElementType> = {
   "Supabase Database": Database,
   "Upstash Redis": Server,
   "Supabase Auth": Shield,
+  "Finnhub API": TrendingUp,
+  "QStash Cron": Clock,
+  "Claude AI": Bot,
 };
 
 export default function SystemHealthPage() {
@@ -159,7 +169,7 @@ export default function SystemHealthPage() {
       </div>
 
       {/* Service Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {data.services.map((service) => {
           const Icon = serviceIcons[service.name] ?? Server;
           return (
@@ -196,13 +206,15 @@ export default function SystemHealthPage() {
                   <span className={`font-mono font-medium ${
                     service.responseTime < 0
                       ? "text-red-500"
-                      : service.responseTime < 200
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : service.responseTime < 1000
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-red-500"
+                      : service.responseTime === 0
+                        ? "text-muted-foreground"
+                        : service.responseTime < 200
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : service.responseTime < 1000
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-500"
                   }`}>
-                    {service.responseTime < 0 ? "N/A" : `${service.responseTime}ms`}
+                    {service.responseTime < 0 ? "N/A" : service.responseTime === 0 ? "Config only" : `${service.responseTime}ms`}
                   </span>
                 </div>
               </CardContent>
@@ -272,6 +284,10 @@ export default function SystemHealthPage() {
                 { label: "DIRECT_URL", set: data.envInfo.directUrlSet },
                 { label: "REDIS_URL", set: data.envInfo.redisUrlSet },
                 { label: "ANTHROPIC_KEY", set: data.envInfo.anthropicKeySet },
+                { label: "FINNHUB_KEY", set: data.envInfo.finnhubKeySet },
+                { label: "QSTASH_TOKEN", set: data.envInfo.qstashTokenSet },
+                { label: "QSTASH_SIGNING", set: data.envInfo.qstashSigningSet },
+                { label: "CRON_SECRET", set: data.envInfo.cronSecretSet },
               ].map((env) => (
                 <div
                   key={env.label}

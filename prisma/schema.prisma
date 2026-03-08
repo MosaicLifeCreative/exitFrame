@@ -486,3 +486,29 @@ model PortfolioSnapshot {
   @@unique([portfolioType, snapshotDate])
   @@map("portfolio_snapshots")
 }
+
+// Chat conversations — persists chat history per page context
+model ChatConversation {
+  id        String   @id @default(uuid()) @db.Uuid
+  context   String   // "Investing", "General", etc.
+  title     String?  // Auto-generated from first user message
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  messages ChatMessage[]
+
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  role           String   // "user" or "assistant"
+  content        String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}

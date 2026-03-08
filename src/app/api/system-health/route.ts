@@ -60,7 +60,7 @@ export async function GET() {
     });
   }
 
-  // 3. Supabase Auth check (verify env vars are set)
+  // 3. Supabase Auth check
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (supabaseUrl && supabaseKey) {
@@ -93,10 +93,72 @@ export async function GET() {
     });
   }
 
-  // 4. Table row counts (only if DB is up)
+  // 4. Finnhub API check
+  const finnhubKey = process.env.FINNHUB_API_KEY;
+  if (finnhubKey) {
+    try {
+      const fhStart = Date.now();
+      const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=SPY&token=${finnhubKey}`);
+      const fhTime = Date.now() - fhStart;
+      if (res.ok) {
+        const data = await res.json();
+        services.push({
+          name: "Finnhub API",
+          status: data.c > 0 ? (fhTime < 2000 ? "healthy" : "degraded") : "degraded",
+          responseTime: fhTime,
+          details: data.c > 0 ? `SPY: $${data.c}` : "API reachable, no quote data",
+        });
+      } else {
+        services.push({
+          name: "Finnhub API",
+          status: "down",
+          responseTime: fhTime,
+          details: `HTTP ${res.status}`,
+        });
+      }
+    } catch (error) {
+      services.push({
+        name: "Finnhub API",
+        status: "down",
+        responseTime: -1,
+        details: error instanceof Error ? error.message : "Unreachable",
+      });
+    }
+  } else {
+    services.push({
+      name: "Finnhub API",
+      status: "down",
+      responseTime: -1,
+      details: "FINNHUB_API_KEY not configured",
+    });
+  }
+
+  // 5. QStash schedule check (verify env vars present)
+  const qstashToken = process.env.QSTASH_TOKEN;
+  const qstashSigning = process.env.QSTASH_CURRENT_SIGNING_KEY;
+  services.push({
+    name: "QStash Cron",
+    status: qstashToken && qstashSigning ? "healthy" : "degraded",
+    responseTime: 0,
+    details: qstashToken && qstashSigning
+      ? "Signing keys configured"
+      : qstashToken ? "Token set, signing keys missing" : "Not configured",
+  });
+
+  // 6. Anthropic API check (just env var presence — don't waste tokens pinging)
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  services.push({
+    name: "Claude AI",
+    status: anthropicKey ? "healthy" : "down",
+    responseTime: 0,
+    details: anthropicKey ? "API key configured" : "ANTHROPIC_API_KEY not set",
+  });
+
+  // 7. Table row counts (only if DB is up)
   const dbUp = services.find((s) => s.name === "Supabase Database")?.status !== "down";
   if (dbUp) {
     const tables = [
+      // Core
       { name: "clients", fn: () => prisma.client.count() },
       { name: "projects", fn: () => prisma.project.count() },
       { name: "tasks", fn: () => prisma.task.count() },
@@ -110,6 +172,18 @@ export async function GET() {
       { name: "product_modules", fn: () => prisma.productModule.count() },
       { name: "project_phases", fn: () => prisma.projectPhase.count() },
       { name: "note_actions", fn: () => prisma.noteAction.count() },
+      // Investing
+      { name: "portfolio_holdings", fn: () => prisma.portfolioHolding.count() },
+      { name: "watchlist_items", fn: () => prisma.watchlistItem.count() },
+      { name: "market_news", fn: () => prisma.marketNews.count() },
+      { name: "stock_quotes", fn: () => prisma.stockQuote.count() },
+      { name: "ai_portfolios", fn: () => prisma.aiPortfolio.count() },
+      { name: "ai_positions", fn: () => prisma.aiPosition.count() },
+      { name: "ai_trades", fn: () => prisma.aiTrade.count() },
+      { name: "portfolio_snapshots", fn: () => prisma.portfolioSnapshot.count() },
+      // Chat
+      { name: "chat_conversations", fn: () => prisma.chatConversation.count() },
+      { name: "chat_messages", fn: () => prisma.chatMessage.count() },
     ];
 
     for (const table of tables) {
@@ -122,7 +196,7 @@ export async function GET() {
     }
   }
 
-  // 5. Environment info
+  // 8. Environment info
   const envInfo = {
     nodeVersion: process.version,
     nextjsEnv: process.env.NODE_ENV || "unknown",
@@ -131,6 +205,10 @@ export async function GET() {
     directUrlSet: !!process.env.DIRECT_URL,
     redisUrlSet: !!process.env.UPSTASH_REDIS_REST_URL,
     anthropicKeySet: !!process.env.ANTHROPIC_API_KEY,
+    finnhubKeySet: !!process.env.FINNHUB_API_KEY,
+    qstashTokenSet: !!process.env.QSTASH_TOKEN,
+    qstashSigningSet: !!process.env.QSTASH_CURRENT_SIGNING_KEY,
+    cronSecretSet: !!process.env.CRON_SECRET,
   };
 
   const overallStatus = services.every((s) => s.status === "healthy")

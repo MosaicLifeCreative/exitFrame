@@ -6,6 +6,70 @@ const MAX_POSITIONS = 8;
 const MAX_POSITION_PCT = 0.30; // 30% of portfolio in one position
 const MIN_CASH_RESERVE_PCT = 0.10; // Always keep 10% cash
 
+// Base universe: major liquid stocks and ETFs across sectors
+const BASE_UNIVERSE = [
+  // Mega-cap tech
+  "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
+  // Growth / high-beta tech
+  "AMD", "CRM", "NFLX", "AVGO", "SHOP", "SQ", "PLTR",
+  // Financials
+  "JPM", "GS", "V", "MA",
+  // Healthcare
+  "UNH", "LLY", "JNJ", "ABBV",
+  // Energy
+  "XOM", "CVX",
+  // Consumer
+  "COST", "WMT", "NKE",
+  // ETFs (broad market, sector, volatility)
+  "SPY", "QQQ", "IWM", "XLF", "XLE", "XLK", "ARKK",
+];
+
+async function getNewsDiscoveredTickers(): Promise<string[]> {
+  // Pull unique tickers mentioned in recent news (last 48h)
+  const recentNews = await prisma.marketNews.findMany({
+    where: {
+      publishedAt: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) },
+      relatedTickers: { isEmpty: false },
+    },
+    select: { relatedTickers: true },
+  });
+
+  const tickers = new Set<string>();
+  for (const article of recentNews) {
+    for (const ticker of article.relatedTickers) {
+      // Basic validation: 1-5 uppercase letters, skip common non-stock symbols
+      if (/^[A-Z]{1,5}$/.test(ticker)) {
+        tickers.add(ticker);
+      }
+    }
+  }
+  return Array.from(tickers);
+}
+
+export async function getAllTradableTickers(): Promise<string[]> {
+  const userHoldings = await prisma.portfolioHolding.findMany({
+    where: { isActive: true },
+    select: { ticker: true },
+  });
+  const watchlist = await prisma.watchlistItem.findMany({
+    where: { isActive: true, type: "ticker" },
+    select: { value: true },
+  });
+  const aiPortfolio = await prisma.aiPortfolio.findFirst({
+    where: { isActive: true },
+    include: { positions: { select: { ticker: true } } },
+  });
+  const newsDiscovered = await getNewsDiscoveredTickers();
+
+  return Array.from(new Set([
+    ...BASE_UNIVERSE,
+    ...newsDiscovered,
+    ...userHoldings.map((h) => h.ticker),
+    ...watchlist.map((w) => w.value),
+    ...(aiPortfolio?.positions.map((p) => p.ticker) || []),
+  ]));
+}
+
 interface TradeDecision {
   action: "BUY" | "SELL" | "HOLD";
   ticker: string;
@@ -73,7 +137,6 @@ export async function evaluateTrades(): Promise<TradeDecision[]> {
 
   // Get user's holdings for awareness
   const userHoldings = await prisma.portfolioHolding.findMany({ where: { isActive: true } });
-  const watchlist = await prisma.watchlistItem.findMany({ where: { isActive: true, type: "ticker" } });
 
   // Calculate portfolio metrics
   const cashBalance = Number(portfolio.cashBalance);
@@ -114,14 +177,15 @@ export async function evaluateTrades(): Promise<TradeDecision[]> {
     date: t.executedAt.toISOString().split("T")[0],
   }));
 
-  // Available tickers (watchlist + holdings)
+  // All tradable tickers: base universe + news-discovered + user's + AI positions
   const availableTickers = Array.from(new Set([
-    ...watchlist.map((w) => w.value),
+    ...BASE_UNIVERSE,
+    ...(await getNewsDiscoveredTickers()),
     ...userHoldings.map((h) => h.ticker),
     ...portfolio.positions.map((p) => p.ticker),
   ]));
 
-  const tickerQuotes = availableTickers.map((t) => {
+  const tickerQuotes = availableTickers.filter((t) => quoteMap.has(t)).map((t) => {
     const q = quoteMap.get(t);
     return q ? `${t}: $${q.price.toFixed(2)} (${q.changePct >= 0 ? "+" : ""}${q.changePct.toFixed(2)}%)` : `${t}: no quote`;
   }).join("\n");
@@ -165,7 +229,8 @@ RULES:
 - Max ${(MAX_POSITION_PCT * 100).toFixed(0)}% of portfolio in one position ($${(totalValue * MAX_POSITION_PCT).toFixed(0)} max per position)
 - Must maintain ${(MIN_CASH_RESERVE_PCT * 100).toFixed(0)}% cash reserve ($${(totalValue * MIN_CASH_RESERVE_PCT).toFixed(0)} minimum cash)
 - Available cash for new positions: $${Math.max(0, cashBalance - totalValue * MIN_CASH_RESERVE_PCT).toFixed(0)}
-- Can only trade tickers with available quotes
+- You have access to ~${availableTickers.length} tickers (major stocks/ETFs + news-discovered momentum plays)
+- Can only trade tickers with available quotes below
 - Buy in whole shares only
 - You can BUY new or add to positions, SELL partial or full positions, or HOLD
 

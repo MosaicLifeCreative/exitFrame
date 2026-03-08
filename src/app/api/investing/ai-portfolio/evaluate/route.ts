@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { fetchAndStoreQuotes } from "@/lib/investing/quotes";
-import { evaluateTrades, executeTrades } from "@/lib/investing/aiTrader";
+import { evaluateTrades, executeTrades, getAllTradableTickers } from "@/lib/investing/aiTrader";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -10,28 +9,10 @@ export async function POST() {
   const log: string[] = [];
 
   try {
-    // Fetch fresh quotes first
-    const userHoldings = await prisma.portfolioHolding.findMany({
-      where: { isActive: true },
-      select: { ticker: true },
-    });
-    const watchlist = await prisma.watchlistItem.findMany({
-      where: { isActive: true, type: "ticker" },
-      select: { value: true },
-    });
-    const aiPortfolio = await prisma.aiPortfolio.findFirst({
-      where: { isActive: true },
-      include: { positions: { select: { ticker: true } } },
-    });
-
-    const allTickers = Array.from(new Set([
-      ...userHoldings.map((h) => h.ticker),
-      ...watchlist.map((w) => w.value),
-      ...(aiPortfolio?.positions.map((p) => p.ticker) || []),
-    ]));
-
+    // Fetch fresh quotes for full ticker universe
+    const allTickers = await getAllTradableTickers();
     const quotes = await fetchAndStoreQuotes(allTickers);
-    log.push(`Fetched quotes for ${quotes.size} tickers`);
+    log.push(`Fetched quotes for ${quotes.size}/${allTickers.length} tickers`);
 
     // Evaluate trades
     const decisions = await evaluateTrades();

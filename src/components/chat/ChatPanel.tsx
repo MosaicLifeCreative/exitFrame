@@ -152,6 +152,7 @@ export default function ChatPanel() {
     closeChat,
     messages,
     isStreaming,
+    isLoadingHistory,
     sendMessage,
     clearMessages,
     pageContext,
@@ -241,7 +242,13 @@ export default function ChatPanel() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {messages.length === 0 && (
+          {isLoadingHistory && messages.length === 0 && (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {!isLoadingHistory && messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <Bot className="h-12 w-12 text-muted-foreground/30 mb-4" />
               <h3 className="text-sm font-medium text-muted-foreground mb-1">

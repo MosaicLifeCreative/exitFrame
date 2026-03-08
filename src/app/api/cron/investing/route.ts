@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
-import { prisma } from "@/lib/prisma";
 import { fetchAndStoreQuotes, isMarketOpen, isMarketCloseWindow, shouldCrawlNews } from "@/lib/investing/quotes";
-import { evaluateTrades, executeTrades } from "@/lib/investing/aiTrader";
+import { evaluateTrades, executeTrades, getAllTradableTickers } from "@/lib/investing/aiTrader";
 import { takePortfolioSnapshots } from "@/lib/investing/snapshots";
 
 export const dynamic = "force-dynamic";
@@ -56,28 +55,10 @@ async function runCron(request: NextRequest) {
   }
 
   try {
-    // Step 1: Fetch quotes for all relevant tickers
-    const userHoldings = await prisma.portfolioHolding.findMany({
-      where: { isActive: true },
-      select: { ticker: true },
-    });
-    const watchlist = await prisma.watchlistItem.findMany({
-      where: { isActive: true, type: "ticker" },
-      select: { value: true },
-    });
-    const aiPortfolio = await prisma.aiPortfolio.findFirst({
-      where: { isActive: true },
-      include: { positions: { select: { ticker: true } } },
-    });
-
-    const allTickers = Array.from(new Set([
-      ...userHoldings.map((h) => h.ticker),
-      ...watchlist.map((w) => w.value),
-      ...(aiPortfolio?.positions.map((p) => p.ticker) || []),
-    ]));
-
+    // Step 1: Fetch quotes for full ticker universe (base + news-discovered + user + AI)
+    const allTickers = await getAllTradableTickers();
     const quotes = await fetchAndStoreQuotes(allTickers);
-    log.push(`Fetched quotes for ${quotes.size} tickers`);
+    log.push(`Fetched quotes for ${quotes.size}/${allTickers.length} tickers`);
 
     // Step 2: News crawl (3x/day: open, midday, close)
     if (crawlTime) {

@@ -157,7 +157,13 @@ IMPORTANT RULES:
 - Be proactive: if you see they've hit a milestone, offer to mark it complete`;
 
 async function buildSystemPrompt(context?: ChatRequest["context"]): Promise<string> {
+  const now = new Date();
+  const today = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/New_York" });
+  const time = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+
   let system = `You are an AI assistant embedded in the Mosaic Life Dashboard — a personal command center for managing life (health, fitness, finances, investing) and business operations (WordPress agency, clients, analytics).
+
+Today is ${today}, ${time} ET. This is the current date and time — do not doubt or hedge about it.
 
 You are concise and helpful. Keep responses focused and actionable. Use markdown formatting when it improves readability. Do not use emojis unless asked.`;
 

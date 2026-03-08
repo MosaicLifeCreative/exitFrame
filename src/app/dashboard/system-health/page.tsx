@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Clock,
   Bot,
+  Watch,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,8 @@ interface EnvInfo {
   qstashTokenSet: boolean;
   qstashSigningSet: boolean;
   cronSecretSet: boolean;
+  ouraClientIdSet: boolean;
+  ouraClientSecretSet: boolean;
 }
 
 interface HealthData {
@@ -87,6 +90,7 @@ const serviceIcons: Record<string, React.ElementType> = {
   "Finnhub API": TrendingUp,
   "QStash Cron": Clock,
   "Claude AI": Bot,
+  "Oura Ring": Watch,
 };
 
 export default function SystemHealthPage() {
@@ -288,6 +292,8 @@ export default function SystemHealthPage() {
                 { label: "QSTASH_TOKEN", set: data.envInfo.qstashTokenSet },
                 { label: "QSTASH_SIGNING", set: data.envInfo.qstashSigningSet },
                 { label: "CRON_SECRET", set: data.envInfo.cronSecretSet },
+                { label: "OURA_CLIENT_ID", set: data.envInfo.ouraClientIdSet },
+                { label: "OURA_SECRET", set: data.envInfo.ouraClientSecretSet },
               ].map((env) => (
                 <div
                   key={env.label}

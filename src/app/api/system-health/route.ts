@@ -154,6 +154,45 @@ export async function GET() {
     details: anthropicKey ? "API key configured" : "ANTHROPIC_API_KEY not set",
   });
 
+  // 7. Oura Ring integration check
+  try {
+    const ouraIntegration = await prisma.integration.findFirst({
+      where: { serviceName: "oura" },
+    });
+    const ouraClientId = process.env.OURA_CLIENT_ID;
+    if (ouraIntegration?.status === "active") {
+      services.push({
+        name: "Oura Ring",
+        status: "healthy",
+        responseTime: 0,
+        details: ouraIntegration.lastSyncAt
+          ? `Last sync: ${new Date(ouraIntegration.lastSyncAt).toLocaleString()}`
+          : "Connected, awaiting first sync",
+      });
+    } else if (ouraClientId) {
+      services.push({
+        name: "Oura Ring",
+        status: "degraded",
+        responseTime: 0,
+        details: ouraIntegration?.lastError || "OAuth configured but not connected",
+      });
+    } else {
+      services.push({
+        name: "Oura Ring",
+        status: "down",
+        responseTime: 0,
+        details: "OURA_CLIENT_ID not configured",
+      });
+    }
+  } catch {
+    services.push({
+      name: "Oura Ring",
+      status: "down",
+      responseTime: 0,
+      details: "Failed to check integration status",
+    });
+  }
+
   // 7. Table row counts (only if DB is up)
   const dbUp = services.find((s) => s.name === "Supabase Database")?.status !== "down";
   if (dbUp) {
@@ -181,6 +220,8 @@ export async function GET() {
       { name: "ai_positions", fn: () => prisma.aiPosition.count() },
       { name: "ai_trades", fn: () => prisma.aiTrade.count() },
       { name: "portfolio_snapshots", fn: () => prisma.portfolioSnapshot.count() },
+      // Health
+      { name: "oura_data", fn: () => prisma.ouraData.count() },
       // Chat
       { name: "chat_conversations", fn: () => prisma.chatConversation.count() },
       { name: "chat_messages", fn: () => prisma.chatMessage.count() },
@@ -209,6 +250,8 @@ export async function GET() {
     qstashTokenSet: !!process.env.QSTASH_TOKEN,
     qstashSigningSet: !!process.env.QSTASH_CURRENT_SIGNING_KEY,
     cronSecretSet: !!process.env.CRON_SECRET,
+    ouraClientIdSet: !!process.env.OURA_CLIENT_ID,
+    ouraClientSecretSet: !!process.env.OURA_CLIENT_SECRET,
   };
 
   const overallStatus = services.every((s) => s.status === "healthy")

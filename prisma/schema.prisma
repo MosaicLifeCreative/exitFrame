@@ -487,6 +487,28 @@ model PortfolioSnapshot {
   @@map("portfolio_snapshots")
 }
 
+// ============================================
+// HEALTH — OURA RING
+// ============================================
+
+// Synced Oura Ring data (sleep, readiness, activity)
+model OuraData {
+  id              String   @id @default(uuid()) @db.Uuid
+  date            DateTime @db.Date
+  dataType        String   @map("data_type") // "sleep", "readiness", "activity"
+  data            Json     // Full API response for that day/type
+  readinessScore  Int?     @map("readiness_score")
+  sleepScore      Int?     @map("sleep_score")
+  activityScore   Int?     @map("activity_score")
+  hrvAverage      Decimal? @map("hrv_average") @db.Decimal(6, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([date, dataType])
+  @@map("oura_data")
+}
+
+
 // Chat conversations — persists chat history per page context
 model ChatConversation {
   id        String   @id @default(uuid()) @db.Uuid

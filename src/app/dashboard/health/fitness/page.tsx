@@ -20,6 +20,7 @@ import {
   LayoutTemplate,
   Upload,
   Pencil,
+  Waves,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,7 +94,7 @@ interface WorkoutTemplate {
 
 // ─── Tab type ───────────────────────────────────────────
 
-type Tab = "log" | "history" | "exercises" | "templates";
+type Tab = "log" | "history" | "exercises" | "templates" | "cardio";
 
 // ─── Muscle group display ───────────────────────────────
 
@@ -311,6 +312,7 @@ export default function FitnessPage() {
     { id: "history", label: "History", icon: Calendar },
     { id: "exercises", label: "Exercises", icon: Library },
     { id: "templates", label: "Templates", icon: LayoutTemplate },
+    { id: "cardio", label: "Cardio", icon: Waves },
   ];
 
   if (loading) {
@@ -450,6 +452,7 @@ export default function FitnessPage() {
           onUpdate={fetchTemplates}
         />
       )}
+      {activeTab === "cardio" && <CardioTab />}
     </div>
   );
 }
@@ -1549,5 +1552,587 @@ function TemplatesTab({
         </Card>
       )}
     </div>
+  );
+}
+
+
+// ─── Cardio Tab ──────────────────────────────────────────
+
+interface CardioSession {
+  id: string;
+  activityType: string;
+  performedAt: string;
+  durationMinutes: number | null;
+  distanceValue: number | null;
+  distanceUnit: string | null;
+  calories: number | null;
+  avgHeartRate: number | null;
+  maxHeartRate: number | null;
+  notes: string | null;
+  source: string;
+  details: Record<string, unknown> | null;
+}
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  swim: "Swim",
+  run: "Run",
+  bike: "Bike",
+};
+
+const ACTIVITY_COLORS: Record<string, string> = {
+  swim: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  run: "bg-green-500/10 text-green-400 border-green-500/20",
+  bike: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+};
+
+const DEFAULT_UNITS: Record<string, string> = {
+  swim: "yards",
+  run: "miles",
+  bike: "miles",
+};
+
+function CardioTab() {
+  const [sessions, setSessions] = useState<CardioSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const fetchSessions = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (typeFilter !== "all") params.set("type", typeFilter);
+      const res = await fetch(`/api/fitness/cardio?${params}`).then((r) => r.json());
+      if (res.data) setSessions(res.data);
+    } catch (err) {
+      console.error("Cardio fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [typeFilter]);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
+
+  // Stats
+  const thisWeek = useMemo(() => {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    return sessions.filter((s) => new Date(s.performedAt) >= weekAgo);
+  }, [sessions]);
+
+  const totalDistance = useMemo(() => {
+    const byType: Record<string, { total: number; unit: string }> = {};
+    for (const s of thisWeek) {
+      if (s.distanceValue && s.distanceUnit) {
+        if (!byType[s.activityType]) {
+          byType[s.activityType] = { total: 0, unit: s.distanceUnit };
+        }
+        byType[s.activityType].total += s.distanceValue;
+      }
+    }
+    return byType;
+  }, [thisWeek]);
+
+  const totalMinutes = useMemo(
+    () => thisWeek.reduce((sum, s) => sum + (s.durationMinutes || 0), 0),
+    [thisWeek]
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">This Week</p>
+            <p className="text-xl font-bold">{thisWeek.length} sessions</p>
+            {totalMinutes > 0 && (
+              <p className="text-xs text-muted-foreground">{totalMinutes} min total</p>
+            )}
+          </CardContent>
+        </Card>
+        {Object.entries(totalDistance).map(([type, d]) => (
+          <Card key={type}>
+            <CardContent className="pt-4 pb-3">
+              <p className="text-xs text-muted-foreground">{ACTIVITY_LABELS[type]} This Week</p>
+              <p className="text-xl font-bold">
+                {d.total.toLocaleString("en-US", { maximumFractionDigits: 1 })} {d.unit}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Filters + Add */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          {["all", "swim", "run", "bike"].map((t) => (
+            <Button
+              key={t}
+              variant={typeFilter === t ? "default" : "outline"}
+              size="sm"
+              onClick={() => setTypeFilter(t)}
+            >
+              {t === "all" ? "All" : ACTIVITY_LABELS[t]}
+            </Button>
+          ))}
+        </div>
+        <Button size="sm" onClick={() => setShowAddForm(true)}>
+          <Plus className="h-4 w-4 mr-1" /> Log Cardio
+        </Button>
+      </div>
+
+      {/* Add Form */}
+      {showAddForm && (
+        <CardioForm
+          onClose={() => setShowAddForm(false)}
+          onSaved={() => {
+            setShowAddForm(false);
+            fetchSessions();
+          }}
+        />
+      )}
+
+      {/* Sessions List */}
+      {sessions.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            No cardio sessions logged yet. Click &quot;Log Cardio&quot; to get started.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {sessions.map((session) => (
+            <Card key={session.id}>
+              <CardContent className="py-3">
+                {editingId === session.id ? (
+                  <CardioForm
+                    session={session}
+                    onClose={() => setEditingId(null)}
+                    onSaved={() => {
+                      setEditingId(null);
+                      fetchSessions();
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${ACTIVITY_COLORS[session.activityType] || ""}`}
+                    >
+                      {ACTIVITY_LABELS[session.activityType] || session.activityType}
+                    </Badge>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="font-medium">
+                          {new Date(session.performedAt).toLocaleDateString()}
+                        </span>
+                        {session.durationMinutes && (
+                          <span className="text-muted-foreground">
+                            {session.durationMinutes} min
+                          </span>
+                        )}
+                        {session.distanceValue && (
+                          <span className="text-muted-foreground">
+                            {session.distanceValue.toLocaleString("en-US", { maximumFractionDigits: 1 })}{" "}
+                            {session.distanceUnit}
+                          </span>
+                        )}
+                        {session.avgHeartRate && (
+                          <span className="text-muted-foreground">
+                            {session.avgHeartRate} bpm avg
+                          </span>
+                        )}
+                        {session.calories && (
+                          <span className="text-muted-foreground">
+                            {session.calories} cal
+                          </span>
+                        )}
+                      </div>
+                      {/* Activity-specific details */}
+                      <CardioDetails session={session} />
+                      {session.notes && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{session.notes}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => setEditingId(session.id)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={async () => {
+                          await fetch(`/api/fitness/cardio/${session.id}`, { method: "DELETE" });
+                          fetchSessions();
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CardioDetails({ session }: { session: CardioSession }) {
+  if (!session.details) return null;
+  const d = session.details as Record<string, string | number>;
+  const parts: string[] = [];
+
+  if (session.activityType === "swim") {
+    if (d.laps) parts.push(`${d.laps} laps`);
+    if (d.poolLength) parts.push(`${d.poolLength}yd pool`);
+  } else if (session.activityType === "run") {
+    if (d.pace) parts.push(`Pace: ${d.pace}`);
+    if (d.elevation) parts.push(`${d.elevation} ft elev`);
+  } else if (session.activityType === "bike") {
+    if (d.bikeType) parts.push(d.bikeType === "mtb" ? "MTB" : "Road");
+    if (d.location) parts.push(String(d.location));
+    if (d.avgSpeed) parts.push(`${d.avgSpeed} mph avg`);
+    if (d.elevation) parts.push(`${d.elevation} ft elev`);
+  }
+
+  if (parts.length === 0) return null;
+  return (
+    <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
+      {parts.map((p, i) => (
+        <span key={i}>{p}</span>
+      ))}
+    </div>
+  );
+}
+
+// ─── Cardio Form ─────────────────────────────────────────
+
+function CardioForm({
+  session,
+  onClose,
+  onSaved,
+}: {
+  session?: CardioSession;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [activityType, setActivityType] = useState(session?.activityType || "swim");
+  const [performedAt, setPerformedAt] = useState(() => {
+    // datetime-local expects local time, not UTC — offset the ISO string
+    const d = session?.performedAt ? new Date(session.performedAt) : new Date();
+    const offset = d.getTimezoneOffset();
+    return new Date(d.getTime() - offset * 60000).toISOString().slice(0, 16);
+  });
+  const [durationMinutes, setDurationMinutes] = useState(session?.durationMinutes?.toString() || "");
+  const [distanceValue, setDistanceValue] = useState(session?.distanceValue?.toString() || "");
+  const [distanceUnit, setDistanceUnit] = useState(
+    session?.distanceUnit || DEFAULT_UNITS[session?.activityType || "swim"]
+  );
+  const [calories, setCalories] = useState(session?.calories?.toString() || "");
+  const [avgHeartRate, setAvgHeartRate] = useState(session?.avgHeartRate?.toString() || "");
+  const [notes, setNotes] = useState(session?.notes || "");
+  const [saving, setSaving] = useState(false);
+
+  // Swim-specific
+  const details = (session?.details || {}) as Record<string, unknown>;
+  const [poolLength, setPoolLength] = useState(String(details.poolLength || "25"));
+  const [laps, setLaps] = useState(String(details.laps || ""));
+
+  // Run/Bike specific
+  const [pace, setPace] = useState(String(details.pace || ""));
+  const [avgSpeed, setAvgSpeed] = useState(String(details.avgSpeed || ""));
+  const [elevation, setElevation] = useState(String(details.elevation || ""));
+
+  // Bike subtype
+  const [bikeType, setBikeType] = useState(String(details.bikeType || "road"));
+  const [location, setLocation] = useState(String(details.location || ""));
+
+  // Update distance unit when activity type changes
+  useEffect(() => {
+    if (!session) setDistanceUnit(DEFAULT_UNITS[activityType]);
+  }, [activityType, session]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+
+    const activityDetails: Record<string, unknown> = {};
+    if (activityType === "swim") {
+      if (poolLength) activityDetails.poolLength = parseInt(poolLength);
+      if (laps) activityDetails.laps = parseInt(laps);
+    } else if (activityType === "run") {
+      if (pace) activityDetails.pace = pace;
+      if (elevation) activityDetails.elevation = parseInt(elevation);
+    } else if (activityType === "bike") {
+      activityDetails.bikeType = bikeType;
+      if (bikeType === "mtb" && location.trim()) activityDetails.location = location.trim();
+      if (avgSpeed) activityDetails.avgSpeed = parseFloat(avgSpeed);
+      if (elevation) activityDetails.elevation = parseInt(elevation);
+    }
+
+    const body: Record<string, unknown> = {
+      activityType,
+      performedAt: new Date(performedAt).toISOString(),
+      durationMinutes: durationMinutes ? parseInt(durationMinutes) : undefined,
+      distanceValue: distanceValue ? parseFloat(distanceValue) : undefined,
+      distanceUnit: distanceValue ? distanceUnit : undefined,
+      calories: calories ? parseInt(calories) : undefined,
+      avgHeartRate: avgHeartRate ? parseInt(avgHeartRate) : undefined,
+      notes: notes.trim() || undefined,
+      details: Object.keys(activityDetails).length > 0 ? activityDetails : undefined,
+    };
+
+    try {
+      if (session) {
+        await fetch(`/api/fitness/cardio/${session.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } else {
+        await fetch("/api/fitness/cardio", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
+      onSaved();
+    } catch (err) {
+      console.error("Save cardio error:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className={session ? "border-0 shadow-none" : ""}>
+      <CardContent className={session ? "p-0" : "pt-4"}>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {/* Activity Type */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Activity</label>
+              <select
+                value={activityType}
+                onChange={(e) => setActivityType(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                disabled={!!session}
+              >
+                <option value="swim">Swim</option>
+                <option value="run">Run</option>
+                <option value="bike">Bike</option>
+              </select>
+            </div>
+
+            {/* Date/Time */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Date/Time</label>
+              <Input
+                type="datetime-local"
+                value={performedAt}
+                onChange={(e) => setPerformedAt(e.target.value)}
+              />
+            </div>
+
+            {/* Duration */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Duration (min)</label>
+              <Input
+                type="number"
+                placeholder="30"
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(e.target.value)}
+              />
+            </div>
+
+            {/* Distance */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Distance</label>
+              <div className="flex gap-1">
+                <Input
+                  type="number"
+                  step="any"
+                  placeholder="0"
+                  value={distanceValue}
+                  onChange={(e) => setDistanceValue(e.target.value)}
+                  className="flex-1"
+                />
+                <select
+                  value={distanceUnit}
+                  onChange={(e) => setDistanceUnit(e.target.value)}
+                  className="w-20 h-10 rounded-md border border-input bg-background px-2 text-xs"
+                >
+                  <option value="yards">yd</option>
+                  <option value="meters">m</option>
+                  <option value="miles">mi</option>
+                  <option value="km">km</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Activity-specific fields */}
+          {activityType === "swim" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Pool Length</label>
+                <select
+                  value={poolLength}
+                  onChange={(e) => setPoolLength(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="25">25 yd</option>
+                  <option value="50">50 m</option>
+                  <option value="33">33 yd</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Laps</label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={laps}
+                  onChange={(e) => setLaps(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {activityType === "run" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Pace (min/mi)</label>
+                <Input
+                  placeholder="8:30"
+                  value={pace}
+                  onChange={(e) => setPace(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Elevation (ft)</label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={elevation}
+                  onChange={(e) => setElevation(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {activityType === "bike" && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Bike Type</label>
+                  <select
+                    value={bikeType}
+                    onChange={(e) => setBikeType(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="road">Road</option>
+                    <option value="mtb">MTB</option>
+                  </select>
+                </div>
+                {bikeType === "mtb" && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Location</label>
+                    <Input
+                      placeholder="Trail name / park"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Avg Speed (mph)</label>
+                  <Input
+                    type="number"
+                    step="any"
+                    placeholder="0"
+                    value={avgSpeed}
+                    onChange={(e) => setAvgSpeed(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Elevation (ft)</label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={elevation}
+                    onChange={(e) => setElevation(e.target.value)}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Common fields */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Avg HR (bpm)</label>
+              <Input
+                type="number"
+                placeholder="140"
+                value={avgHeartRate}
+                onChange={(e) => setAvgHeartRate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Calories</label>
+              <Input
+                type="number"
+                placeholder="0"
+                value={calories}
+                onChange={(e) => setCalories(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Notes</label>
+            <Textarea
+              placeholder="How did it feel?"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : session ? "Save" : "Log Session"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

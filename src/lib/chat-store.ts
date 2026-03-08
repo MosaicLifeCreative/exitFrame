@@ -43,8 +43,11 @@ interface ChatStore {
   messages: ChatMessage[];
   isStreaming: boolean;
   isLoadingHistory: boolean;
+  isLoadingMore: boolean;
+  hasMoreMessages: boolean;
   pageContext: PageContext | null;
   conversationId: string | null;
+  conversationSummary: string | null;
   toolExecutedFlag: number;
   workoutDraft: WorkoutDraft | null;
 
@@ -55,6 +58,7 @@ interface ChatStore {
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => void;
   loadConversation: (context: string) => Promise<void>;
+  loadMoreMessages: () => Promise<void>;
   clearWorkoutDraft: () => void;
 }
 
@@ -67,8 +71,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   messages: [],
   isStreaming: false,
   isLoadingHistory: false,
+  isLoadingMore: false,
+  hasMoreMessages: false,
   pageContext: null,
   conversationId: null,
+  conversationSummary: null,
   toolExecutedFlag: 0,
   workoutDraft: null,
 
@@ -94,7 +101,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   loadConversation: async (context: string) => {
     set({ isLoadingHistory: true });
     try {
-      const res = await fetch(`/api/chat/conversations?context=${encodeURIComponent(context)}`);
+      const res = await fetch(`/api/chat/conversations?context=${encodeURIComponent(context)}&limit=50`);
       if (!res.ok) return;
       const json = await res.json();
       const conversation = json.data;
@@ -106,14 +113,54 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           content: m.content,
           timestamp: new Date(m.createdAt),
         }));
-        set({ messages, conversationId: conversation.id });
+        set({
+          messages,
+          conversationId: conversation.id,
+          conversationSummary: conversation.summary || null,
+          hasMoreMessages: conversation.hasMore || false,
+        });
       } else {
-        set({ messages: [], conversationId: null });
+        set({ messages: [], conversationId: null, conversationSummary: null, hasMoreMessages: false });
       }
     } catch {
       // Failed to load — start fresh
     } finally {
       set({ isLoadingHistory: false });
+    }
+  },
+
+  loadMoreMessages: async () => {
+    const { messages, pageContext, conversationId, isLoadingMore } = get();
+    if (!conversationId || !pageContext || isLoadingMore || messages.length === 0) return;
+
+    const oldestId = messages[0].id;
+    set({ isLoadingMore: true });
+    try {
+      const res = await fetch(
+        `/api/chat/conversations?context=${encodeURIComponent(pageContext.page)}&limit=50&before=${oldestId}`
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      const conversation = json.data;
+
+      if (conversation && conversation.messages?.length > 0) {
+        const olderMessages: ChatMessage[] = conversation.messages.map((m: { id: string; role: string; content: string; createdAt: string }) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          timestamp: new Date(m.createdAt),
+        }));
+        set((s) => ({
+          messages: [...olderMessages, ...s.messages],
+          hasMoreMessages: conversation.hasMore || false,
+        }));
+      } else {
+        set({ hasMoreMessages: false });
+      }
+    } catch {
+      // Failed to load more
+    } finally {
+      set({ isLoadingMore: false });
     }
   },
 
@@ -130,11 +177,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // Best-effort archive
     }
 
-    set({ messages: [], conversationId: null });
+    set({ messages: [], conversationId: null, conversationSummary: null, hasMoreMessages: false });
   },
 
   sendMessage: async (content: string) => {
-    const { messages, pageContext } = get();
+    const { messages, pageContext, conversationSummary } = get();
     const context = pageContext?.page || "General";
 
     const userMsg: ChatMessage = {
@@ -170,6 +217,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         body: JSON.stringify({
           messages: apiMessages,
           context: pageContext,
+          ...(conversationSummary ? { conversationSummary } : {}),
         }),
       });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/lib/chat-store";
 import { Button } from "@/components/ui/button";
@@ -153,6 +154,8 @@ const TOOL_LABELS: Record<string, string> = {
   get_recent_workouts: "Reviewing workout history",
   create_exercise: "Adding exercise",
   create_workout: "Creating workout",
+  get_recent_cardio: "Checking cardio history",
+  create_swim_workout: "Creating swim workout",
   log_symptoms: "Logging symptoms",
   get_symptom_history: "Checking symptom history",
   resolve_symptoms: "Resolving symptoms",
@@ -164,6 +167,12 @@ const TOOL_LABELS: Record<string, string> = {
   get_bloodwork_trends: "Analyzing trends",
   add_family_member: "Adding family member",
   get_family_history: "Checking family history",
+  list_goals: "Reviewing goals",
+  create_goal: "Creating goal",
+  update_goal: "Updating goal",
+  log_goal_progress: "Logging progress",
+  toggle_milestone: "Updating milestone",
+  add_milestone: "Adding milestone",
 };
 
 function formatToolName(name: string): string {
@@ -177,19 +186,75 @@ export default function ChatPanel() {
     messages,
     isStreaming,
     isLoadingHistory,
+    isLoadingMore,
+    hasMoreMessages,
     sendMessage,
     clearMessages,
+    loadMoreMessages,
     pageContext,
   } = useChatStore();
 
+  const pathname = usePathname();
+  const prevPathnameRef = useRef(pathname);
+
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const prevMessageCountRef = useRef(0);
 
-  // Auto-scroll to bottom on new messages
+  // Close chat when route changes
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (prevPathnameRef.current !== pathname && isOpen) {
+      closeChat();
+    }
+    prevPathnameRef.current = pathname;
+  }, [pathname, isOpen, closeChat]);
+
+  // Auto-scroll to bottom on initial load and new messages (not when loading older via scroll-up)
+  const isLoadingMoreRef = useRef(false);
+  useEffect(() => {
+    isLoadingMoreRef.current = isLoadingMore;
+  }, [isLoadingMore]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      prevMessageCountRef.current = 0;
+      return;
+    }
+
+    const wasLoadingMore = isLoadingMoreRef.current;
+    const prevCount = prevMessageCountRef.current;
+
+    // Scroll to bottom on: initial load (prev=0), or new messages at end (small delta, not from loadMore)
+    if (prevCount === 0 || (!wasLoadingMore && messages.length - prevCount <= 2)) {
+      messagesEndRef.current?.scrollIntoView({ behavior: prevCount === 0 ? "instant" : "smooth" });
+    }
+
+    prevMessageCountRef.current = messages.length;
   }, [messages]);
+
+  // Load more messages on scroll to top
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (container.scrollTop < 100 && hasMoreMessages && !isLoadingMore) {
+        const prevHeight = container.scrollHeight;
+        loadMoreMessages().then(() => {
+          // Maintain scroll position after prepending older messages
+          requestAnimationFrame(() => {
+            const newHeight = container.scrollHeight;
+            container.scrollTop = newHeight - prevHeight;
+          });
+        });
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [hasMoreMessages, isLoadingMore, loadMoreMessages]);
 
   // Focus textarea when panel opens
   useEffect(() => {
@@ -265,7 +330,14 @@ export default function ChatPanel() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          {isLoadingMore && (
+            <div className="flex items-center justify-center py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground ml-2">Loading older messages...</span>
+            </div>
+          )}
+
           {isLoadingHistory && messages.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

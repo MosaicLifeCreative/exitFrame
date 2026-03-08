@@ -146,7 +146,7 @@ export const fitnessTools: Anthropic.Tool[] = [
                   properties: {
                     weight: {
                       type: "number",
-                      description: "Weight in lbs (null for bodyweight)",
+                      description: "Weight in lbs. REQUIRED for all exercises. Use 0 for bodyweight exercises. Check recent workout history for appropriate weights.",
                     },
                     reps: {
                       type: "number",
@@ -158,7 +158,7 @@ export const fitnessTools: Anthropic.Tool[] = [
                       description: "Type of set (default: working)",
                     },
                   },
-                  required: ["reps"],
+                  required: ["reps", "weight"],
                 },
               },
             },
@@ -167,6 +167,100 @@ export const fitnessTools: Anthropic.Tool[] = [
         },
       },
       required: ["name", "saveAs", "exercises"],
+    },
+  },
+  {
+    name: "get_recent_cardio",
+    description:
+      "Get the user's recent cardio sessions (swim, run, bike). Use to review their cardio training history and volume before suggesting swim workouts.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        activityType: {
+          type: "string",
+          enum: ["swim", "run", "bike"],
+          description: "Filter by activity type (default: all)",
+        },
+        limit: {
+          type: "number",
+          description: "Number of sessions to return (default 10)",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "create_swim_workout",
+    description:
+      "Create a structured swim workout and save it as a cardio session. Use when the user asks you to build a swim workout. Includes warmup, main set, and cooldown. ALWAYS confirm the workout with the user before saving.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: {
+          type: "string",
+          description: "Workout name (e.g. 'Endurance Swim', 'Sprint Intervals')",
+        },
+        totalDistance: {
+          type: "number",
+          description: "Total planned distance in yards",
+        },
+        distanceUnit: {
+          type: "string",
+          enum: ["yards", "meters"],
+          description: "Distance unit (default: yards)",
+        },
+        estimatedMinutes: {
+          type: "number",
+          description: "Estimated duration in minutes",
+        },
+        poolLength: {
+          type: "number",
+          description: "Pool length (25 for yards, 50 for meters)",
+        },
+        workout: {
+          type: "object",
+          description: "Structured workout with warmup, main sets, and cooldown",
+          properties: {
+            warmup: {
+              type: "string",
+              description: "Warmup description (e.g. '200 easy free, 4x50 drill/swim by 25')",
+            },
+            mainSets: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  description: {
+                    type: "string",
+                    description: "Set description (e.g. '8x100 free on 1:45')",
+                  },
+                  distance: {
+                    type: "number",
+                    description: "Total distance for this set block",
+                  },
+                  intensity: {
+                    type: "string",
+                    enum: ["easy", "moderate", "threshold", "sprint"],
+                    description: "Intensity level",
+                  },
+                },
+                required: ["description"],
+              },
+              description: "Main set blocks",
+            },
+            cooldown: {
+              type: "string",
+              description: "Cooldown description (e.g. '200 easy choice')",
+            },
+          },
+          required: ["warmup", "mainSets", "cooldown"],
+        },
+        notes: {
+          type: "string",
+          description: "Additional notes (e.g. 'focus on bilateral breathing', 'use pull buoy on main set')",
+        },
+      },
+      required: ["name", "totalDistance", "workout"],
     },
   },
 ];
@@ -204,6 +298,31 @@ interface CreateWorkoutInput {
   }>;
 }
 
+interface GetRecentCardioInput {
+  activityType?: string;
+  limit?: number;
+}
+
+interface SwimSetBlock {
+  description: string;
+  distance?: number;
+  intensity?: string;
+}
+
+interface CreateSwimWorkoutInput {
+  name: string;
+  totalDistance: number;
+  distanceUnit?: string;
+  estimatedMinutes?: number;
+  poolLength?: number;
+  workout: {
+    warmup: string;
+    mainSets: SwimSetBlock[];
+    cooldown: string;
+  };
+  notes?: string;
+}
+
 export async function executeFitnessTool(
   toolName: string,
   toolInput: Record<string, unknown>
@@ -217,6 +336,10 @@ export async function executeFitnessTool(
       return createExercise(toolInput as unknown as CreateExerciseInput);
     case "create_workout":
       return createWorkout(toolInput as unknown as CreateWorkoutInput);
+    case "get_recent_cardio":
+      return getRecentCardio(toolInput as unknown as GetRecentCardioInput);
+    case "create_swim_workout":
+      return createSwimWorkout(toolInput as unknown as CreateSwimWorkoutInput);
     default:
       return JSON.stringify({ error: `Unknown tool: ${toolName}` });
   }
@@ -433,7 +556,7 @@ async function createSession(input: CreateWorkoutInput): Promise<string> {
       notes: ex.notes || "",
       sets: ex.sets.map((s) => ({
         setNumber: s.setNumber,
-        weight: s.weight ? Number(s.weight).toString() : "",
+        weight: s.weight != null ? Number(s.weight).toString() : "",
         reps: s.reps.toString(),
         rpe: "",
         setType: s.setType,
@@ -446,5 +569,86 @@ async function createSession(input: CreateWorkoutInput): Promise<string> {
     draft: true,
     workout: draft,
     message: "Workout loaded into your Log tab — edit anything before saving.",
+  });
+}
+
+
+// ─── Cardio Tool Implementations ─────────────────────────
+
+async function getRecentCardio(input: GetRecentCardioInput): Promise<string> {
+  const limit = Math.min(input.limit || 10, 30);
+  const where: Record<string, unknown> = {};
+  if (input.activityType) where.activityType = input.activityType;
+
+  const sessions = await prisma.cardioSession.findMany({
+    where,
+    orderBy: { performedAt: "desc" },
+    take: limit,
+  });
+
+  const result = sessions.map((s) => ({
+    id: s.id,
+    activityType: s.activityType,
+    performedAt: s.performedAt.toISOString().slice(0, 10),
+    durationMinutes: s.durationMinutes,
+    distanceValue: s.distanceValue ? Number(s.distanceValue) : null,
+    distanceUnit: s.distanceUnit,
+    calories: s.calories,
+    avgHeartRate: s.avgHeartRate,
+    notes: s.notes,
+    details: s.details,
+  }));
+
+  return JSON.stringify({ sessions: result, count: result.length });
+}
+
+async function createSwimWorkout(input: CreateSwimWorkoutInput): Promise<string> {
+  const distanceUnit = input.distanceUnit || "yards";
+
+  // Build structured notes from the workout plan
+  const workoutParts: string[] = [];
+  workoutParts.push(`Warmup: ${input.workout.warmup}`);
+  for (const set of input.workout.mainSets) {
+    let line = set.description;
+    if (set.intensity) line += ` [${set.intensity}]`;
+    if (set.distance) line += ` (${set.distance} ${distanceUnit})`;
+    workoutParts.push(line);
+  }
+  workoutParts.push(`Cooldown: ${input.workout.cooldown}`);
+  if (input.notes) workoutParts.push(`\nNotes: ${input.notes}`);
+
+  const fullNotes = `${input.name}\n${workoutParts.join("\n")}`;
+
+  const session = await prisma.cardioSession.create({
+    data: {
+      activityType: "swim",
+      performedAt: new Date(),
+      durationMinutes: input.estimatedMinutes,
+      distanceValue: input.totalDistance,
+      distanceUnit,
+      source: "claude",
+      notes: fullNotes,
+      details: {
+        workoutName: input.name,
+        poolLength: input.poolLength || 25,
+        warmup: input.workout.warmup,
+        mainSets: input.workout.mainSets,
+        cooldown: input.workout.cooldown,
+        structured: true,
+      } as unknown as Record<string, never>,
+    },
+  });
+
+  return JSON.stringify({
+    success: true,
+    session: {
+      id: session.id,
+      activityType: "swim",
+      totalDistance: input.totalDistance,
+      distanceUnit,
+      estimatedMinutes: input.estimatedMinutes,
+      workoutPlan: workoutParts,
+    },
+    message: "Swim workout saved! Check the Cardio tab in Fitness.",
   });
 }

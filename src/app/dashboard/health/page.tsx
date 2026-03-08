@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useChatContext } from "@/hooks/useChatContext";
 import { toast } from "sonner";
@@ -186,7 +186,15 @@ function ScoreChart({
   );
 }
 
-export default function HealthPage() {
+export default function HealthPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+      <HealthPage />
+    </Suspense>
+  );
+}
+
+function HealthPage() {
   const [data, setData] = useState<HealthPageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);

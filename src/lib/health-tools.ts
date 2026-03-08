@@ -144,6 +144,163 @@ export const healthTools: Anthropic.Tool[] = [
       required: ["id"],
     },
   },
+  // ─── Bloodwork Tools ────────────────────────────────────
+  {
+    name: "add_bloodwork_panel",
+    description:
+      "Create a bloodwork panel with lab results. Use when the user shares lab results, blood test values, or mentions getting bloodwork done. Auto-computes flagged markers based on reference ranges.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: {
+          type: "string",
+          description: "Panel name (e.g. 'Annual Physical 2026', 'Lipid Panel March 2026')",
+        },
+        date: {
+          type: "string",
+          description: "Date of the lab work in YYYY-MM-DD format",
+        },
+        provider: {
+          type: "string",
+          description: "Doctor or clinic name",
+        },
+        labName: {
+          type: "string",
+          description: "Lab name (e.g. 'Quest Diagnostics', 'LabCorp')",
+        },
+        notes: {
+          type: "string",
+          description: "Optional notes about this panel",
+        },
+        markers: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: {
+                type: "string",
+                description: "Marker name (e.g. 'Total Cholesterol', 'HDL', 'Hemoglobin A1C')",
+              },
+              value: {
+                type: "number",
+                description: "The measured value",
+              },
+              unit: {
+                type: "string",
+                description: "Unit of measurement (e.g. 'mg/dL', 'mmol/L', '%', 'ng/dL')",
+              },
+              referenceLow: {
+                type: "number",
+                description: "Low end of reference range (optional)",
+              },
+              referenceHigh: {
+                type: "number",
+                description: "High end of reference range (optional)",
+              },
+              category: {
+                type: "string",
+                enum: ["lipids", "metabolic", "hormones", "cbc", "thyroid", "liver", "kidney", "vitamins", "inflammation", "other"],
+                description: "Marker category",
+              },
+            },
+            required: ["name", "value", "unit"],
+          },
+          description: "Array of biomarker results",
+        },
+      },
+      required: ["name", "date", "markers"],
+    },
+  },
+  {
+    name: "get_bloodwork_panels",
+    description:
+      "List bloodwork panels with marker summaries. Shows panel name, date, total markers, and how many are flagged out of range.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        limit: {
+          type: "number",
+          description: "Number of panels to return (default 10)",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_bloodwork_trends",
+    description:
+      "Get historical values for a specific biomarker across all panels. Use to track how a marker has changed over time (e.g. cholesterol trends, A1C progression).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        markerName: {
+          type: "string",
+          description: "Name of the marker to track (e.g. 'Total Cholesterol', 'HDL', 'Hemoglobin A1C'). Case-insensitive search.",
+        },
+      },
+      required: ["markerName"],
+    },
+  },
+  // ─── Family History Tools ───────────────────────────────
+  {
+    name: "add_family_member",
+    description:
+      "Add a family member with their health conditions. Use when the user shares family medical history (e.g. 'my dad has high blood pressure').",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        relation: {
+          type: "string",
+          description: "Relation to user (e.g. 'mother', 'father', 'sibling', 'grandparent-maternal', 'grandparent-paternal', 'uncle-paternal', 'aunt-maternal')",
+        },
+        name: {
+          type: "string",
+          description: "Optional display name",
+        },
+        isAlive: {
+          type: "boolean",
+          description: "Whether the family member is alive",
+        },
+        notes: {
+          type: "string",
+          description: "Optional notes",
+        },
+        conditions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              condition: {
+                type: "string",
+                description: "Health condition (e.g. 'high cholesterol', 'type 2 diabetes', 'hypertension', 'heart disease', 'cancer')",
+              },
+              ageOfOnset: {
+                type: "number",
+                description: "Age when condition was diagnosed",
+              },
+              notes: {
+                type: "string",
+                description: "Optional notes about this condition",
+              },
+            },
+            required: ["condition"],
+          },
+          description: "Health conditions for this family member",
+        },
+      },
+      required: ["relation"],
+    },
+  },
+  {
+    name: "get_family_history",
+    description:
+      "List all family members and their health conditions. Use to review family medical history for risk assessment or when contextualizing bloodwork results.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 // ─── Tool Execution ─────────────────────────────────────
@@ -165,6 +322,16 @@ export async function executeHealthTool(
       return listSupplements(toolInput as unknown as ListSupplementsInput);
     case "update_supplement":
       return updateSupplement(toolInput as unknown as UpdateSupplementInput);
+    case "add_bloodwork_panel":
+      return addBloodworkPanel(toolInput as unknown as AddBloodworkPanelInput);
+    case "get_bloodwork_panels":
+      return getBloodworkPanels(toolInput as unknown as GetBloodworkPanelsInput);
+    case "get_bloodwork_trends":
+      return getBloodworkTrends(toolInput as unknown as GetBloodworkTrendsInput);
+    case "add_family_member":
+      return addFamilyMember(toolInput as unknown as AddFamilyMemberInput);
+    case "get_family_history":
+      return getFamilyHistory();
     default:
       return JSON.stringify({ error: `Unknown health tool: ${toolName}` });
   }
@@ -207,6 +374,46 @@ interface UpdateSupplementInput {
   frequency?: string;
   notes?: string;
   isActive?: boolean;
+}
+
+interface BloodworkMarkerInput {
+  name: string;
+  value: number;
+  unit: string;
+  referenceLow?: number;
+  referenceHigh?: number;
+  category?: string;
+}
+
+interface AddBloodworkPanelInput {
+  name: string;
+  date: string;
+  provider?: string;
+  labName?: string;
+  notes?: string;
+  markers: BloodworkMarkerInput[];
+}
+
+interface GetBloodworkPanelsInput {
+  limit?: number;
+}
+
+interface GetBloodworkTrendsInput {
+  markerName: string;
+}
+
+interface FamilyConditionInput {
+  condition: string;
+  ageOfOnset?: number;
+  notes?: string;
+}
+
+interface AddFamilyMemberInput {
+  relation: string;
+  name?: string;
+  isAlive?: boolean;
+  notes?: string;
+  conditions?: FamilyConditionInput[];
 }
 
 // ─── Tool Implementations ────────────────────────────────
@@ -371,5 +578,213 @@ async function updateSupplement(input: UpdateSupplementInput): Promise<string> {
       isActive: supplement.isActive,
     },
   });
+}
+
+// ─── Bloodwork Implementations ──────────────────────────
+
+async function addBloodworkPanel(input: AddBloodworkPanelInput): Promise<string> {
+  const markersData = input.markers.map((m) => {
+    let isFlagged = false;
+    let flagDirection: string | null = null;
+
+    if (m.referenceLow !== undefined && m.value < m.referenceLow) {
+      isFlagged = true;
+      flagDirection = "low";
+    } else if (m.referenceHigh !== undefined && m.value > m.referenceHigh) {
+      isFlagged = true;
+      flagDirection = "high";
+    }
+
+    return {
+      name: m.name,
+      value: m.value,
+      unit: m.unit,
+      referenceLow: m.referenceLow ?? null,
+      referenceHigh: m.referenceHigh ?? null,
+      isFlagged,
+      flagDirection,
+      category: m.category ?? null,
+    };
+  });
+
+  const panel = await prisma.bloodworkPanel.create({
+    data: {
+      name: input.name,
+      date: new Date(input.date + "T00:00:00Z"),
+      provider: input.provider,
+      labName: input.labName,
+      notes: input.notes,
+      importedFrom: "claude",
+      markers: {
+        create: markersData,
+      },
+    },
+    include: {
+      markers: true,
+    },
+  });
+
+  const flaggedCount = panel.markers.filter((m) => m.isFlagged).length;
+
+  return JSON.stringify({
+    success: true,
+    panel: {
+      id: panel.id,
+      name: panel.name,
+      date: input.date,
+      provider: panel.provider,
+      labName: panel.labName,
+      markerCount: panel.markers.length,
+      flaggedCount,
+      flaggedMarkers: panel.markers
+        .filter((m) => m.isFlagged)
+        .map((m) => ({
+          name: m.name,
+          value: Number(m.value),
+          unit: m.unit,
+          flagDirection: m.flagDirection,
+        })),
+    },
+  });
+}
+
+async function getBloodworkPanels(input: GetBloodworkPanelsInput): Promise<string> {
+  const limit = input.limit || 10;
+
+  const panels = await prisma.bloodworkPanel.findMany({
+    orderBy: { date: "desc" },
+    take: limit,
+    include: {
+      markers: true,
+    },
+  });
+
+  const result = panels.map((p) => ({
+    id: p.id,
+    name: p.name,
+    date: p.date.toISOString().slice(0, 10),
+    provider: p.provider,
+    labName: p.labName,
+    notes: p.notes,
+    markerCount: p.markers.length,
+    flaggedCount: p.markers.filter((m) => m.isFlagged).length,
+    flaggedMarkers: p.markers
+      .filter((m) => m.isFlagged)
+      .map((m) => ({
+        name: m.name,
+        value: Number(m.value),
+        unit: m.unit,
+        flagDirection: m.flagDirection,
+      })),
+  }));
+
+  return JSON.stringify({ panels: result, count: result.length });
+}
+
+async function getBloodworkTrends(input: GetBloodworkTrendsInput): Promise<string> {
+  const markers = await prisma.bloodworkMarker.findMany({
+    where: {
+      name: {
+        contains: input.markerName,
+        mode: "insensitive",
+      },
+    },
+    include: {
+      panel: {
+        select: {
+          name: true,
+          date: true,
+        },
+      },
+    },
+    orderBy: {
+      panel: {
+        date: "asc",
+      },
+    },
+  });
+
+  const trend = markers.map((m) => ({
+    date: m.panel.date.toISOString().slice(0, 10),
+    panelName: m.panel.name,
+    value: Number(m.value),
+    unit: m.unit,
+    referenceLow: m.referenceLow ? Number(m.referenceLow) : null,
+    referenceHigh: m.referenceHigh ? Number(m.referenceHigh) : null,
+    isFlagged: m.isFlagged,
+    flagDirection: m.flagDirection,
+  }));
+
+  return JSON.stringify({
+    markerName: input.markerName,
+    dataPoints: trend,
+    count: trend.length,
+  });
+}
+
+// ─── Family History Implementations ─────────────────────
+
+async function addFamilyMember(input: AddFamilyMemberInput): Promise<string> {
+  const member = await prisma.familyMember.create({
+    data: {
+      relation: input.relation,
+      name: input.name,
+      isAlive: input.isAlive,
+      notes: input.notes,
+      conditions: input.conditions
+        ? {
+            create: input.conditions.map((c) => ({
+              condition: c.condition,
+              ageOfOnset: c.ageOfOnset,
+              notes: c.notes,
+            })),
+          }
+        : undefined,
+    },
+    include: {
+      conditions: true,
+    },
+  });
+
+  return JSON.stringify({
+    success: true,
+    familyMember: {
+      id: member.id,
+      relation: member.relation,
+      name: member.name,
+      isAlive: member.isAlive,
+      conditionCount: member.conditions.length,
+      conditions: member.conditions.map((c) => ({
+        id: c.id,
+        condition: c.condition,
+        ageOfOnset: c.ageOfOnset,
+      })),
+    },
+  });
+}
+
+async function getFamilyHistory(): Promise<string> {
+  const members = await prisma.familyMember.findMany({
+    include: {
+      conditions: true,
+    },
+    orderBy: { relation: "asc" },
+  });
+
+  const result = members.map((m) => ({
+    id: m.id,
+    relation: m.relation,
+    name: m.name,
+    isAlive: m.isAlive,
+    notes: m.notes,
+    conditions: m.conditions.map((c) => ({
+      id: c.id,
+      condition: c.condition,
+      ageOfOnset: c.ageOfOnset,
+      notes: c.notes,
+    })),
+  }));
+
+  return JSON.stringify({ familyMembers: result, count: result.length });
 }
 

@@ -229,9 +229,9 @@
   },
   {
     "name": "Leg Extensions",
-    "muscleGroup": "",
-    "equipment": "",
-    "instructions": ""
+    "muscleGroup": "Legs",
+    "equipment": "Machine",
+    "instructions": "Sit on the leg extension machine with your back against the pad. Extend your legs to straighten, pause at the top, then lower with control."
   },
   {
     "name": "Bodyweight Squats",

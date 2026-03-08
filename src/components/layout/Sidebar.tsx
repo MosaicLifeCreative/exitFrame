@@ -36,6 +36,8 @@ import {
   Upload,
   CandlestickChart,
   Pill,
+  FlaskConical,
+  Users2,
 } from "lucide-react";
 
 interface NavItem {
@@ -73,6 +75,8 @@ const navSections: NavSection[] = [
           { label: "Sleep", href: "/dashboard/health/sleep", icon: Moon },
           { label: "Fitness", href: "/dashboard/health/fitness", icon: Dumbbell },
           { label: "Supplements", href: "/dashboard/health/supplements", icon: Pill },
+          { label: "Bloodwork", href: "/dashboard/health/bloodwork", icon: FlaskConical },
+          { label: "Family History", href: "/dashboard/health/family", icon: Users2 },
           { label: "Diet", href: "/dashboard/health/diet", icon: UtensilsCrossed },
         ],
       },

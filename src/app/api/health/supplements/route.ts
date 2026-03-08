@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-// GET: Active supplements
-export async function GET() {
+// GET: Active supplements (or all with ?all=true)
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const showAll = searchParams.get("all") === "true";
+
     const supplements = await prisma.supplement.findMany({
-      where: { isActive: true },
+      where: showAll ? {} : { isActive: true },
       orderBy: { name: "asc" },
     });
 

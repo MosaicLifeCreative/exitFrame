@@ -90,7 +90,20 @@ SUPPLEMENT MANAGEMENT:
 
 DO NOT:
 - Ask for symptom details if the user already provided them — just log what they said
-- Create duplicate supplements — check list_supplements first before adding`;
+- Create duplicate supplements — check list_supplements first before adding
+
+BLOODWORK MANAGEMENT:
+- When the user shares lab results, use add_bloodwork_panel to save them all at once
+- Include reference ranges when provided — the tool auto-computes flagged markers
+- Use get_bloodwork_trends to show how a specific marker has changed over time
+- Cross-reference flagged markers with family history for risk assessment
+- Common categories: lipids, metabolic, hormones, cbc, thyroid, liver, kidney, vitamins, inflammation
+
+FAMILY HISTORY:
+- When the user mentions family health conditions, use add_family_member to record them
+- Use get_family_history to review family risk factors, especially when interpreting bloodwork
+- Connect the dots: if family has heart disease history and user's LDL is high, flag the pattern
+- Use consistent relation names: mother, father, sibling, grandparent-maternal, grandparent-paternal, uncle-paternal, aunt-maternal, etc.`;
 
 function buildSystemPrompt(context?: ChatRequest["context"]): string {
   let system = `You are an AI assistant embedded in the Mosaic Life Dashboard — a personal command center for managing life (health, fitness, finances, investing) and business operations (WordPress agency, clients, analytics).
@@ -103,9 +116,17 @@ You are concise and helpful. Keep responses focused and actionable. Use markdown
 
   if (context?.page === "Fitness") {
     system += "\n" + FITNESS_SYSTEM;
+    system += "\n\nYou also have access to health tools. If the user asks whether they should work out, check their recent symptom history first using get_symptom_history. Consider severity, recency of symptoms, and whether they're resolved before recommending a workout.";
+    system += "\n" + HEALTH_SYSTEM;
   }
 
-  if (context?.page === "Health" || context?.page === "Sleep" || context?.page === "Supplements") {
+  if (context?.page === "Health") {
+    system += "\n" + HEALTH_SYSTEM;
+    system += "\n\nYou also have access to fitness tools. If the user asks about their training or recovery, you can check recent workouts using get_recent_workouts.";
+    system += "\n" + FITNESS_SYSTEM;
+  }
+
+  if (context?.page === "Sleep" || context?.page === "Supplements" || context?.page === "Bloodwork" || context?.page === "Family History" || context?.page === "Family") {
     system += "\n" + HEALTH_SYSTEM;
   }
 
@@ -120,8 +141,9 @@ You are concise and helpful. Keep responses focused and actionable. Use markdown
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] | undefined {
-  if (page === "Fitness") return fitnessTools;
-  if (page === "Health" || page === "Sleep" || page === "Supplements") return healthTools;
+  if (page === "Fitness") return [...fitnessTools, ...healthTools];
+  if (page === "Health") return [...healthTools, ...fitnessTools];
+  if (page === "Sleep" || page === "Supplements" || page === "Bloodwork" || page === "Family History" || page === "Family") return healthTools;
   return undefined;
 }
 

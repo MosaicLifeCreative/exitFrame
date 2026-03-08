@@ -670,6 +670,84 @@ model SymptomLog {
 }
 
 
+// ============================================
+// HEALTH — BLOODWORK
+// ============================================
+
+// A lab panel / blood draw event (e.g., "Annual Physical 2025", "Lipid Panel March 2026")
+model BloodworkPanel {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String    // "Annual Physical 2025", "Lipid Panel March 2026"
+  date         DateTime  @db.Date
+  provider     String?   // doctor or clinic name
+  labName      String?   @map("lab_name") // "Quest Diagnostics", "LabCorp"
+  notes        String?   @db.Text
+  importedFrom String?   @map("imported_from") // "notion", "manual", "claude"
+  importedAt   DateTime? @map("imported_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  markers BloodworkMarker[]
+
+  @@map("bloodwork_panels")
+}
+
+// An individual biomarker result within a panel
+model BloodworkMarker {
+  id            String   @id @default(uuid()) @db.Uuid
+  panelId       String   @map("panel_id") @db.Uuid
+  name          String   // "Total Cholesterol", "HDL", "Hemoglobin A1C"
+  value         Decimal  @db.Decimal(10, 3)
+  unit          String   // "mg/dL", "mmol/L", "%", "ng/dL"
+  referenceLow  Decimal? @map("reference_low") @db.Decimal(10, 3)
+  referenceHigh Decimal? @map("reference_high") @db.Decimal(10, 3)
+  isFlagged     Boolean  @default(false) @map("is_flagged")
+  flagDirection String?  @map("flag_direction") // "high", "low"
+  category      String?  // "lipids", "metabolic", "hormones", "cbc", "thyroid", "liver", "kidney", "vitamins", "inflammation", "other"
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  panel BloodworkPanel @relation(fields: [panelId], references: [id], onDelete: Cascade)
+
+  @@map("bloodwork_markers")
+}
+
+// ============================================
+// HEALTH — FAMILY HISTORY
+// ============================================
+
+// A family member (e.g., father, maternal grandmother)
+model FamilyMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  relation  String   // "mother", "father", "sibling", "grandparent-maternal", "grandparent-paternal", etc.
+  name      String?  // optional display name
+  isAlive   Boolean? @map("is_alive")
+  notes     String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  conditions FamilyCondition[]
+
+  @@map("family_members")
+}
+
+// A health condition associated with a family member
+model FamilyCondition {
+  id             String   @id @default(uuid()) @db.Uuid
+  familyMemberId String   @map("family_member_id") @db.Uuid
+  condition      String   // "high cholesterol", "type 2 diabetes", "hypertension"
+  ageOfOnset     Int?     @map("age_of_onset")
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  familyMember FamilyMember @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+
+  @@map("family_conditions")
+}
+
+
 // Chat conversations — persists chat history per page context
 model ChatConversation {
   id        String   @id @default(uuid()) @db.Uuid

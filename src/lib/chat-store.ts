@@ -132,6 +132,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       isStreaming: true,
     });
 
+    let toolsWereUsed = false;
+
     try {
       const apiMessages = [...messages, userMsg].map((m) => ({
         role: m.role,
@@ -168,7 +170,6 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
       const decoder = new TextDecoder();
       let accumulated = "";
-      let toolsWereUsed = false;
       let sseBuffer = "";
 
       while (true) {

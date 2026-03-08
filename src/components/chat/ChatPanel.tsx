@@ -151,6 +151,7 @@ function processEmphasis(text: string, key: number): React.ReactNode {
 const TOOL_LABELS: Record<string, string> = {
   list_exercises: "Searching exercises",
   get_recent_workouts: "Reviewing workout history",
+  create_exercise: "Adding exercise",
   create_workout: "Creating workout",
   log_symptoms: "Logging symptoms",
   get_symptom_history: "Checking symptom history",
@@ -158,6 +159,11 @@ const TOOL_LABELS: Record<string, string> = {
   add_supplement: "Adding supplement",
   list_supplements: "Checking supplements",
   update_supplement: "Updating supplement",
+  add_bloodwork_panel: "Adding bloodwork",
+  get_bloodwork_panels: "Checking bloodwork",
+  get_bloodwork_trends: "Analyzing trends",
+  add_family_member: "Adding family member",
+  get_family_history: "Checking family history",
 };
 
 function formatToolName(name: string): string {
@@ -332,10 +338,21 @@ export default function ChatPanel() {
                     )}
                     {msg.content ? (
                       <MarkdownContent content={msg.content} />
-                    ) : (
-                      <div className="flex items-center gap-2 py-1">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Thinking...</span>
+                    ) : null}
+                    {isStreaming && msg.id === messages[messages.length - 1]?.id && (
+                      <div className={cn("flex items-center gap-2 py-1", msg.content && "mt-2 border-t border-border/50 pt-2")}>
+                        <div className="flex gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:-0.3s]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:-0.15s]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce" />
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {msg.toolUses?.some((t) => t.status === "executing")
+                            ? "Working..."
+                            : msg.content
+                              ? "Composing..."
+                              : "Thinking..."}
+                        </span>
                       </div>
                     )}
                   </>

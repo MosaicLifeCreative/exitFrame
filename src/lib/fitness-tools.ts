@@ -40,6 +40,70 @@ export const fitnessTools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "create_exercise",
+    description:
+      "Add a new exercise to the exercise library. Use this when the user mentions an exercise that doesn't exist in the library. Always search with list_exercises first to avoid duplicates.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: {
+          type: "string",
+          description: "Exercise name (e.g. 'Bulgarian Split Squat', 'Face Pull')",
+        },
+        muscleGroup: {
+          type: "string",
+          enum: [
+            "chest",
+            "back",
+            "shoulders",
+            "arms",
+            "biceps",
+            "triceps",
+            "legs",
+            "glutes",
+            "core",
+            "cardio",
+            "power_explosive",
+            "stretching_mobility",
+          ],
+          description: "Primary muscle group this exercise targets",
+        },
+        equipment: {
+          type: "string",
+          enum: [
+            "none",
+            "barbell",
+            "dumbbell",
+            "cable_machine",
+            "machine",
+            "bodyweight",
+            "pull_up_bar",
+            "resistance_band",
+            "mat",
+            "curl_bar",
+            "landmine",
+            "trap_bar",
+            "medicine_ball",
+            "bosu_ball",
+            "step_bench",
+            "wall",
+            "kettlebell",
+            "smith_machine",
+            "foam_roller",
+            "suspension_trainer",
+          ],
+          description: "Equipment required (default: none)",
+        },
+        instructions: {
+          type: "string",
+          description:
+            "Optional brief instructions or cues for proper form",
+        },
+      },
+      required: ["name", "muscleGroup"],
+    },
+  },
+  {
     name: "create_workout",
     description:
       "Save a workout plan to the database. Use this ONLY after the user has approved the workout plan you suggested. Ask the user whether they want it saved as a reusable template or as a one-time session ready to perform.",
@@ -118,6 +182,13 @@ interface GetRecentWorkoutsInput {
   limit?: number;
 }
 
+interface CreateExerciseInput {
+  name: string;
+  muscleGroup: string;
+  equipment?: string;
+  instructions?: string;
+}
+
 interface CreateWorkoutInput {
   name: string;
   saveAs: "template" | "session";
@@ -142,11 +213,55 @@ export async function executeFitnessTool(
       return listExercises(toolInput as unknown as ListExercisesInput);
     case "get_recent_workouts":
       return getRecentWorkouts(toolInput as unknown as GetRecentWorkoutsInput);
+    case "create_exercise":
+      return createExercise(toolInput as unknown as CreateExerciseInput);
     case "create_workout":
       return createWorkout(toolInput as unknown as CreateWorkoutInput);
     default:
       return JSON.stringify({ error: `Unknown tool: ${toolName}` });
   }
+}
+
+async function createExercise(input: CreateExerciseInput): Promise<string> {
+  // Check for duplicate name
+  const existing = await prisma.exercise.findFirst({
+    where: { name: { equals: input.name, mode: "insensitive" } },
+    select: { id: true, name: true, isActive: true },
+  });
+
+  if (existing) {
+    if (!existing.isActive) {
+      // Reactivate soft-deleted exercise
+      await prisma.exercise.update({
+        where: { id: existing.id },
+        data: { isActive: true },
+      });
+      return JSON.stringify({
+        success: true,
+        exercise: { id: existing.id, name: existing.name },
+        message: `"${existing.name}" was previously deleted and has been reactivated.`,
+      });
+    }
+    return JSON.stringify({
+      error: `Exercise "${existing.name}" already exists (ID: ${existing.id}). Use this ID in workouts.`,
+    });
+  }
+
+  const exercise = await prisma.exercise.create({
+    data: {
+      name: input.name,
+      muscleGroup: input.muscleGroup,
+      equipment: input.equipment || "none",
+      instructions: input.instructions || null,
+    },
+    select: { id: true, name: true, muscleGroup: true, equipment: true },
+  });
+
+  return JSON.stringify({
+    success: true,
+    exercise,
+    message: `Exercise "${exercise.name}" added to the library. You can now use ID ${exercise.id} in workouts.`,
+  });
 }
 
 async function listExercises(input: ListExercisesInput): Promise<string> {

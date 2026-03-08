@@ -214,6 +214,10 @@ export async function POST(request: Request) {
               break;
             }
 
+            // Add a line break between tool rounds so text doesn't run together
+            const sepChunk = `data: ${JSON.stringify({ text: "\n\n" })}\n\n`;
+            controller.enqueue(encoder.encode(sepChunk));
+
             // Extract tool use blocks from the final message
             const toolBlocks: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
             for (const block of finalMessage.content) {

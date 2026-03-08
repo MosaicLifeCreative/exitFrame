@@ -144,6 +144,10 @@ const equipmentLabels: Record<string, string> = {
   bosu_ball: "Bosu Ball",
   step_bench: "Step Bench",
   wall: "Wall",
+  kettlebell: "Kettlebell",
+  smith_machine: "Smith Machine",
+  foam_roller: "Foam Roller",
+  suspension_trainer: "Suspension Trainer",
 };
 
 // ─── Set entry for workout logging ──────────────────────

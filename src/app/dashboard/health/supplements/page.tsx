@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useChatContext } from "@/hooks/useChatContext";
+import { useToolRefresh } from "@/hooks/useToolRefresh";
 import {
   Pill,
   Plus,
@@ -53,6 +54,8 @@ export default function SupplementsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useToolRefresh(fetchData);
 
   const deleteSupplement = async (id: string) => {
     await fetch(`/api/health/supplements/${id}`, { method: "DELETE" });

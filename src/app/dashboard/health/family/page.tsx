@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useChatContext } from "@/hooks/useChatContext";
+import { useToolRefresh } from "@/hooks/useToolRefresh";
 import {
   HeartPulse,
   Plus,
@@ -12,6 +13,7 @@ import {
   Check,
   Users,
   UserRound,
+  Upload,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,6 +77,7 @@ export default function FamilyHistoryPage() {
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showImportForm, setShowImportForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingConditionId, setAddingConditionId] = useState<string | null>(null);
 
@@ -92,6 +95,8 @@ export default function FamilyHistoryPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useToolRefresh(fetchData);
 
   const deleteMember = async (id: string) => {
     await fetch(`/api/health/family/${id}`, { method: "DELETE" });
@@ -154,11 +159,28 @@ export default function FamilyHistoryPage() {
               : "Track hereditary conditions and family health patterns"}
           </p>
         </div>
-        <Button size="sm" onClick={() => setShowAddForm(true)}>
-          <Plus className="h-4 w-4 mr-1" />
-          Add Family Member
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowImportForm(true)}>
+            <Upload className="h-4 w-4 mr-1" />
+            Import
+          </Button>
+          <Button size="sm" onClick={() => setShowAddForm(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Family Member
+          </Button>
+        </div>
       </div>
+
+      {/* Import Form */}
+      {showImportForm && (
+        <ImportFamilyForm
+          onClose={() => setShowImportForm(false)}
+          onImported={() => {
+            setShowImportForm(false);
+            fetchData();
+          }}
+        />
+      )}
 
       {/* Add Form */}
       {showAddForm && (
@@ -822,6 +844,81 @@ function EditMemberForm({
             </Button>
           </div>
         </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Import Family Form ─────────────────────────────────
+
+function ImportFamilyForm({
+  onClose,
+  onImported,
+}: {
+  onClose: () => void;
+  onImported: () => void;
+}) {
+  const [jsonText, setJsonText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const handleImport = async () => {
+    setImporting(true);
+    setResult(null);
+    try {
+      const parsed = JSON.parse(jsonText);
+      const payload = Array.isArray(parsed) ? { members: parsed } : parsed;
+      const res = await fetch("/api/health/family/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setResult(`Error: ${json.error}`);
+        return;
+      }
+      setResult(`Imported ${json.data.count} family member(s)`);
+      onImported();
+    } catch (err) {
+      setResult(`Parse error: ${err instanceof Error ? err.message : "Invalid JSON"}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-medium">Import Family History (JSON)</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          Paste JSON with family members. Format: {`{ "members": [{ "relation": "father", "name": "John", "isAlive": true, "conditions": [{ "condition": "high cholesterol", "ageOfOnset": 45 }] }] }`}
+        </p>
+        <textarea
+          value={jsonText}
+          onChange={(e) => setJsonText(e.target.value)}
+          className="w-full h-48 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+          placeholder="Paste JSON here..."
+        />
+        {result && (
+          <p className={`text-xs mt-2 ${result.startsWith("Error") || result.startsWith("Parse") ? "text-destructive" : "text-green-500"}`}>
+            {result}
+          </p>
+        )}
+        <div className="flex justify-end gap-2 mt-3">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleImport} disabled={!jsonText.trim() || importing}>
+            {importing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />}
+            Import
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

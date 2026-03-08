@@ -25,6 +25,7 @@ interface ChatStore {
   isLoadingHistory: boolean;
   pageContext: PageContext | null;
   conversationId: string | null;
+  toolExecutedFlag: number;
 
   toggleChat: () => void;
   openChat: () => void;
@@ -46,6 +47,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   isLoadingHistory: false,
   pageContext: null,
   conversationId: null,
+  toolExecutedFlag: 0,
 
   toggleChat: () => {
     const { isOpen, pageContext } = get();
@@ -250,7 +252,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         ),
       }));
     } finally {
-      set({ isStreaming: false });
+      // Check if any tools were executed during this exchange
+      const finalMessages = get().messages;
+      const lastAssistant = finalMessages.filter((m) => m.role === "assistant").at(-1);
+      const hadTools = lastAssistant?.toolUses && lastAssistant.toolUses.length > 0;
+      set((s) => ({
+        isStreaming: false,
+        toolExecutedFlag: hadTools ? s.toolExecutedFlag + 1 : s.toolExecutedFlag,
+      }));
     }
   },
 }));

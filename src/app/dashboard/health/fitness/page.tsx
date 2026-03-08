@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useChatContext } from "@/hooks/useChatContext";
+import { useToolRefresh } from "@/hooks/useToolRefresh";
 import { toast } from "sonner";
 import {
   Dumbbell,
@@ -231,6 +232,13 @@ export default function FitnessPage() {
       setLoading(false)
     );
   }, [fetchExercises, fetchSessions, fetchTemplates]);
+
+  const refreshAll = useCallback(() => {
+    fetchExercises();
+    fetchSessions();
+  }, [fetchExercises, fetchSessions]);
+
+  useToolRefresh(refreshAll);
 
   // Stats
   const thisWeekSessions = sessions.filter((s) => {
@@ -774,6 +782,9 @@ function HistoryTab({
   onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [importJson, setImportJson] = useState("");
+  const [importing, setImporting] = useState(false);
 
   const deleteSession = async (id: string) => {
     const res = await fetch(`/api/fitness/sessions/${id}`, { method: "DELETE" });
@@ -785,11 +796,41 @@ function HistoryTab({
     }
   };
 
-  if (sessions.length === 0) {
+  const handleImportSessions = async () => {
+    setImporting(true);
+    try {
+      const parsed = JSON.parse(importJson);
+      const payload = Array.isArray(parsed) ? { sessions: parsed } : parsed;
+      const res = await fetch("/api/fitness/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        toast.success(`Imported ${json.data.sessionsImported} workout(s)`);
+        setShowImport(false);
+        setImportJson("");
+        onDelete(); // triggers refetch
+      } else {
+        toast.error(json.error || "Import failed");
+      }
+    } catch (err) {
+      toast.error(`Parse error: ${err instanceof Error ? err.message : "Invalid JSON"}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  if (sessions.length === 0 && !showImport) {
     return (
       <Card>
         <CardContent className="py-12 text-center text-muted-foreground">
-          No workouts logged yet. Start by logging your first workout.
+          <p>No workouts logged yet. Start by logging your first workout.</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowImport(true)}>
+            <Upload className="h-4 w-4 mr-1" />
+            Import from Notion
+          </Button>
         </CardContent>
       </Card>
     );
@@ -797,6 +838,35 @@ function HistoryTab({
 
   return (
     <div className="space-y-2">
+      {/* Import Workouts */}
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => setShowImport(!showImport)}>
+          <Upload className="h-4 w-4 mr-1" />
+          Import Workouts
+        </Button>
+      </div>
+      {showImport && (
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <p className="text-xs text-muted-foreground mb-2">
+              Paste JSON sessions. Format: {`{ "sessions": [{ "name": "Full Body", "date": "2026-03-01", "entries": [{ "exerciseName": "Deadlifts", "sets": 3, "reps": 10, "weight": 135 }] }] }`}
+            </p>
+            <textarea
+              value={importJson}
+              onChange={(e) => setImportJson(e.target.value)}
+              className="w-full h-32 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+              placeholder="Paste session JSON..."
+            />
+            <div className="flex justify-end gap-2 mt-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowImport(false)}>Cancel</Button>
+              <Button size="sm" onClick={handleImportSessions} disabled={!importJson.trim() || importing}>
+                {importing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Upload className="h-4 w-4 mr-1" />}
+                Import
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {sessions.map((session) => {
         const isExpanded = expanded === session.id;
         const totalVol = session.exercises.reduce(

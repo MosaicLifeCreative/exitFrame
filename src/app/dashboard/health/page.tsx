@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useChatContext } from "@/hooks/useChatContext";
+import { useToolRefresh } from "@/hooks/useToolRefresh";
 import {
   Moon,
   Dumbbell,
@@ -88,6 +89,8 @@ export default function HealthOverviewPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useToolRefresh(fetchData);
 
   // Chat context
   const chatContext = useMemo(() => {

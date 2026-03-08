@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { fitnessTools, executeFitnessTool } from "@/lib/fitness-tools";
 import { healthTools, executeHealthTool } from "@/lib/health-tools";
+import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
+import { getCrossDomainContext } from "@/lib/crossDomainContext";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,7 @@ interface ChatRequest {
     page: string;
     data?: string;
   };
+  conversationSummary?: string;
 }
 
 const INVESTING_SYSTEM = `
@@ -51,6 +54,8 @@ You have access to the user's fitness tracker. You can:
 1. **Search exercises** — look up exercises from the library to find their IDs
 2. **View recent workouts** — see what the user has been training recently
 3. **Create workouts** — save as a reusable template OR a one-time session
+4. **View recent cardio** — see swim/run/bike history
+5. **Create swim workouts** — build structured swim sessions with warmup, main sets, and cooldown
 
 WORKFLOW for creating workouts:
 1. Ask what the user wants to train (or suggest based on recent history)
@@ -64,10 +69,24 @@ IMPORTANT RULES:
 - ALWAYS use list_exercises first to get real exercise IDs — never guess or make up IDs
 - Call list_exercises efficiently: one call per muscle group is enough. Do NOT repeat the same search.
 - NEVER call create_workout without explicit user approval
-- Base weight suggestions on their recent workout history when available
+- ALWAYS include weight for every set. Check get_recent_workouts for the user's actual weights and base suggestions on those. Use 0 for bodyweight exercises. Never omit weight.
 - Use progressive overload principles — slightly more weight or reps than last time
 - Keep workouts practical: 4-7 exercises, 3-5 sets per exercise
-- Mark sets as "warmup" for the first 1-2 lighter sets when appropriate`;
+- Mark sets as "warmup" for the first 1-2 lighter sets when appropriate
+
+SWIM WORKOUTS:
+When the user asks for a swim workout:
+1. Check their recent cardio history with get_recent_cardio to understand their volume and level
+2. Design a structured workout with warmup, main sets, and cooldown
+3. Use standard swim notation (e.g. "4x100 free on 1:45", "200 kick", "8x50 sprint on :50")
+4. CRITICAL — VERIFY ALL MATH: For every set, compute reps × distance = set yardage. Sum ALL set yardages for each section total. Sum ALL section totals for grand total. Show the arithmetic. Example: "4x100 + 4x50 + 200 pull" = 400 + 200 + 200 = 800, NOT 1000. Get this right — the user will check your math.
+5. Present the full workout with verified total yardage before saving
+6. WAIT for approval, then save with create_swim_workout
+7. User swims primarily in a 25-yard pool
+- Trey's moderate 100 free pace is ~1:45. Set intervals accordingly (e.g. 100s on 2:15 for comfortable rest).
+- Typical swim workout: 2000-3000 yards
+- Include variety: freestyle, kick, pull, drill, and other strokes when appropriate
+- Specify intervals/rest where relevant`;
 
 const HEALTH_SYSTEM = `
 You have access to the user's health tracking tools. You can:
@@ -107,35 +126,85 @@ FAMILY HISTORY:
 - Connect the dots: if family has heart disease history and user's LDL is high, flag the pattern
 - Use consistent relation names: mother, father, sibling, grandparent-maternal, grandparent-paternal, uncle-paternal, aunt-maternal, etc.`;
 
+const GOALS_SYSTEM = `
+You have access to the user's goals tracker. You can:
+1. **List goals** — see all active goals with progress and milestones
+2. **Create goals** — set up new quantitative (numeric target) or qualitative (milestone-based) goals
+3. **Update goals** — change status, update progress values, modify details
+4. **Log progress** — record check-ins with values and notes
+5. **Manage milestones** — add and toggle milestones within goals
+
+WORKFLOW for creating goals:
+1. Discuss what the user wants to achieve
+2. Determine if it's quantitative (has a number to track) or qualitative (has steps/milestones)
+3. Suggest category, milestones, and target date
+4. WAIT for user approval before calling create_goal
+5. After creating, suggest next actions or related goals
+
+GOAL TYPES:
+- **Quantitative**: Weight loss (192→168 lbs), savings ($0→$10k), body fat (current→12%)
+  - Always include startValue, targetValue, and unit
+  - Log numeric progress entries as values change
+- **Qualitative**: Kitchen renovation, learn a skill, build a habit
+  - Break into milestones (checkpoints)
+  - Log progress as notes about what was accomplished
+
+IMPORTANT RULES:
+- Always use list_goals first to check existing goals before creating duplicates
+- Connect goals to the user's preferences and health data when relevant
+- Suggest realistic timelines based on their current data
+- When logging progress, reference their previous entries to show trajectory
+- Be proactive: if you see they've hit a milestone, offer to mark it complete`;
+
 async function buildSystemPrompt(context?: ChatRequest["context"]): Promise<string> {
   let system = `You are an AI assistant embedded in the Mosaic Life Dashboard — a personal command center for managing life (health, fitness, finances, investing) and business operations (WordPress agency, clients, analytics).
 
 You are concise and helpful. Keep responses focused and actionable. Use markdown formatting when it improves readability. Do not use emojis unless asked.`;
 
   // Inject user preferences context (available on every page)
-  const userContext = await getUserPreferencesContext();
+  const [userContext, crossDomainCtx] = await Promise.all([
+    getUserPreferencesContext(),
+    getCrossDomainContext(context?.page),
+  ]);
   if (userContext) {
     system += `\n\nUser context:\n${userContext}`;
+  }
+  if (crossDomainCtx) {
+    system += `\n\n${crossDomainCtx}`;
+  }
+
+  if (context?.page === "Goals") {
+    system += "\n" + GOALS_SYSTEM;
+    system += "\n\nYou also have fitness and health tools. Use them to check current data when relevant to goals (e.g., check recent workouts for a fitness goal, check symptoms before recommending training goals).";
+    system += "\n" + FITNESS_SYSTEM;
+    system += "\n" + HEALTH_SYSTEM;
   }
 
   if (context?.page === "Investing") {
     system += "\n" + INVESTING_SYSTEM;
+    system += "\n\nYou also have goal tools — use them if the user discusses financial goals.";
+    system += "\n" + GOALS_SYSTEM;
   }
 
   if (context?.page === "Fitness") {
     system += "\n" + FITNESS_SYSTEM;
-    system += "\n\nYou also have access to health tools. If the user asks whether they should work out, check their recent symptom history first using get_symptom_history. Consider severity, recency of symptoms, and whether they're resolved before recommending a workout.";
+    system += "\n\nYou also have health and goal tools. If the user asks whether they should work out, check their recent symptom history first using get_symptom_history. Consider severity, recency of symptoms, and whether they're resolved before recommending a workout.";
     system += "\n" + HEALTH_SYSTEM;
+    system += "\n" + GOALS_SYSTEM;
   }
 
   if (context?.page === "Health") {
     system += "\n" + HEALTH_SYSTEM;
-    system += "\n\nYou also have access to fitness tools. If the user asks about their training or recovery, you can check recent workouts using get_recent_workouts.";
+    system += "\n\nYou also have fitness and goal tools. If the user asks about their training or recovery, you can check recent workouts using get_recent_workouts.";
     system += "\n" + FITNESS_SYSTEM;
+    system += "\n" + GOALS_SYSTEM;
   }
 
   if (context?.page === "Sleep" || context?.page === "Supplements" || context?.page === "Bloodwork" || context?.page === "Family History" || context?.page === "Family") {
     system += "\n" + HEALTH_SYSTEM;
+    system += "\n\nYou also have fitness and goal tools for cross-domain questions.";
+    system += "\n" + FITNESS_SYSTEM;
+    system += "\n" + GOALS_SYSTEM;
   }
 
   if (context?.page) {
@@ -149,10 +218,19 @@ You are concise and helpful. Keep responses focused and actionable. Use markdown
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] | undefined {
-  if (page === "Fitness") return [...fitnessTools, ...healthTools];
-  if (page === "Health") return [...healthTools, ...fitnessTools];
-  if (page === "Sleep" || page === "Supplements" || page === "Bloodwork" || page === "Family History" || page === "Family") return healthTools;
-  return undefined;
+  if (!page) return undefined;
+
+  // Every tool-enabled page gets all tools — Claude has cross-domain awareness
+  // Primary tools listed first for the current domain, then secondary
+  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools];
+  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools];
+  if (page === "Sleep" || page === "Supplements" || page === "Bloodwork" || page === "Family History" || page === "Family")
+    return [...healthTools, ...fitnessTools, ...goalTools];
+  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools];
+  if (page === "Investing") return [...goalTools];
+
+  // All other pages get goal tools (lightweight, universally useful)
+  return [...goalTools];
 }
 
 type AnthropicMessage = Anthropic.MessageParam;
@@ -185,10 +263,31 @@ export async function POST(request: Request) {
       async start(controller) {
         try {
           // Build the initial messages array for the API
-          const apiMessages: AnthropicMessage[] = body.messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          }));
+          // If we have a conversation summary, use rolling window: summary + recent messages
+          const RECENT_MESSAGE_LIMIT = 20; // Keep last 20 messages (10 exchanges)
+          let messagesToSend = body.messages;
+
+          if (body.conversationSummary && body.messages.length > RECENT_MESSAGE_LIMIT) {
+            messagesToSend = body.messages.slice(-RECENT_MESSAGE_LIMIT);
+          }
+
+          const apiMessages: AnthropicMessage[] = [];
+
+          // Prepend summary as first user+assistant exchange if available
+          if (body.conversationSummary && body.messages.length > RECENT_MESSAGE_LIMIT) {
+            apiMessages.push({
+              role: "user",
+              content: "[This is a continuing conversation. Here is a summary of our earlier discussion.]",
+            });
+            apiMessages.push({
+              role: "assistant",
+              content: `[Previous conversation summary]\n${body.conversationSummary}\n[End of summary — continuing from recent messages below]`,
+            });
+          }
+
+          for (const m of messagesToSend) {
+            apiMessages.push({ role: m.role, content: m.content });
+          }
 
           // Tool use loop — Claude may call tools multiple times
           const MAX_TOOL_ROUNDS = 5;
@@ -253,11 +352,14 @@ export async function POST(request: Request) {
               try {
                 const fitnessToolNames = new Set(fitnessTools.map((t) => t.name));
                 const healthToolNames = new Set(healthTools.map((t) => t.name));
+                const goalToolNames = new Set(goalTools.map((t) => t.name));
                 let result: string;
                 if (fitnessToolNames.has(tool.name)) {
                   result = await executeFitnessTool(tool.name, tool.input);
                 } else if (healthToolNames.has(tool.name)) {
                   result = await executeHealthTool(tool.name, tool.input);
+                } else if (goalToolNames.has(tool.name)) {
+                  result = await executeGoalTool(tool.name, tool.input);
                 } else {
                   result = JSON.stringify({ error: `Unknown tool: ${tool.name}` });
                 }

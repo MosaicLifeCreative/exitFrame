@@ -207,7 +207,7 @@ export const googleTools: Anthropic.Tool[] = [
   {
     name: "create_email_draft",
     description:
-      "Create a Gmail draft for review before sending. Use when Trey wants to review the email first, or when composing something sensitive. Defaults to business Gmail. NEVER guess or infer email addresses — only use addresses Trey explicitly provides or that you found in existing email threads.",
+      "Create a Gmail draft for review before sending. Use when Trey wants to review the email first, or when composing something sensitive. Defaults to business Gmail. NEVER guess email addresses — search past threads first, or ask Trey.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -239,7 +239,7 @@ export const googleTools: Anthropic.Tool[] = [
   {
     name: "send_email",
     description:
-      "Send an email immediately. Signature is appended automatically. Defaults to business Gmail. IMPORTANT: (1) Email body must be 100% professional — you are representing Trey's business. (2) Always tell Trey what you're sending before calling this tool. (3) NEVER guess or infer email addresses — only use addresses Trey explicitly provides or that you found in existing email threads via tools. If you don't have the recipient's exact email, ask Trey for it.",
+      "Send an email immediately. Signature is appended automatically. Defaults to business Gmail. IMPORTANT: (1) Email body must be 100% professional — you are representing Trey's business. (2) Always tell Trey what you're sending before calling this tool. (3) NEVER guess email addresses — if you don't have the recipient's address, use search_emails to find it in past threads first. If not found, ask Trey. Never construct addresses from name + company domain.",
     input_schema: {
       type: "object" as const,
       properties: {

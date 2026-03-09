@@ -399,7 +399,7 @@ function ResetPortfolioDialog({ onReset, currentValue }: { onReset: () => void; 
         <Button size="sm" variant="outline"><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Reset Claude&apos;s Portfolio</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Reset Ayden&apos;s Portfolio</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">
           This will deactivate the current portfolio and start fresh. All positions will be closed. Trade history is preserved for reference.
         </p>
@@ -453,6 +453,8 @@ function EditableHoldingRow({
   const marketValue = shares * currentPrice;
   const pnl = marketValue - totalCost;
   const pnlPct = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
+  const todayGain = quote?.change ? shares * quote.change : 0;
+  const todayGainPct = quote?.changePct ?? 0;
 
   const handleSave = async () => {
     try {
@@ -476,7 +478,7 @@ function EditableHoldingRow({
         <TableCell>{holding.companyName}</TableCell>
         <TableCell><Input type="number" step="0.0001" className="w-24 h-8" value={form.shares} onChange={(e) => setForm({ ...form, shares: e.target.value })} /></TableCell>
         <TableCell><Input type="number" step="0.01" className="w-28 h-8" value={form.avgCostBasis} onChange={(e) => setForm({ ...form, avgCostBasis: e.target.value })} /></TableCell>
-        <TableCell colSpan={4}>
+        <TableCell colSpan={5}>
           <div className="flex gap-1">
             <Button size="sm" variant="ghost" onClick={handleSave}><Check className="h-4 w-4 text-green-600" /></Button>
             <Button size="sm" variant="ghost" onClick={() => setEditing(false)}><X className="h-4 w-4 text-muted-foreground" /></Button>
@@ -505,6 +507,16 @@ function EditableHoldingRow({
         )}
       </TableCell>
       <TableCell>{fmtMoney(marketValue)}</TableCell>
+      <TableCell>
+        {quote?.change !== null && quote?.change !== undefined ? (
+          <div>
+            <PnlText value={todayGain} />
+            <div><PctText value={todayGainPct} className="text-xs" /></div>
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-sm">--</span>
+        )}
+      </TableCell>
       <TableCell>
         <div>
           <PnlText value={pnl} />
@@ -658,7 +670,7 @@ export default function InvestingPage() {
       const pnl = value - cost;
       return `  ${h.ticker}: ${parseFloat(h.shares)} shares, ${fmtMoney(value)} (${pnl >= 0 ? "+" : ""}${fmtMoney(pnl)})`;
     }).join("\n") : "",
-    aiPortfolio ? `\nClaude's Portfolio: ${fmtMoney(aiPortfolio.totalValue)} (${fmtPct(aiPortfolio.totalReturn)} return), ${aiPortfolio.positions.length} positions, ${fmtMoney(aiPortfolio.cashBalance)} cash` : "",
+    aiPortfolio ? `\nAyden's Portfolio: ${fmtMoney(aiPortfolio.totalValue)} (${fmtPct(aiPortfolio.totalReturn)} return), ${aiPortfolio.positions.length} positions, ${fmtMoney(aiPortfolio.cashBalance)} cash` : "",
     aiPortfolio && aiPortfolio.positions.length > 0 ? aiPortfolio.positions.map((p) =>
       `  ${p.ticker}: ${parseFloat(p.shares)} shares, ${fmtMoney(p.marketValue)} (${fmtPct(p.pnlPct)})`
     ).join("\n") : "",
@@ -688,6 +700,11 @@ export default function InvestingPage() {
   const totalMarketValue = userTotalValue;
   const totalPnl = totalMarketValue - totalCostBasis;
   const totalPnlPct = totalCostBasis > 0 ? (totalPnl / totalCostBasis) * 100 : 0;
+  const totalTodayGain = holdings.reduce((sum, h) => {
+    const q = quoteMap.get(h.ticker);
+    return sum + (q?.change ? parseFloat(h.shares) * q.change : 0);
+  }, 0);
+  const totalTodayGainPct = totalMarketValue > 0 ? (totalTodayGain / (totalMarketValue - totalTodayGain)) * 100 : 0;
   const totalPositions = holdings.length;
   const sectors = Array.from(new Set(holdings.map((h) => h.sector).filter(Boolean)));
   const tickerItems = watchlist.filter((w) => w.type === "ticker");
@@ -740,7 +757,7 @@ export default function InvestingPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Claude&apos;s Portfolio</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Ayden&apos;s Portfolio</CardTitle></CardHeader>
           <CardContent>
             {aiPortfolio ? (
               <>
@@ -772,7 +789,7 @@ export default function InvestingPage() {
       <Tabs defaultValue="portfolio">
         <TabsList>
           <TabsTrigger value="portfolio" className="gap-1.5"><TrendingUp className="h-4 w-4" />My Portfolio</TabsTrigger>
-          <TabsTrigger value="ai" className="gap-1.5"><Bot className="h-4 w-4" />Claude&apos;s Portfolio</TabsTrigger>
+          <TabsTrigger value="ai" className="gap-1.5"><Bot className="h-4 w-4" />Ayden&apos;s Portfolio</TabsTrigger>
           <TabsTrigger value="performance" className="gap-1.5"><BarChart3 className="h-4 w-4" />Performance</TabsTrigger>
           <TabsTrigger value="watchlist" className="gap-1.5"><Eye className="h-4 w-4" />Watchlist</TabsTrigger>
           <TabsTrigger value="news" className="gap-1.5">
@@ -809,7 +826,8 @@ export default function InvestingPage() {
                     <TableHead>Avg Cost</TableHead>
                     <TableHead>Price</TableHead>
                     <TableHead>Market Value</TableHead>
-                    <TableHead>P&L</TableHead>
+                    <TableHead>Today</TableHead>
+                    <TableHead>Total P&L</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -827,6 +845,10 @@ export default function InvestingPage() {
                     <TableCell colSpan={5}>Total</TableCell>
                     <TableCell>{fmtMoney(totalMarketValue)}</TableCell>
                     <TableCell>
+                      <PnlText value={totalTodayGain} />
+                      <span className="text-xs ml-1">(<PctText value={totalTodayGainPct} className="text-xs" />)</span>
+                    </TableCell>
+                    <TableCell>
                       <PnlText value={totalPnl} />
                       <span className="text-xs ml-1">(<PctText value={totalPnlPct} className="text-xs" />)</span>
                     </TableCell>
@@ -838,10 +860,10 @@ export default function InvestingPage() {
           )}
         </TabsContent>
 
-        {/* ==================== CLAUDE'S PORTFOLIO ==================== */}
+        {/* ==================== AYDEN'S PORTFOLIO ==================== */}
         <TabsContent value="ai" className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Claude&apos;s Portfolio</h2>
+            <h2 className="text-lg font-semibold">Ayden&apos;s Portfolio</h2>
             <div className="flex gap-2">
               <Button size="sm" onClick={evaluateNow} disabled={evaluating}>
                 <RefreshCw className={"h-4 w-4 mr-1" + (evaluating ? " animate-spin" : "")} />
@@ -861,7 +883,7 @@ export default function InvestingPage() {
                 <Bot className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
                 <h3 className="text-lg font-medium mb-1">No AI portfolio yet</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Claude&apos;s portfolio will be created automatically when the first trade evaluation runs.
+                  Ayden&apos;s portfolio will be created automatically when the first trade evaluation runs.
                   It will start with capital matching your portfolio value.
                 </p>
               </CardContent>
@@ -917,29 +939,53 @@ export default function InvestingPage() {
                         <TableHead>Avg Cost</TableHead>
                         <TableHead>Price</TableHead>
                         <TableHead>Market Value</TableHead>
-                        <TableHead>P&L</TableHead>
+                        <TableHead>Today</TableHead>
+                        <TableHead>Total P&L</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {aiPortfolio.positions.map((pos) => (
-                        <TableRow key={pos.id}>
-                          <TableCell className="font-mono font-semibold">{pos.ticker}</TableCell>
-                          <TableCell>{pos.companyName}</TableCell>
-                          <TableCell>{parseFloat(pos.shares).toLocaleString()}</TableCell>
-                          <TableCell>{fmtMoney(parseFloat(pos.avgCostBasis))}</TableCell>
-                          <TableCell>
-                            <div>
-                              <div>{fmtMoney(pos.currentPrice)}</div>
-                              {pos.dailyChangePct !== null && <PctText value={pos.dailyChangePct} className="text-xs" />}
-                            </div>
-                          </TableCell>
-                          <TableCell>{fmtMoney(pos.marketValue)}</TableCell>
-                          <TableCell>
-                            <PnlText value={pos.pnl} />
-                            <div><PctText value={pos.pnlPct} className="text-xs" /></div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {aiPortfolio.positions.map((pos) => {
+                        const posTodayGain = pos.dailyChange !== null ? parseFloat(pos.shares) * pos.dailyChange : 0;
+                        return (
+                          <TableRow key={pos.id}>
+                            <TableCell className="font-mono font-semibold">{pos.ticker}</TableCell>
+                            <TableCell>{pos.companyName}</TableCell>
+                            <TableCell>{parseFloat(pos.shares).toLocaleString()}</TableCell>
+                            <TableCell>{fmtMoney(parseFloat(pos.avgCostBasis))}</TableCell>
+                            <TableCell>
+                              <div>
+                                <div>{fmtMoney(pos.currentPrice)}</div>
+                                {pos.dailyChangePct !== null && <PctText value={pos.dailyChangePct} className="text-xs" />}
+                              </div>
+                            </TableCell>
+                            <TableCell>{fmtMoney(pos.marketValue)}</TableCell>
+                            <TableCell>
+                              {pos.dailyChange !== null ? (
+                                <div>
+                                  <PnlText value={posTodayGain} />
+                                  <div><PctText value={pos.dailyChangePct ?? 0} className="text-xs" /></div>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">--</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <PnlText value={pos.pnl} />
+                              <div><PctText value={pos.pnlPct} className="text-xs" /></div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      <TableRow className="font-semibold bg-muted/50">
+                        <TableCell colSpan={5}>Total</TableCell>
+                        <TableCell>{fmtMoney(aiPortfolio.holdingsValue)}</TableCell>
+                        <TableCell>
+                          <PnlText value={aiPortfolio.positions.reduce((sum, p) => sum + (p.dailyChange !== null ? parseFloat(p.shares) * p.dailyChange : 0), 0)} />
+                        </TableCell>
+                        <TableCell>
+                          <PnlText value={aiPortfolio.holdingsValue - aiPortfolio.positions.reduce((sum, p) => sum + parseFloat(p.shares) * parseFloat(p.avgCostBasis), 0)} />
+                        </TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </Card>
@@ -950,7 +996,7 @@ export default function InvestingPage() {
                 <CardHeader><CardTitle className="text-base">Recent Trades</CardTitle></CardHeader>
                 {aiPortfolio.trades.length === 0 ? (
                   <CardContent>
-                    <p className="text-sm text-muted-foreground">No trades yet. Claude will evaluate positions hourly during market hours.</p>
+                    <p className="text-sm text-muted-foreground">No trades yet. Ayden will evaluate positions hourly during market hours.</p>
                   </CardContent>
                 ) : (
                   <Table>
@@ -1036,7 +1082,7 @@ export default function InvestingPage() {
                     />
                     <Legend />
                     <Line type="monotone" dataKey="user" stroke="#3b82f6" name="Your Portfolio" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="ai" stroke="#8b5cf6" name="Claude's Portfolio" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="ai" stroke="#8b5cf6" name="Ayden's Portfolio" strokeWidth={2} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -1072,7 +1118,7 @@ export default function InvestingPage() {
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader><CardTitle className="text-base">Claude&apos;s Stats</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Ayden&apos;s Stats</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Total Value</span>

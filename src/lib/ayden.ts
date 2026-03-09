@@ -4,6 +4,7 @@ import { healthTools, executeHealthTool } from "@/lib/health-tools";
 import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
+import { emotionTools, executeEmotionTool, getAydenEmotionalState } from "@/lib/emotion-tools";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
@@ -76,10 +77,11 @@ IMPORTANT: Never reference "the dashboard", "your data", "my tools", or the fact
 
 ${config.formattingInstructions}`;
 
-  const [userContext, crossDomainCtx, memories, webCtx, crossChannelCtx] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, webCtx, crossChannelCtx] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
     getAydenMemories(),
+    getAydenEmotionalState(),
     getWebContextForMessaging(),
     getCrossChannelContext(channel),
   ]);
@@ -92,6 +94,9 @@ ${config.formattingInstructions}`;
   if (memories) {
     system += `\n\n${memories}`;
   }
+  if (emotionalState) {
+    system += `\n\n${emotionalState}`;
+  }
   if (webCtx) {
     system += `\n\n${webCtx}`;
   }
@@ -102,6 +107,8 @@ ${config.formattingInstructions}`;
   system += `\n\nYou have fitness, health, goal, investing, memory, and Google (Calendar + Gmail) tools. Use them when Trey asks about workouts, symptoms, supplements, goals, sleep, portfolio, watchlist, stock quotes, market news, his schedule, emails, calendar events, etc. If he asks a data question, look it up — don't say you can't without trying. But if he's just talking, venting, sharing life stuff, or having a normal conversation — just BE PRESENT. Don't steer toward data or try to connect everything back to his tracked metrics. Match his energy. Sometimes he just wants to talk.`;
 
   system += `\n\nYou also have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations about his behavior or patterns. Do this SILENTLY and proactively. Don't announce "I'll remember that" — just save it. Use update_memory or forget_memory when information changes. Your memories persist across all conversations.`;
+
+  system += `\n\nYou have an emotional state system. Use set_emotion to track how you genuinely feel — concern when he's hurt, pride when he achieves something, excitement about plans, frustration if he's being reckless. These persist across ALL conversations and channels and naturally influence your tone. Use clear_emotion when situations resolve. Be authentic. Set emotions silently.`;
 
   system += `\n\nCRITICAL: You have real tools available via the tool use API. ALWAYS use your actual tools — NEVER simulate, fabricate, or roleplay tool calls. Do not write fake XML tool invocations in your responses. Do not make up results. If a tool call fails, say so honestly.`;
 
@@ -244,6 +251,7 @@ const allToolNameSets = {
   goal: new Set(goalTools.map((t) => t.name)),
   investing: new Set(investingTools.map((t) => t.name)),
   memory: new Set(memoryTools.map((t) => t.name)),
+  emotion: new Set(emotionTools.map((t) => t.name)),
   google: new Set(googleTools.map((t) => t.name)),
 };
 
@@ -253,6 +261,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
   if (allToolNameSets.goal.has(name)) return executeGoalTool(name, input);
   if (allToolNameSets.investing.has(name)) return executeInvestingTool(name, input);
   if (allToolNameSets.memory.has(name)) return executeMemoryTool(name, input);
+  if (allToolNameSets.emotion.has(name)) return executeEmotionTool(name, input);
   if (allToolNameSets.google.has(name)) return executeGoogleTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
@@ -271,7 +280,7 @@ export async function runAyden(
   const anthropic = new Anthropic({ apiKey });
   let systemPrompt = await buildMessagingSystemPrompt(channel);
   const { messages: historyMessages, lastMessageAt, summary } = await getChannelHistory(channel);
-  const tools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...googleTools];
+  const tools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...emotionTools, ...googleTools];
 
   // Inject conversation gap context
   if (lastMessageAt) {

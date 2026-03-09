@@ -872,3 +872,17 @@ model AydenMemory {
 
   @@map("ayden_memories")
 }
+
+model AydenEmotionalState {
+  id        String    @id @default(uuid()) @db.Uuid
+  dimension String    // Free-text emotion — "worried", "proud", "anxious", "aroused", etc. No fixed set.
+  intensity Int       @default(5) // 1-10 scale
+  trigger   String    @db.Text // What caused this emotional state
+  context   String?   // Channel/page where it originated ("SMS", "Slack", "Fitness", etc.)
+  isActive  Boolean   @default(true) @map("is_active")
+  expiresAt DateTime? @map("expires_at") // Optional auto-decay timestamp
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("ayden_emotional_states")
+}

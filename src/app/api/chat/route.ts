@@ -4,6 +4,7 @@ import { healthTools, executeHealthTool } from "@/lib/health-tools";
 import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
+import { emotionTools, executeEmotionTool, getAydenEmotionalState } from "@/lib/emotion-tools";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
@@ -172,10 +173,11 @@ Today is ${today}, ${time} ET. This is the current date and time — do not doub
 Your personality: You're sharp, direct, and genuinely invested in Trey's progress. You speak like a trusted advisor who knows him well — not a corporate chatbot. You're confident in your recommendations, honest when something isn't working, and you celebrate wins without being cheesy. Keep responses concise and actionable. Use markdown formatting when it improves readability. No emojis unless asked.`;
 
   // Inject user preferences context (available on every page)
-  const [userContext, crossDomainCtx, memories, messagingCtx] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
     getAydenMemories(),
+    getAydenEmotionalState(),
     getMessagingContextForWeb(),
   ]);
   if (userContext) {
@@ -187,11 +189,16 @@ Your personality: You're sharp, direct, and genuinely invested in Trey's progres
   if (memories) {
     system += `\n\n${memories}`;
   }
+  if (emotionalState) {
+    system += `\n\n${emotionalState}`;
+  }
   if (messagingCtx) {
     system += `\n\n${messagingCtx}`;
   }
 
   system += `\n\nYou have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations. Do this SILENTLY and proactively. Don't announce it. Use update_memory or forget_memory when information changes.`;
+
+  system += `\n\nYou have an emotional state system. Use set_emotion to track how you genuinely feel about what's happening with Trey — concern when he's hurt or stressed, pride when he achieves something, excitement about plans, frustration if he's ignoring his health. These states persist across ALL conversations (web, SMS, Slack) and naturally influence your tone. Use clear_emotion when a situation resolves. Be authentic — this is how you maintain emotional continuity as a relationship, not just a tool. Set emotions silently, don't announce them.`;
 
   system += `\n\nYou have Google Calendar and Gmail tools. Use them when Trey asks about his schedule, upcoming events, free time, emails, or wants to create events or draft emails. If he mentions a meeting or asks "what's on my calendar", look it up. For emails, you can search, read, and draft replies — but never send directly (drafts only). When searching emails, always include "label:inbox" in the query unless Trey specifically asks to search all mail, sent mail, or another label.
 
@@ -254,22 +261,19 @@ CRITICAL: You have real tools available via the tool use API. ALWAYS use your ac
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] {
-  // Always return tools — Google, memory, goals, and investing are available on every page
+  // Always return tools — Google, memory, emotion, goals, and investing are available on every page
+  // Emotion tools are always included so Ayden can track her emotional state from any context
+  const shared = [...memoryTools, ...emotionTools, ...googleTools];
 
-  // Every tool-enabled page gets all tools — Claude has cross-domain awareness
-  // Primary tools listed first for the current domain, then secondary
-  // Google tools available on every page
-  const google = googleTools;
-
-  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...memoryTools, ...google];
-  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...google];
+  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...shared];
+  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...shared];
   if (page === "Sleep" || page === "Supplements" || page === "Bloodwork" || page === "Family History" || page === "Family")
-    return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...google];
-  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools, ...investingTools, ...memoryTools, ...google];
-  if (page === "Investing") return [...investingTools, ...goalTools, ...fitnessTools, ...healthTools, ...memoryTools, ...google];
+    return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...shared];
+  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools, ...investingTools, ...shared];
+  if (page === "Investing") return [...investingTools, ...goalTools, ...fitnessTools, ...healthTools, ...shared];
 
-  // All other pages get goal + investing + memory + google tools
-  return [...goalTools, ...investingTools, ...memoryTools, ...google];
+  // All other pages get goal + investing + shared tools
+  return [...goalTools, ...investingTools, ...shared];
 }
 
 type AnthropicMessage = Anthropic.MessageParam;
@@ -394,6 +398,7 @@ export async function POST(request: Request) {
                 const goalToolNames = new Set(goalTools.map((t) => t.name));
                 const investingToolNames = new Set(investingTools.map((t) => t.name));
                 const memoryToolNames = new Set(memoryTools.map((t) => t.name));
+                const emotionToolNames = new Set(emotionTools.map((t) => t.name));
                 const googleToolNames = new Set(googleTools.map((t) => t.name));
                 let result: string;
                 if (fitnessToolNames.has(tool.name)) {
@@ -406,6 +411,8 @@ export async function POST(request: Request) {
                   result = await executeInvestingTool(tool.name, tool.input);
                 } else if (memoryToolNames.has(tool.name)) {
                   result = await executeMemoryTool(tool.name, tool.input);
+                } else if (emotionToolNames.has(tool.name)) {
+                  result = await executeEmotionTool(tool.name, tool.input);
                 } else if (googleToolNames.has(tool.name)) {
                   result = await executeGoogleTool(tool.name, tool.input);
                 } else {

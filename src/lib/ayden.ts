@@ -362,26 +362,27 @@ export async function runAyden(
     }
   }
 
-  // Tool use loop
+  // Two-model strategy: Haiku for tool selection (cheap), Sonnet for final response (quality)
+  const TOOL_MODEL = "claude-haiku-4-5-20251001";
+  const RESPONSE_MODEL = "claude-sonnet-4-20250514";
+
+  // Phase 1: Tool resolution with Haiku
   const MAX_TOOL_ROUNDS = 5;
+  let usedTools = false;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: channel === "SMS" ? 1024 : 2048,
+      model: TOOL_MODEL,
+      max_tokens: 1024,
       system: systemPrompt,
       messages,
       tools,
     });
 
     if (response.stop_reason !== "tool_use") {
-      const textBlocks = response.content.filter((b) => b.type === "text");
-      const text = textBlocks.map((b) => {
-        if (b.type === "text") return b.text;
-        return "";
-      }).join("");
-      return text || "No response generated.";
+      break; // No more tools needed — Sonnet will generate the final response
     }
 
+    usedTools = true;
     const toolBlocks = response.content.filter((b) => b.type === "tool_use");
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
@@ -405,10 +406,13 @@ export async function runAyden(
     messages.push({ role: "user", content: toolResults });
   }
 
-  // All tool rounds exhausted — make one final call without tools to force a text response
-  console.log(`Ayden (${channel}): tool rounds exhausted, forcing text response`);
+  if (usedTools) {
+    console.log(`Ayden (${channel}): tools resolved via Haiku, generating final response with Sonnet`);
+  }
+
+  // Phase 2: Final response with Sonnet (quality)
   const finalResponse = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: RESPONSE_MODEL,
     max_tokens: channel === "SMS" ? 1024 : 2048,
     system: systemPrompt,
     messages,

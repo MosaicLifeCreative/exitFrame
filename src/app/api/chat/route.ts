@@ -332,46 +332,29 @@ export async function POST(request: Request) {
             apiMessages.push({ role: m.role, content: m.content });
           }
 
-          // Tool use loop — Claude may call tools multiple times
+          // Two-model strategy: Haiku for tool selection (cheap), Sonnet for final response (quality)
+          const TOOL_MODEL = "claude-haiku-4-5-20251001";
+          const RESPONSE_MODEL = "claude-sonnet-4-20250514";
+
+          // Phase 1: Tool resolution with Haiku (non-streamed, cheap)
           const MAX_TOOL_ROUNDS = 5;
           let fullResponseText = "";
           for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-            const stream = anthropic.messages.stream({
-              model: "claude-sonnet-4-20250514",
-              max_tokens: 4096,
+            const response = await anthropic.messages.create({
+              model: TOOL_MODEL,
+              max_tokens: 1024,
               system: systemPrompt,
               messages: apiMessages,
               tools,
             });
 
-            // Stream text deltas to client while collecting the full response
-            for await (const event of stream) {
-              if (
-                event.type === "content_block_delta" &&
-                event.delta.type === "text_delta"
-              ) {
-                fullResponseText += event.delta.text;
-                const chunk = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
-                controller.enqueue(encoder.encode(chunk));
-              }
+            if (response.stop_reason !== "tool_use") {
+              break; // No more tools — Sonnet will generate the streamed response
             }
 
-            // Get the final message to extract complete tool use inputs
-            const finalMessage = await stream.finalMessage();
-            const stopReason = finalMessage.stop_reason;
-
-            // If no tool use, we're done
-            if (stopReason !== "tool_use") {
-              break;
-            }
-
-            // Add a line break between tool rounds so text doesn't run together
-            const sepChunk = `data: ${JSON.stringify({ text: "\n\n" })}\n\n`;
-            controller.enqueue(encoder.encode(sepChunk));
-
-            // Extract tool use blocks from the final message
+            // Extract tool use blocks
             const toolBlocks: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
-            for (const block of finalMessage.content) {
+            for (const block of response.content) {
               if (block.type === "tool_use") {
                 toolBlocks.push({
                   id: block.id,
@@ -455,17 +438,34 @@ export async function POST(request: Request) {
               }
             }
 
-            // Add the assistant's response (with tool use) and tool results to messages
+            // Add Haiku's response (with tool use) and tool results to messages
             apiMessages.push({
               role: "assistant",
-              content: finalMessage.content,
+              content: response.content,
             });
             apiMessages.push({
               role: "user",
               content: toolResults,
             });
+          }
 
-            // Loop continues — Claude will process tool results and respond
+          // Phase 2: Final response with Sonnet (quality, streamed)
+          const finalStream = anthropic.messages.stream({
+            model: RESPONSE_MODEL,
+            max_tokens: 4096,
+            system: systemPrompt,
+            messages: apiMessages,
+          });
+
+          for await (const event of finalStream) {
+            if (
+              event.type === "content_block_delta" &&
+              event.delta.type === "text_delta"
+            ) {
+              fullResponseText += event.delta.text;
+              const chunk = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
+              controller.enqueue(encoder.encode(chunk));
+            }
           }
 
           // Background emotional reflection — fire and forget

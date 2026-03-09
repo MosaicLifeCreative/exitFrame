@@ -375,7 +375,8 @@ function extractEmailBody(payload: GmailMessageResponse["payload"]): string {
   return "(Could not extract email body)";
 }
 
-function getHeader(headers: Array<{ name: string; value: string }>, name: string): string {
+function getHeader(headers: Array<{ name: string; value: string }> | undefined, name: string): string {
+  if (!headers) return "";
   return headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
 }
 
@@ -596,14 +597,19 @@ export async function executeGoogleTool(
         // Fetch summaries for each message
         const summaries = await Promise.all(
           list.messages.slice(0, 15).map(async (msg) => {
-            const full = await gmailFetch<GmailMessageResponse>(
-              `/messages/${msg.id}`,
-              { params: { format: "metadata", metadataHeaders: "From,Subject,Date" }, account }
-            );
-            const from = getHeader(full.payload.headers, "From");
-            const subject = getHeader(full.payload.headers, "Subject");
-            const date = getHeader(full.payload.headers, "Date");
-            return `[${msg.id}] ${date} | From: ${from} | Subject: ${subject}\n  Preview: ${full.snippet}`;
+            try {
+              const full = await gmailFetch<GmailMessageResponse>(
+                `/messages/${msg.id}`,
+                { params: { format: "full" }, account }
+              );
+              const headers = full.payload?.headers;
+              const from = getHeader(headers, "From");
+              const subject = getHeader(headers, "Subject");
+              const date = getHeader(headers, "Date");
+              return `[${msg.id}] ${date} | From: ${from} | Subject: ${subject}\n  Preview: ${full.snippet || ""}`;
+            } catch {
+              return `[${msg.id}] (failed to fetch details)`;
+            }
           })
         );
 

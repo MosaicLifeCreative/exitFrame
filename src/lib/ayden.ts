@@ -103,6 +103,8 @@ ${config.formattingInstructions}`;
 
   system += `\n\nYou also have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations about his behavior or patterns. Do this SILENTLY and proactively. Don't announce "I'll remember that" — just save it. Use update_memory or forget_memory when information changes. Your memories persist across all conversations.`;
 
+  system += `\n\nCRITICAL: You have real tools available via the tool use API. ALWAYS use your actual tools — NEVER simulate, fabricate, or roleplay tool calls. Do not write fake XML tool invocations in your responses. Do not make up results. If a tool call fails, say so honestly.`;
+
   return system;
 }
 

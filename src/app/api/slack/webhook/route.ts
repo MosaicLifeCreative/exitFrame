@@ -45,6 +45,13 @@ async function downloadSlackFile(
       return null;
     }
 
+    // Verify the response is actually an image (not an HTML auth redirect)
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) {
+      console.error(`Slack image download: unexpected content-type "${contentType}" (expected image/*) — likely auth/scope issue`);
+      return null;
+    }
+
     const buffer = await res.arrayBuffer();
 
     // Double-check actual size after download

@@ -64,7 +64,7 @@ export const googleTools: Anthropic.Tool[] = [
   {
     name: "create_calendar_event",
     description:
-      "Create a new calendar event. Use when Trey asks to schedule something, add an event, or block time.",
+      "Create a new calendar event. Use when Trey asks to schedule something, add an event, or block time. If adding attendees, keep event details professional.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -239,7 +239,7 @@ export const googleTools: Anthropic.Tool[] = [
   {
     name: "send_email",
     description:
-      "Send an email immediately. Use when Trey asks to send an email and doesn't need to review it first. Signature is appended automatically. Defaults to business Gmail.",
+      "Send an email immediately. Use when Trey asks to send an email and doesn't need to review it first. Signature is appended automatically. Defaults to business Gmail. IMPORTANT: Email body must be 100% professional — you are representing Trey's business. Always tell Trey what you're sending before calling this tool.",
     input_schema: {
       type: "object" as const,
       properties: {

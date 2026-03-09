@@ -69,7 +69,10 @@ CRITICAL: Keep responses SHORT and punchy — under 300 characters when possible
 interface SmsHistory {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   lastMessageAt: Date | null;
+  summary: string | null;
 }
+
+const SMS_RECENT_MESSAGES = 20; // Keep last 20 messages (10 exchanges) in context
 
 async function getRecentSmsHistory(): Promise<SmsHistory> {
   // Find or use the SMS conversation
@@ -78,12 +81,12 @@ async function getRecentSmsHistory(): Promise<SmsHistory> {
     orderBy: { updatedAt: "desc" },
   });
 
-  if (!conversation) return { messages: [], lastMessageAt: null };
+  if (!conversation) return { messages: [], lastMessageAt: null, summary: null };
 
   const messages = await prisma.chatMessage.findMany({
     where: { conversationId: conversation.id },
     orderBy: { createdAt: "desc" },
-    take: 10, // Last 5 exchanges
+    take: SMS_RECENT_MESSAGES,
   });
 
   const lastMessageAt = messages.length > 0 ? messages[0].createdAt : null;
@@ -94,6 +97,7 @@ async function getRecentSmsHistory(): Promise<SmsHistory> {
       content: m.content,
     })),
     lastMessageAt,
+    summary: conversation.summary,
   };
 }
 
@@ -137,6 +141,71 @@ async function saveSmsExchange(userMessage: string, assistantResponse: string): 
     where: { id: conversation.id },
     data: { updatedAt: new Date() },
   });
+
+  // Trigger background summarization (non-blocking)
+  summarizeSmsConversation(conversation.id).catch((err) =>
+    console.error("SMS summarization error:", err)
+  );
+}
+
+/**
+ * Condense older SMS messages into a rolling summary (background task).
+ * Same pattern as web chat — Haiku summarizes messages beyond the recent window.
+ */
+async function summarizeSmsConversation(conversationId: string): Promise<void> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return;
+
+  const conversation = await prisma.chatConversation.findUnique({
+    where: { id: conversationId },
+    include: {
+      messages: { orderBy: { createdAt: "asc" } },
+    },
+  });
+
+  if (!conversation) return;
+
+  // Only summarize messages beyond the recent window
+  const messagesToSummarize = conversation.messages.slice(
+    conversation.summarizedUpTo,
+    conversation.messages.length - SMS_RECENT_MESSAGES
+  );
+
+  if (messagesToSummarize.length < 6) return; // Not enough new messages
+
+  const existingSummary = conversation.summary
+    ? `Previous summary:\n${conversation.summary}\n\nNew messages to incorporate:\n`
+    : "";
+
+  const messageText = messagesToSummarize
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join("\n\n");
+
+  const anthropic = new Anthropic({ apiKey });
+  const result = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1024,
+    messages: [
+      {
+        role: "user",
+        content: `Summarize this text conversation between Trey and Ayden (his AI assistant). Capture key topics discussed, personal details shared, emotional tone, decisions made, and anything important for maintaining relationship continuity. This is an ongoing personal relationship — preserve the warmth and context. Keep it under 500 words.
+
+${existingSummary}${messageText}`,
+      },
+    ],
+  });
+
+  const summaryText = result.content[0].type === "text" ? result.content[0].text : "";
+
+  if (summaryText) {
+    await prisma.chatConversation.update({
+      where: { id: conversationId },
+      data: {
+        summary: summaryText,
+        summarizedUpTo: conversation.messages.length - SMS_RECENT_MESSAGES,
+      },
+    });
+  }
 }
 
 /**
@@ -148,7 +217,7 @@ async function runAyden(userMessage: string): Promise<string> {
 
   const anthropic = new Anthropic({ apiKey });
   let systemPrompt = await buildSmsSystemPrompt();
-  const { messages: historyMessages, lastMessageAt } = await getRecentSmsHistory();
+  const { messages: historyMessages, lastMessageAt, summary } = await getRecentSmsHistory();
   const tools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools];
 
   // Inject conversation gap context
@@ -172,10 +241,26 @@ async function runAyden(userMessage: string): Promise<string> {
     systemPrompt += `\n\nThis is your first ever text conversation with Trey.`;
   }
 
-  const messages: Anthropic.MessageParam[] = [
+  // Build messages: summary (if available) + recent messages + new message
+  const messages: Anthropic.MessageParam[] = [];
+
+  // Prepend rolling summary of older conversation if available
+  if (summary && historyMessages.length >= SMS_RECENT_MESSAGES) {
+    messages.push({
+      role: "user",
+      content: "[Continuing our conversation. Here's what we've talked about before.]",
+    });
+    messages.push({
+      role: "assistant",
+      content: `[Earlier conversation context]\n${summary}\n[End of earlier context]`,
+    });
+  }
+
+  // Add recent messages + current message
+  messages.push(
     ...historyMessages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: userMessage },
-  ];
+  );
 
   // Tool use loop — same pattern as chat route but non-streaming
   const MAX_TOOL_ROUNDS = 3; // Fewer rounds for SMS (keep it fast)

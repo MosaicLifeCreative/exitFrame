@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { googleCalendarFetch, gmailFetch } from "@/lib/google";
+import { googleCalendarFetch, gmailFetch, getGoogleAccessToken } from "@/lib/google";
 import type { GoogleAccount } from "@/lib/google";
 
 // ─── Shared account property for tool schemas ───────────
@@ -296,15 +296,32 @@ interface GmailDraftResponse {
 
 const TZ = "America/New_York";
 
-/** Resolve account with Calendar defaulting to personal, Gmail to business */
-function resolveCalendarAccount(input: Record<string, unknown>): GoogleAccount {
-  if (input.account === "business") return "business";
-  return "personal";
+/**
+ * Resolve account with fallback — if preferred account isn't connected, try the other.
+ * Calendar prefers personal, Gmail prefers business.
+ */
+async function resolveCalendarAccount(input: Record<string, unknown>): Promise<GoogleAccount> {
+  if (input.account === "business" || input.account === "personal") {
+    return input.account as GoogleAccount;
+  }
+  // Default: prefer personal for calendar, fall back to business
+  const personalToken = await getGoogleAccessToken("personal");
+  if (personalToken) return "personal";
+  const businessToken = await getGoogleAccessToken("business");
+  if (businessToken) return "business";
+  return "personal"; // Will show "not connected" error
 }
 
-function resolveGmailAccount(input: Record<string, unknown>): GoogleAccount {
-  if (input.account === "personal") return "personal";
-  return "business";
+async function resolveGmailAccount(input: Record<string, unknown>): Promise<GoogleAccount> {
+  if (input.account === "business" || input.account === "personal") {
+    return input.account as GoogleAccount;
+  }
+  // Default: prefer business for Gmail, fall back to personal
+  const businessToken = await getGoogleAccessToken("business");
+  if (businessToken) return "business";
+  const personalToken = await getGoogleAccessToken("personal");
+  if (personalToken) return "personal";
+  return "business"; // Will show "not connected" error
 }
 
 function formatEventCompact(event: CalendarEvent): string {
@@ -370,7 +387,7 @@ export async function executeGoogleTool(
     switch (name) {
       // ── Calendar ────────────────────────────────────
       case "list_calendar_events": {
-        const account = resolveCalendarAccount(input);
+        const account = await resolveCalendarAccount(input);
         const now = new Date();
         const endOfDay = new Date(now);
         endOfDay.setHours(23, 59, 59, 999);
@@ -410,7 +427,7 @@ export async function executeGoogleTool(
       }
 
       case "get_calendar_event": {
-        const account = resolveCalendarAccount(input);
+        const account = await resolveCalendarAccount(input);
         const event = await googleCalendarFetch<CalendarEvent>(
           `/calendars/primary/events/${input.eventId}`,
           { params: { timeZone: TZ }, account }
@@ -431,7 +448,7 @@ export async function executeGoogleTool(
       }
 
       case "create_calendar_event": {
-        const account = resolveCalendarAccount(input);
+        const account = await resolveCalendarAccount(input);
         const isAllDay = input.allDay === true;
         const eventBody: Record<string, unknown> = {
           summary: input.summary,
@@ -467,7 +484,7 @@ export async function executeGoogleTool(
       }
 
       case "update_calendar_event": {
-        const account = resolveCalendarAccount(input);
+        const account = await resolveCalendarAccount(input);
         const updates: Record<string, unknown> = {};
         if (input.summary) updates.summary = input.summary;
         if (input.description) updates.description = input.description;
@@ -488,7 +505,7 @@ export async function executeGoogleTool(
       }
 
       case "delete_calendar_event": {
-        const account = resolveCalendarAccount(input);
+        const account = await resolveCalendarAccount(input);
         await googleCalendarFetch(
           `/calendars/primary/events/${input.eventId}`,
           { method: "DELETE", params: { sendUpdates: "all" }, account }
@@ -498,7 +515,7 @@ export async function executeGoogleTool(
       }
 
       case "find_free_time": {
-        const account = resolveCalendarAccount(input);
+        const account = await resolveCalendarAccount(input);
         const now = new Date();
         const endOfWeek = new Date(now);
         endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()));
@@ -564,7 +581,7 @@ export async function executeGoogleTool(
 
       // ── Gmail ───────────────────────────────────────
       case "search_emails": {
-        const account = resolveGmailAccount(input);
+        const account = await resolveGmailAccount(input);
         const params: Record<string, string> = {
           q: input.query as string,
           maxResults: String(Math.min(Number(input.maxResults) || 10, 50)),
@@ -594,7 +611,7 @@ export async function executeGoogleTool(
       }
 
       case "read_email": {
-        const account = resolveGmailAccount(input);
+        const account = await resolveGmailAccount(input);
         const msg = await gmailFetch<GmailMessageResponse>(
           `/messages/${input.messageId}`,
           { params: { format: "full" }, account }
@@ -613,7 +630,7 @@ export async function executeGoogleTool(
       }
 
       case "create_email_draft": {
-        const account = resolveGmailAccount(input);
+        const account = await resolveGmailAccount(input);
         // Build RFC 2822 raw message
         const headers: string[] = [];
         headers.push(`To: ${input.to}`);

@@ -212,7 +212,22 @@ export async function GET() {
         ].filter(Boolean).join(", "),
   });
 
-  // 9. Table row counts (only if DB is up)
+  // 9. Slack
+  const slackToken = process.env.SLACK_BOT_TOKEN;
+  const slackSecret = process.env.SLACK_SIGNING_SECRET;
+  services.push({
+    name: "Slack",
+    status: slackToken && slackSecret ? "healthy" : "degraded",
+    responseTime: 0,
+    details: slackToken && slackSecret
+      ? "Bot token + signing secret configured"
+      : [
+          !slackToken && "Bot token missing",
+          !slackSecret && "Signing secret missing",
+        ].filter(Boolean).join(", "),
+  });
+
+  // 10. Table row counts (only if DB is up)
   const dbUp = services.find((s) => s.name === "Supabase Database")?.status !== "down";
   if (dbUp) {
     const tables = [
@@ -287,6 +302,8 @@ export async function GET() {
     twilioTokenSet: !!process.env.TWILIO_AUTH_TOKEN,
     twilioPhoneSet: !!process.env.TWILIO_PHONE_NUMBER,
     twilioMyNumberSet: !!process.env.TWILIO_MY_NUMBER,
+    slackBotTokenSet: !!process.env.SLACK_BOT_TOKEN,
+    slackSigningSecretSet: !!process.env.SLACK_SIGNING_SECRET,
   };
 
   const overallStatus = services.every((s) => s.status === "healthy")

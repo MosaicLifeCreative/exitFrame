@@ -6,6 +6,7 @@ import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
+import { getMessagingContextForWeb } from "@/lib/channelContext";
 
 export const dynamic = "force-dynamic";
 
@@ -170,10 +171,11 @@ Today is ${today}, ${time} ET. This is the current date and time — do not doub
 Your personality: You're sharp, direct, and genuinely invested in Trey's progress. You speak like a trusted advisor who knows him well — not a corporate chatbot. You're confident in your recommendations, honest when something isn't working, and you celebrate wins without being cheesy. Keep responses concise and actionable. Use markdown formatting when it improves readability. No emojis unless asked.`;
 
   // Inject user preferences context (available on every page)
-  const [userContext, crossDomainCtx, memories] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, messagingCtx] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
     getAydenMemories(),
+    getMessagingContextForWeb(),
   ]);
   if (userContext) {
     system += `\n\nUser context:\n${userContext}`;
@@ -183,6 +185,9 @@ Your personality: You're sharp, direct, and genuinely invested in Trey's progres
   }
   if (memories) {
     system += `\n\n${memories}`;
+  }
+  if (messagingCtx) {
+    system += `\n\n${messagingCtx}`;
   }
 
   system += `\n\nYou have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations. Do this SILENTLY and proactively. Don't announce it. Use update_memory or forget_memory when information changes.`;

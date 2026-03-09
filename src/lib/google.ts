@@ -12,12 +12,13 @@ function integrationName(account: GoogleAccount): string {
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
-// Calendar (full) + Gmail (read + compose/send + settings for signature)
+// Calendar (full) + Gmail (read + compose/send + settings for signature) + Drive (files + docs)
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.compose",
   "https://www.googleapis.com/auth/gmail.settings.basic",
+  "https://www.googleapis.com/auth/drive",
 ].join(" ");
 
 interface GoogleTokens {
@@ -319,6 +320,88 @@ export async function gmailFetch<T>(
   }
 
   return res.json();
+}
+
+// ─── Google Drive API ────────────────────────────────────
+
+const DRIVE_API = "https://www.googleapis.com/drive/v3";
+const DOCS_API = "https://docs.googleapis.com/v1";
+
+export async function googleDriveFetch<T>(
+  endpoint: string,
+  options?: {
+    method?: string;
+    body?: unknown;
+    params?: Record<string, string>;
+    account?: GoogleAccount;
+    baseUrl?: string;
+  }
+): Promise<T> {
+  const account = options?.account || "business";
+  const token = await getGoogleAccessToken(account);
+  if (!token) throw new Error(`Google ${account} account not connected`);
+
+  const base = options?.baseUrl || DRIVE_API;
+  const url = new URL(`${base}${endpoint}`);
+  if (options?.params) {
+    for (const [k, v] of Object.entries(options.params)) {
+      url.searchParams.set(k, v);
+    }
+  }
+
+  const res = await fetch(url.toString(), {
+    method: options?.method || "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Google Drive API error (${res.status}): ${errText}`);
+  }
+
+  if (res.status === 204) return {} as T;
+
+  return res.json();
+}
+
+export async function googleDocsFetch<T>(
+  endpoint: string,
+  options?: {
+    method?: string;
+    body?: unknown;
+    params?: Record<string, string>;
+    account?: GoogleAccount;
+  }
+): Promise<T> {
+  return googleDriveFetch<T>(endpoint, { ...options, baseUrl: DOCS_API });
+}
+
+/**
+ * Export a Google Doc as plain text (for reading content).
+ */
+export async function exportDriveFile(
+  fileId: string,
+  mimeType: string = "text/plain",
+  account: GoogleAccount = "business"
+): Promise<string> {
+  const token = await getGoogleAccessToken(account);
+  if (!token) throw new Error(`Google ${account} account not connected`);
+
+  const url = `${DRIVE_API}/files/${fileId}/export?mimeType=${encodeURIComponent(mimeType)}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Drive export error (${res.status}): ${errText}`);
+  }
+
+  return res.text();
 }
 
 /**

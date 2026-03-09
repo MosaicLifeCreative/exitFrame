@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { googleCalendarFetch, gmailFetch, getGoogleAccessToken } from "@/lib/google";
+import { googleCalendarFetch, gmailFetch, googleDriveFetch, googleDocsFetch, exportDriveFile, getGoogleAccessToken } from "@/lib/google";
 import type { GoogleAccount } from "@/lib/google";
 
 // ─── Shared account property for tool schemas ───────────
@@ -272,6 +272,94 @@ export const googleTools: Anthropic.Tool[] = [
       required: ["to", "body"],
     },
   },
+  // ── Google Drive Tools ─────────────────────────────────
+  {
+    name: "search_drive",
+    description:
+      "Search Google Drive for files and folders. Use when Trey asks to find a document, spreadsheet, or file. Defaults to business Drive.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "Search query. Examples: 'meeting agenda', 'Q1 report', 'name contains \"proposal\"'. Uses Drive search syntax.",
+        },
+        maxResults: {
+          type: "number",
+          description: "Maximum files to return (default 10, max 30).",
+        },
+        mimeType: {
+          type: "string",
+          description:
+            "Filter by file type. Common: 'application/vnd.google-apps.document' (Google Doc), 'application/vnd.google-apps.spreadsheet' (Sheet), 'application/vnd.google-apps.folder' (folder).",
+        },
+        account: accountProperty,
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "read_document",
+    description:
+      "Read the text content of a Google Doc by file ID. Use after search_drive to read a specific document. Only works with Google Docs (not PDFs, Sheets, etc.).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        fileId: {
+          type: "string",
+          description: "The file ID from search_drive.",
+        },
+        account: accountProperty,
+      },
+      required: ["fileId"],
+    },
+  },
+  {
+    name: "create_document",
+    description:
+      "Create a new Google Doc with content. Use for meeting agendas, notes, proposals, or any document Trey asks you to create. Returns the doc URL so Trey can open it. Defaults to business Drive.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description: "Document title.",
+        },
+        content: {
+          type: "string",
+          description:
+            "Document content as plain text. Use newlines for structure. Headings can be indicated with lines ending in a colon or all caps — they'll be readable in the doc.",
+        },
+        folderId: {
+          type: "string",
+          description: "Optional folder ID to create the doc in. If omitted, creates in My Drive root.",
+        },
+        account: accountProperty,
+      },
+      required: ["title", "content"],
+    },
+  },
+  {
+    name: "append_to_document",
+    description:
+      "Append text content to an existing Google Doc. Use to add notes, updates, or new sections to a document without overwriting existing content.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        fileId: {
+          type: "string",
+          description: "The file ID of the Google Doc to append to.",
+        },
+        content: {
+          type: "string",
+          description: "Text content to append at the end of the document.",
+        },
+        account: accountProperty,
+      },
+      required: ["fileId", "content"],
+    },
+  },
 ];
 
 // ─── Tool Execution ─────────────────────────────────────
@@ -335,6 +423,43 @@ interface GmailSendResponse {
   threadId: string;
   labelIds: string[];
 }
+
+interface DriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  modifiedTime?: string;
+  webViewLink?: string;
+  owners?: Array<{ displayName?: string; emailAddress?: string }>;
+  size?: string;
+}
+
+interface DriveListResponse {
+  files?: DriveFile[];
+  nextPageToken?: string;
+}
+
+interface DocsDocument {
+  documentId: string;
+  title?: string;
+  body?: {
+    content: Array<{
+      endIndex: number;
+      [key: string]: unknown;
+    }>;
+  };
+}
+
+const DRIVE_MIME_LABELS: Record<string, string> = {
+  "application/vnd.google-apps.document": "Google Doc",
+  "application/vnd.google-apps.spreadsheet": "Google Sheet",
+  "application/vnd.google-apps.presentation": "Google Slides",
+  "application/vnd.google-apps.folder": "Folder",
+  "application/vnd.google-apps.form": "Google Form",
+  "application/pdf": "PDF",
+  "image/jpeg": "JPEG",
+  "image/png": "PNG",
+};
 
 interface GmailSendAsResponse {
   sendAsEmail: string;
@@ -438,6 +563,18 @@ async function resolveCalendarAccount(input: Record<string, unknown>): Promise<G
   const businessToken = await getGoogleAccessToken("business");
   if (businessToken) return "business";
   return "personal"; // Will show "not connected" error
+}
+
+async function resolveDriveAccount(input: Record<string, unknown>): Promise<GoogleAccount> {
+  if (input.account === "business" || input.account === "personal") {
+    return input.account as GoogleAccount;
+  }
+  // Default: prefer business for Drive, fall back to personal
+  const businessToken = await getGoogleAccessToken("business");
+  if (businessToken) return "business";
+  const personalToken = await getGoogleAccessToken("personal");
+  if (personalToken) return "personal";
+  return "business";
 }
 
 async function resolveGmailAccount(input: Record<string, unknown>): Promise<GoogleAccount> {
@@ -815,6 +952,147 @@ export async function executeGoogleTool(
         });
 
         return `Email sent to ${input.to} (ID: ${sent.id}).`;
+      }
+
+      // ── Google Drive ──────────────────────────────────
+      case "search_drive": {
+        const account = await resolveDriveAccount(input);
+        const maxResults = Math.min(Number(input.maxResults) || 10, 30);
+
+        // Build Drive query — wrap user query in fullText search unless it looks like a Drive query already
+        const userQuery = input.query as string;
+        let driveQuery = `fullText contains '${userQuery.replace(/'/g, "\\'")}'`;
+        if (userQuery.includes(" contains ") || userQuery.includes("mimeType") || userQuery.includes("name contains")) {
+          driveQuery = userQuery;
+        }
+
+        // Add mimeType filter if specified
+        if (input.mimeType) {
+          driveQuery += ` and mimeType = '${input.mimeType}'`;
+        }
+
+        // Exclude trashed files
+        driveQuery += " and trashed = false";
+
+        const data = await googleDriveFetch<DriveListResponse>("/files", {
+          params: {
+            q: driveQuery,
+            pageSize: String(maxResults),
+            fields: "files(id,name,mimeType,modifiedTime,webViewLink,owners,size)",
+            orderBy: "modifiedTime desc",
+          },
+          account,
+        });
+
+        const files = data.files || [];
+        if (files.length === 0) return "No files found matching that search.";
+
+        return files
+          .map((f) => {
+            const type = DRIVE_MIME_LABELS[f.mimeType] || f.mimeType;
+            const modified = f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString() : "";
+            return `[${f.id}] ${f.name} (${type}) — modified ${modified}\n  ${f.webViewLink || ""}`;
+          })
+          .join("\n\n");
+      }
+
+      case "read_document": {
+        const account = await resolveDriveAccount(input);
+        const fileId = input.fileId as string;
+
+        const content = await exportDriveFile(fileId, "text/plain", account);
+
+        if (!content || content.trim().length === 0) {
+          return "Document is empty.";
+        }
+
+        // Truncate very long docs
+        const truncated = content.length > 5000
+          ? content.substring(0, 5000) + "\n...(truncated — document is " + content.length + " chars)"
+          : content;
+
+        return truncated;
+      }
+
+      case "create_document": {
+        const account = await resolveDriveAccount(input);
+        const title = input.title as string;
+        const content = input.content as string;
+
+        // Step 1: Create empty doc via Docs API
+        const doc = await googleDocsFetch<DocsDocument>("/documents", {
+          method: "POST",
+          body: { title },
+          account,
+        });
+
+        const docId = doc.documentId;
+
+        // Step 2: Insert content via batchUpdate
+        if (content) {
+          await googleDocsFetch(`/documents/${docId}:batchUpdate`, {
+            method: "POST",
+            body: {
+              requests: [
+                {
+                  insertText: {
+                    location: { index: 1 }, // After document start
+                    text: content,
+                  },
+                },
+              ],
+            },
+            account,
+          });
+        }
+
+        // Step 3: Move to folder if specified
+        if (input.folderId) {
+          await googleDriveFetch(`/files/${docId}`, {
+            method: "PATCH",
+            params: {
+              addParents: input.folderId as string,
+              removeParents: "root",
+            },
+            account,
+          });
+        }
+
+        const url = `https://docs.google.com/document/d/${docId}/edit`;
+        return `Document "${title}" created.\nURL: ${url}`;
+      }
+
+      case "append_to_document": {
+        const account = await resolveDriveAccount(input);
+        const fileId = input.fileId as string;
+        const content = input.content as string;
+
+        // Get current doc to find end index
+        const doc = await googleDocsFetch<DocsDocument>(`/documents/${fileId}`, {
+          account,
+        });
+
+        // End index of body content (insert before the final newline)
+        const endIndex = doc.body?.content
+          ? doc.body.content[doc.body.content.length - 1]?.endIndex - 1 || 1
+          : 1;
+
+        await googleDocsFetch(`/documents/${fileId}:batchUpdate`, {
+          method: "POST",
+          body: {
+            requests: [
+              {
+                insertText: {
+                  location: { index: endIndex },
+                  text: "\n\n" + content,
+                },
+              },
+            ],
+          },
+          account,
+        });
+
+        return `Content appended to document "${doc.title || fileId}".`;
       }
 
       default:

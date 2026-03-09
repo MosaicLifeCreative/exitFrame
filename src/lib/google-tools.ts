@@ -207,7 +207,7 @@ export const googleTools: Anthropic.Tool[] = [
   {
     name: "create_email_draft",
     description:
-      "Create a Gmail draft. Use when Trey asks to draft an email, write a reply, or compose a message. Does NOT send — creates a draft for review. Defaults to business Gmail.",
+      "Create a Gmail draft for review before sending. Use when Trey wants to review the email first, or when composing something sensitive. Defaults to business Gmail.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -221,7 +221,7 @@ export const googleTools: Anthropic.Tool[] = [
         },
         body: {
           type: "string",
-          description: "Email body content (plain text).",
+          description: "Email body content (plain text). Do NOT include a signature — it's appended automatically.",
         },
         cc: {
           type: "string",
@@ -230,6 +230,42 @@ export const googleTools: Anthropic.Tool[] = [
         threadId: {
           type: "string",
           description: "Thread ID to reply to (makes this a draft reply).",
+        },
+        account: accountProperty,
+      },
+      required: ["to", "body"],
+    },
+  },
+  {
+    name: "send_email",
+    description:
+      "Send an email immediately. Use when Trey asks to send an email and doesn't need to review it first. Signature is appended automatically. Defaults to business Gmail.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        to: {
+          type: "string",
+          description: "Recipient email address(es), comma-separated for multiple.",
+        },
+        subject: {
+          type: "string",
+          description: "Email subject line.",
+        },
+        body: {
+          type: "string",
+          description: "Email body content (plain text). Do NOT include a signature — it's appended automatically.",
+        },
+        cc: {
+          type: "string",
+          description: "CC recipients, comma-separated.",
+        },
+        replyToMessageId: {
+          type: "string",
+          description: "Message ID to reply to (sets In-Reply-To header and thread).",
+        },
+        threadId: {
+          type: "string",
+          description: "Thread ID for threading replies.",
         },
         account: accountProperty,
       },
@@ -294,7 +330,96 @@ interface GmailDraftResponse {
   message: { id: string; threadId: string };
 }
 
+interface GmailSendResponse {
+  id: string;
+  threadId: string;
+  labelIds: string[];
+}
+
+interface GmailSendAsResponse {
+  sendAsEmail: string;
+  displayName?: string;
+  signature?: string;
+  isDefault?: boolean;
+  isPrimary?: boolean;
+}
+
 const TZ = "America/New_York";
+
+/** Signature cache — keyed by account, persists for the lifetime of the serverless function */
+const signatureCache = new Map<string, { text: string; fetchedAt: number }>();
+const SIGNATURE_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Fetch the Gmail signature for an account. Returns plain text signature or empty string.
+ * Caches to avoid repeated API calls within the same function invocation.
+ */
+async function getGmailSignature(account: GoogleAccount): Promise<string> {
+  const cached = signatureCache.get(account);
+  if (cached && Date.now() - cached.fetchedAt < SIGNATURE_CACHE_TTL) {
+    return cached.text;
+  }
+
+  try {
+    // Fetch all sendAs identities — the primary one has the signature
+    const data = await gmailFetch<{ sendAs: GmailSendAsResponse[] }>(
+      "/settings/sendAs",
+      { account }
+    );
+
+    const primary = data.sendAs?.find((s) => s.isPrimary || s.isDefault);
+    const sigHtml = primary?.signature || "";
+
+    // Convert HTML signature to plain text
+    const sigText = sigHtml
+      ? "\n\n" + sigHtml
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<\/p>/gi, "\n")
+          .replace(/<\/div>/gi, "\n")
+          .replace(/<[^>]+>/g, "")
+          .replace(/&nbsp;/g, " ")
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim()
+      : "";
+
+    signatureCache.set(account, { text: sigText, fetchedAt: Date.now() });
+    return sigText;
+  } catch (error) {
+    console.error(`Failed to fetch Gmail signature for ${account}:`, error);
+    signatureCache.set(account, { text: "", fetchedAt: Date.now() });
+    return "";
+  }
+}
+
+/**
+ * Build a raw RFC 2822 email message with optional signature.
+ */
+function buildRawEmail(opts: {
+  to: string;
+  subject?: string;
+  body: string;
+  cc?: string;
+  signature: string;
+  inReplyTo?: string;
+}): string {
+  const lines: string[] = [];
+  lines.push(`To: ${opts.to}`);
+  if (opts.subject) lines.push(`Subject: ${opts.subject}`);
+  if (opts.cc) lines.push(`Cc: ${opts.cc}`);
+  if (opts.inReplyTo) lines.push(`In-Reply-To: ${opts.inReplyTo}`);
+  lines.push("Content-Type: text/plain; charset=utf-8");
+  lines.push("");
+  lines.push(opts.body + opts.signature);
+
+  return Buffer.from(lines.join("\r\n"))
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
 
 /**
  * Resolve account with fallback — if preferred account isn't connected, try the other.
@@ -637,20 +762,14 @@ export async function executeGoogleTool(
 
       case "create_email_draft": {
         const account = await resolveGmailAccount(input);
-        // Build RFC 2822 raw message
-        const headers: string[] = [];
-        headers.push(`To: ${input.to}`);
-        if (input.subject) headers.push(`Subject: ${input.subject}`);
-        if (input.cc) headers.push(`Cc: ${input.cc}`);
-        headers.push("Content-Type: text/plain; charset=utf-8");
-        headers.push("");
-        headers.push(input.body as string);
-
-        const raw = Buffer.from(headers.join("\r\n"))
-          .toString("base64")
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/=+$/, "");
+        const signature = await getGmailSignature(account);
+        const raw = buildRawEmail({
+          to: input.to as string,
+          subject: input.subject as string | undefined,
+          body: input.body as string,
+          cc: input.cc as string | undefined,
+          signature,
+        });
 
         const draftBody: Record<string, unknown> = {
           message: { raw },
@@ -667,6 +786,32 @@ export async function executeGoogleTool(
         });
 
         return `Draft created (ID: ${draft.id}). It's in Trey's ${account} Drafts folder ready to review and send.`;
+      }
+
+      case "send_email": {
+        const account = await resolveGmailAccount(input);
+        const signature = await getGmailSignature(account);
+        const raw = buildRawEmail({
+          to: input.to as string,
+          subject: input.subject as string | undefined,
+          body: input.body as string,
+          cc: input.cc as string | undefined,
+          signature,
+          inReplyTo: input.replyToMessageId as string | undefined,
+        });
+
+        const sendBody: Record<string, unknown> = { raw };
+        if (input.threadId) {
+          sendBody.threadId = input.threadId;
+        }
+
+        const sent = await gmailFetch<GmailSendResponse>("/messages/send", {
+          method: "POST",
+          body: sendBody,
+          account,
+        });
+
+        return `Email sent to ${input.to} (ID: ${sent.id}).`;
       }
 
       default:

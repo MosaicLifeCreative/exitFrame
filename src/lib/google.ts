@@ -12,11 +12,12 @@ function integrationName(account: GoogleAccount): string {
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
-// Calendar (full) + Gmail (read + compose drafts)
+// Calendar (full) + Gmail (read + compose/send + settings for signature)
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.compose",
+  "https://www.googleapis.com/auth/gmail.settings.basic",
 ].join(" ");
 
 interface GoogleTokens {

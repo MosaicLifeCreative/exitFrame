@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
     // Only handle messages (not subtypes like bot messages, edits, etc.)
     // Allow file_share subtype so we can process image attachments
     if (event.type !== "message" || (event.subtype && event.subtype !== "file_share")) {
+      console.log(`Slack webhook: skipping event type="${event.type}" subtype="${event.subtype || "none"}"`);
       return NextResponse.json({ ok: true });
     }
 
@@ -133,48 +134,48 @@ export async function POST(request: NextRequest) {
     const text = event.text || "";
     const channel = event.channel;
 
-    // Download image files if present
-    const images: AydenImage[] = [];
-    let fileCount = 0;
-    if (Array.isArray(event.files) && event.files.length > 0) {
-      fileCount = event.files.length;
-      const downloadPromises: Promise<void>[] = [];
-      for (const file of event.files) {
-        const mimetype = file.mimetype || "";
-        if (file.url_private && SUPPORTED_IMAGE_TYPES.has(mimetype)) {
-          downloadPromises.push(
-            downloadSlackFile(file.url_private, mimetype, file.size).then((result) => {
-              if (result) images.push(result);
-            })
-          );
-        } else if (file.url_private) {
-          console.log(`Slack: skipping unsupported file type: ${mimetype} (${file.name || "unnamed"})`);
+    try {
+      // Download image files if present
+      const images: AydenImage[] = [];
+      let fileCount = 0;
+      if (Array.isArray(event.files) && event.files.length > 0) {
+        fileCount = event.files.length;
+        const downloadPromises: Promise<void>[] = [];
+        for (const file of event.files) {
+          const mimetype = file.mimetype || "";
+          if (file.url_private && SUPPORTED_IMAGE_TYPES.has(mimetype)) {
+            downloadPromises.push(
+              downloadSlackFile(file.url_private, mimetype, file.size).then((result) => {
+                if (result) images.push(result);
+              })
+            );
+          } else if (file.url_private) {
+            console.log(`Slack: skipping unsupported file type: ${mimetype} (${file.name || "unnamed"})`);
+          }
+        }
+        await Promise.all(downloadPromises);
+
+        if (fileCount > 0 && images.length === 0) {
+          console.log(`Slack: ${fileCount} file(s) sent but none were downloadable images`);
+        } else if (images.length < fileCount) {
+          console.log(`Slack: ${images.length}/${fileCount} images downloaded successfully`);
         }
       }
-      await Promise.all(downloadPromises);
 
-      if (fileCount > 0 && images.length === 0) {
-        console.log(`Slack: ${fileCount} file(s) sent but none were downloadable images`);
-      } else if (images.length < fileCount) {
-        console.log(`Slack: ${images.length}/${fileCount} images downloaded successfully`);
+      // Empty message with no images — ignore
+      if (!text.trim() && images.length === 0) {
+        return NextResponse.json({ ok: true });
       }
-    }
 
-    // Empty message with no images — ignore
-    if (!text.trim() && images.length === 0) {
-      return NextResponse.json({ ok: true });
-    }
+      // Image-only messages need fallback text for Claude
+      const messageText = text.trim()
+        ? text
+        : "What do you think of this?";
 
-    // Image-only messages need fallback text for Claude
-    const messageText = text.trim()
-      ? text
-      : "What do you think of this?";
+      console.log(`Slack from Trey: "${messageText.substring(0, 50)}..."${images.length > 0 ? ` + ${images.length} image(s)` : ""}`);
 
-    console.log(`Slack from Trey: "${messageText.substring(0, 50)}..."${images.length > 0 ? ` + ${images.length} image(s)` : ""}`);
-
-    // Process and respond. Slack will retry (which we ignore above) if this takes > 3s,
-    // but the original request keeps running on Vercel until completion.
-    try {
+      // Process and respond. Slack will retry (which we ignore above) if this takes > 3s,
+      // but the original request keeps running on Vercel until completion.
       if (images.length > 0) {
         console.log(`Slack: sending ${images.length} image(s) to Ayden — sizes: ${images.map((img) => `${(img.base64.length * 0.75 / 1024).toFixed(0)}KB (${img.mediaType})`).join(", ")}`);
       }
@@ -199,10 +200,21 @@ export async function POST(request: NextRequest) {
       if (error && typeof error === "object" && "status" in error) {
         console.error(`API status: ${(error as { status: number }).status}`);
       }
+
+      // Send specific error hint to Slack so Trey knows what happened
+      let userErrorMsg = "Something went wrong on my end.";
+      if (errMsg.includes("timeout") || errMsg.includes("FUNCTION_INVOCATION_TIMEOUT")) {
+        userErrorMsg = "That took too long and timed out. Try a simpler question or try again.";
+      } else if (errMsg.includes("429") || errMsg.includes("rate")) {
+        userErrorMsg = "I'm being rate-limited right now. Give me a minute and try again.";
+      } else if (errMsg.includes("500") || errMsg.includes("529") || errMsg.includes("overloaded")) {
+        userErrorMsg = "The AI service is having issues right now. Try again in a bit.";
+      }
+
       try {
-        await sendSlackMessage(channel, "Something went wrong on my end. Try again in a sec.");
-      } catch {
-        // Can't send to Slack — just log
+        await sendSlackMessage(channel, userErrorMsg);
+      } catch (slackErr) {
+        console.error("Failed to send error message to Slack:", slackErr);
       }
     }
 

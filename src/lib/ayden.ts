@@ -357,7 +357,7 @@ export async function runAyden(
   }
 
   // Tool use loop
-  const MAX_TOOL_ROUNDS = 3;
+  const MAX_TOOL_ROUNDS = 5;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
@@ -399,5 +399,18 @@ export async function runAyden(
     messages.push({ role: "user", content: toolResults });
   }
 
-  return "Took too long processing — try a simpler question.";
+  // All tool rounds exhausted — make one final call without tools to force a text response
+  console.log(`Ayden (${channel}): tool rounds exhausted, forcing text response`);
+  const finalResponse = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: channel === "SMS" ? 1024 : 2048,
+    system: systemPrompt,
+    messages,
+  });
+
+  const finalText = finalResponse.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b.type === "text" ? b.text : ""))
+    .join("");
+  return finalText || "No response generated.";
 }

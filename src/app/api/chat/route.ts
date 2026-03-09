@@ -4,6 +4,7 @@ import { healthTools, executeHealthTool } from "@/lib/health-tools";
 import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
+import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -192,6 +193,8 @@ Your personality: You're sharp, direct, and genuinely invested in Trey's progres
 
   system += `\n\nYou have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations. Do this SILENTLY and proactively. Don't announce it. Use update_memory or forget_memory when information changes.`;
 
+  system += `\n\nYou have Google Calendar and Gmail tools. Use them when Trey asks about his schedule, upcoming events, free time, emails, or wants to create events or draft emails. If he mentions a meeting or asks "what's on my calendar", look it up. For emails, you can search, read, and draft replies — but never send directly (drafts only).`;
+
   if (context?.page === "Goals") {
     system += "\n\nOn the Goals page, you're Trey's accountability partner. Be encouraging but honest — call out stalled goals, suggest course corrections, and connect goals to real data from his health and fitness tracking.";
     system += "\n" + GOALS_SYSTEM;
@@ -253,15 +256,18 @@ function getToolsForPage(page?: string): Anthropic.Tool[] | undefined {
 
   // Every tool-enabled page gets all tools — Claude has cross-domain awareness
   // Primary tools listed first for the current domain, then secondary
-  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...memoryTools];
-  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools];
-  if (page === "Sleep" || page === "Supplements" || page === "Bloodwork" || page === "Family History" || page === "Family")
-    return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools];
-  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools, ...investingTools, ...memoryTools];
-  if (page === "Investing") return [...investingTools, ...goalTools, ...fitnessTools, ...healthTools, ...memoryTools];
+  // Google tools available on every page
+  const google = googleTools;
 
-  // All other pages get goal + investing + memory tools (lightweight, universally useful)
-  return [...goalTools, ...investingTools, ...memoryTools];
+  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...memoryTools, ...google];
+  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...google];
+  if (page === "Sleep" || page === "Supplements" || page === "Bloodwork" || page === "Family History" || page === "Family")
+    return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...google];
+  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools, ...investingTools, ...memoryTools, ...google];
+  if (page === "Investing") return [...investingTools, ...goalTools, ...fitnessTools, ...healthTools, ...memoryTools, ...google];
+
+  // All other pages get goal + investing + memory + google tools
+  return [...goalTools, ...investingTools, ...memoryTools, ...google];
 }
 
 type AnthropicMessage = Anthropic.MessageParam;
@@ -386,6 +392,7 @@ export async function POST(request: Request) {
                 const goalToolNames = new Set(goalTools.map((t) => t.name));
                 const investingToolNames = new Set(investingTools.map((t) => t.name));
                 const memoryToolNames = new Set(memoryTools.map((t) => t.name));
+                const googleToolNames = new Set(googleTools.map((t) => t.name));
                 let result: string;
                 if (fitnessToolNames.has(tool.name)) {
                   result = await executeFitnessTool(tool.name, tool.input);
@@ -397,6 +404,8 @@ export async function POST(request: Request) {
                   result = await executeInvestingTool(tool.name, tool.input);
                 } else if (memoryToolNames.has(tool.name)) {
                   result = await executeMemoryTool(tool.name, tool.input);
+                } else if (googleToolNames.has(tool.name)) {
+                  result = await executeGoogleTool(tool.name, tool.input);
                 } else {
                   result = JSON.stringify({ error: `Unknown tool: ${tool.name}` });
                 }

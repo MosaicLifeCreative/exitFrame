@@ -227,7 +227,22 @@ export async function GET() {
         ].filter(Boolean).join(", "),
   });
 
-  // 10. Table row counts (only if DB is up)
+  // 10. Google (Calendar + Gmail)
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  services.push({
+    name: "Google (Calendar + Gmail)",
+    status: googleClientId && googleClientSecret ? "healthy" : "degraded",
+    responseTime: 0,
+    details: googleClientId && googleClientSecret
+      ? "OAuth credentials configured"
+      : [
+          !googleClientId && "Client ID missing",
+          !googleClientSecret && "Client secret missing",
+        ].filter(Boolean).join(", "),
+  });
+
+  // 11. Table row counts (only if DB is up)
   const dbUp = services.find((s) => s.name === "Supabase Database")?.status !== "down";
   if (dbUp) {
     const tables = [
@@ -304,6 +319,8 @@ export async function GET() {
     twilioMyNumberSet: !!process.env.TWILIO_MY_NUMBER,
     slackBotTokenSet: !!process.env.SLACK_BOT_TOKEN,
     slackSigningSecretSet: !!process.env.SLACK_SIGNING_SECRET,
+    googleClientIdSet: !!process.env.GOOGLE_CLIENT_ID,
+    googleClientSecretSet: !!process.env.GOOGLE_CLIENT_SECRET,
   };
 
   const overallStatus = services.every((s) => s.status === "healthy")

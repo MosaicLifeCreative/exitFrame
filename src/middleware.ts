@@ -17,6 +17,7 @@ export async function middleware(request: NextRequest) {
     "/api/cron/",
     "/api/twilio/",
     "/api/slack/",
+    "/api/google/callback",
     "/api/health",
   ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));

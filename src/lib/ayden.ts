@@ -347,6 +347,15 @@ export async function runAyden(
     messages.push({ role: "user", content: userMessage });
   }
 
+  // Log message structure for debugging
+  const lastMsg = messages[messages.length - 1];
+  if (lastMsg && typeof lastMsg.content !== "string" && Array.isArray(lastMsg.content)) {
+    const imgBlocks = lastMsg.content.filter((b) => b.type === "image");
+    if (imgBlocks.length > 0) {
+      console.log(`Ayden (${channel}): sending ${imgBlocks.length} image block(s) to API, ${messages.length} total messages`);
+    }
+  }
+
   // Tool use loop
   const MAX_TOOL_ROUNDS = 3;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {

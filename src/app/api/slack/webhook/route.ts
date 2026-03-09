@@ -168,6 +168,10 @@ export async function POST(request: NextRequest) {
     // Process and respond. Slack will retry (which we ignore above) if this takes > 3s,
     // but the original request keeps running on Vercel until completion.
     try {
+      if (images.length > 0) {
+        console.log(`Slack: sending ${images.length} image(s) to Ayden — sizes: ${images.map((img) => `${(img.base64.length * 0.75 / 1024).toFixed(0)}KB (${img.mediaType})`).join(", ")}`);
+      }
+
       const response = await runAyden("Slack", messageText, images.length > 0 ? images : undefined);
 
       const slackResponse = response.length > 4000
@@ -179,8 +183,15 @@ export async function POST(request: NextRequest) {
         : text;
       await saveChannelExchange("Slack", savedUserMsg, slackResponse);
       await sendSlackMessage(channel, slackResponse);
-    } catch (error) {
-      console.error("Slack Ayden error:", error);
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const errStack = error instanceof Error ? error.stack : undefined;
+      console.error(`Slack Ayden error: ${errMsg}`);
+      if (errStack) console.error(`Stack: ${errStack}`);
+      // Log Anthropic API error details if available
+      if (error && typeof error === "object" && "status" in error) {
+        console.error(`API status: ${(error as { status: number }).status}`);
+      }
       try {
         await sendSlackMessage(channel, "Something went wrong on my end. Try again in a sec.");
       } catch {

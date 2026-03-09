@@ -3,6 +3,7 @@ import { fitnessTools, executeFitnessTool } from "@/lib/fitness-tools";
 import { healthTools, executeHealthTool } from "@/lib/health-tools";
 import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
+import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 
@@ -169,9 +170,10 @@ Today is ${today}, ${time} ET. This is the current date and time — do not doub
 Your personality: You're sharp, direct, and genuinely invested in Trey's progress. You speak like a trusted advisor who knows him well — not a corporate chatbot. You're confident in your recommendations, honest when something isn't working, and you celebrate wins without being cheesy. Keep responses concise and actionable. Use markdown formatting when it improves readability. No emojis unless asked.`;
 
   // Inject user preferences context (available on every page)
-  const [userContext, crossDomainCtx] = await Promise.all([
+  const [userContext, crossDomainCtx, memories] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
+    getAydenMemories(),
   ]);
   if (userContext) {
     system += `\n\nUser context:\n${userContext}`;
@@ -179,6 +181,11 @@ Your personality: You're sharp, direct, and genuinely invested in Trey's progres
   if (crossDomainCtx) {
     system += `\n\n${crossDomainCtx}`;
   }
+  if (memories) {
+    system += `\n\n${memories}`;
+  }
+
+  system += `\n\nYou have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations. Do this SILENTLY and proactively. Don't announce it. Use update_memory or forget_memory when information changes.`;
 
   if (context?.page === "Goals") {
     system += "\n\nOn the Goals page, you're Trey's accountability partner. Be encouraging but honest — call out stalled goals, suggest course corrections, and connect goals to real data from his health and fitness tracking.";
@@ -241,15 +248,15 @@ function getToolsForPage(page?: string): Anthropic.Tool[] | undefined {
 
   // Every tool-enabled page gets all tools — Claude has cross-domain awareness
   // Primary tools listed first for the current domain, then secondary
-  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools];
-  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools];
+  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...memoryTools];
+  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools];
   if (page === "Sleep" || page === "Supplements" || page === "Bloodwork" || page === "Family History" || page === "Family")
-    return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools];
-  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools, ...investingTools];
-  if (page === "Investing") return [...investingTools, ...goalTools, ...fitnessTools, ...healthTools];
+    return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools];
+  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools, ...investingTools, ...memoryTools];
+  if (page === "Investing") return [...investingTools, ...goalTools, ...fitnessTools, ...healthTools, ...memoryTools];
 
-  // All other pages get goal + investing tools (lightweight, universally useful)
-  return [...goalTools, ...investingTools];
+  // All other pages get goal + investing + memory tools (lightweight, universally useful)
+  return [...goalTools, ...investingTools, ...memoryTools];
 }
 
 type AnthropicMessage = Anthropic.MessageParam;
@@ -373,6 +380,7 @@ export async function POST(request: Request) {
                 const healthToolNames = new Set(healthTools.map((t) => t.name));
                 const goalToolNames = new Set(goalTools.map((t) => t.name));
                 const investingToolNames = new Set(investingTools.map((t) => t.name));
+                const memoryToolNames = new Set(memoryTools.map((t) => t.name));
                 let result: string;
                 if (fitnessToolNames.has(tool.name)) {
                   result = await executeFitnessTool(tool.name, tool.input);
@@ -382,6 +390,8 @@ export async function POST(request: Request) {
                   result = await executeGoalTool(tool.name, tool.input);
                 } else if (investingToolNames.has(tool.name)) {
                   result = await executeInvestingTool(tool.name, tool.input);
+                } else if (memoryToolNames.has(tool.name)) {
+                  result = await executeMemoryTool(tool.name, tool.input);
                 } else {
                   result = JSON.stringify({ error: `Unknown tool: ${tool.name}` });
                 }

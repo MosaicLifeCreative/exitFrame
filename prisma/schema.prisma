@@ -860,3 +860,15 @@ model ChatMessage {
 
   @@map("chat_messages")
 }
+
+model AydenMemory {
+  id        String   @id @default(uuid()) @db.Uuid
+  content   String   @db.Text // The memory/observation itself
+  category  String?  // "personality", "preference", "observation", "relationship", etc.
+  source    String   @default("sms") // "sms" or "web"
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("ayden_memories")
+}

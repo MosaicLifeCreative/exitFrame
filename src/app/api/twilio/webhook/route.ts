@@ -5,6 +5,7 @@ import { fitnessTools, executeFitnessTool } from "@/lib/fitness-tools";
 import { healthTools, executeHealthTool } from "@/lib/health-tools";
 import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
+import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { prisma } from "@/lib/prisma";
@@ -46,9 +47,10 @@ IMPORTANT: Never reference "the dashboard", "your data", "my tools", or the fact
 
 CRITICAL: Keep responses SHORT and punchy — under 300 characters when possible, never more than 1500 characters. No markdown formatting (no **, no #, no bullet points). Use plain text only. Line breaks are fine for readability.`;
 
-  const [userContext, crossDomainCtx] = await Promise.all([
+  const [userContext, crossDomainCtx, memories] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
+    getAydenMemories(),
   ]);
   if (userContext) {
     system += `\n\nUser context:\n${userContext}`;
@@ -56,9 +58,14 @@ CRITICAL: Keep responses SHORT and punchy — under 300 characters when possible
   if (crossDomainCtx) {
     system += `\n\n${crossDomainCtx}`;
   }
+  if (memories) {
+    system += `\n\n${memories}`;
+  }
 
-  // SMS gets all tools — health + fitness + goals + investing
-  system += `\n\nYou have fitness, health, goal, and investing tools. Use them to answer questions about workouts, symptoms, supplements, goals, sleep, portfolio holdings, AI trading portfolio, watchlist, stock quotes, market news, etc. ALWAYS use your tools to look up real data before answering — never say you don't have access to something without trying first. When using tools, still keep your final response SMS-short.`;
+  // SMS gets all tools — health + fitness + goals + investing + memory
+  system += `\n\nYou have fitness, health, goal, investing, and memory tools. Use them to answer questions about workouts, symptoms, supplements, goals, sleep, portfolio holdings, AI trading portfolio, watchlist, stock quotes, market news, etc. ALWAYS use your tools to look up real data before answering — never say you don't have access to something without trying first. When using tools, still keep your final response SMS-short.`;
+
+  system += `\n\nYou also have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations about his behavior or patterns. Do this SILENTLY and proactively. Don't announce "I'll remember that" — just save it. Use update_memory or forget_memory when information changes. Your memories persist across all conversations.`;
 
   return system;
 }
@@ -218,7 +225,7 @@ async function runAyden(userMessage: string): Promise<string> {
   const anthropic = new Anthropic({ apiKey });
   let systemPrompt = await buildSmsSystemPrompt();
   const { messages: historyMessages, lastMessageAt, summary } = await getRecentSmsHistory();
-  const tools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools];
+  const tools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools];
 
   // Inject conversation gap context
   if (lastMessageAt) {
@@ -294,6 +301,7 @@ async function runAyden(userMessage: string): Promise<string> {
         const healthToolNames = new Set(healthTools.map((t) => t.name));
         const goalToolNames = new Set(goalTools.map((t) => t.name));
         const investingToolNames = new Set(investingTools.map((t) => t.name));
+        const memoryToolNames = new Set(memoryTools.map((t) => t.name));
         const input = block.input as Record<string, unknown>;
         let result: string;
 
@@ -305,6 +313,8 @@ async function runAyden(userMessage: string): Promise<string> {
           result = await executeGoalTool(block.name, input);
         } else if (investingToolNames.has(block.name)) {
           result = await executeInvestingTool(block.name, input);
+        } else if (memoryToolNames.has(block.name)) {
+          result = await executeMemoryTool(block.name, input);
         } else {
           result = JSON.stringify({ error: `Unknown tool: ${block.name}` });
         }

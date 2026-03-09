@@ -241,9 +241,21 @@ export async function GET() {
       { name: "portfolio_snapshots", fn: () => prisma.portfolioSnapshot.count() },
       // Health
       { name: "oura_data", fn: () => prisma.ouraData.count() },
+      { name: "supplements", fn: () => prisma.supplement.count() },
+      { name: "symptom_logs", fn: () => prisma.symptomLog.count() },
+      { name: "bloodwork_panels", fn: () => prisma.bloodworkPanel.count() },
+      { name: "family_members", fn: () => prisma.familyMember.count() },
+      // Fitness
+      { name: "exercises", fn: () => prisma.exercise.count() },
+      { name: "workout_sessions", fn: () => prisma.workoutSession.count() },
+      { name: "cardio_sessions", fn: () => prisma.cardioSession.count() },
+      // Goals
+      { name: "goals", fn: () => prisma.goal.count() },
       // Chat
       { name: "chat_conversations", fn: () => prisma.chatConversation.count() },
       { name: "chat_messages", fn: () => prisma.chatMessage.count() },
+      // Ayden
+      { name: "ayden_memories", fn: () => prisma.aydenMemory.count() },
     ];
 
     for (const table of tables) {

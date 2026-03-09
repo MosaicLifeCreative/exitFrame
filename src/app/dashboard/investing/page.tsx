@@ -147,6 +147,7 @@ interface AiPortfolioData {
   totalValue: number;
   holdingsValue: number;
   totalReturn: number;
+  totalTrades: number;
   positions: AiPosition[];
   trades: AiTradeRecord[];
 }
@@ -551,6 +552,7 @@ export default function InvestingPage() {
   const [loadingSnapshots, setLoadingSnapshots] = useState(true);
   const [crawling, setCrawling] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
+  const [loadingMoreTrades, setLoadingMoreTrades] = useState(false);
   const [newsFilter, setNewsFilter] = useState<string>("all");
 
   const quoteMap = new Map(quotes.map((q) => [q.ticker, q]));
@@ -595,12 +597,29 @@ export default function InvestingPage() {
 
   const fetchAiPortfolio = useCallback(async () => {
     try {
-      const res = await fetch("/api/investing/ai-portfolio");
+      const res = await fetch("/api/investing/ai-portfolio?tradeLimit=20");
       const json = await res.json();
       if (res.ok) setAiPortfolio(json.data);
     } catch { toast.error("Failed to load AI portfolio"); }
     finally { setLoadingAi(false); }
   }, []);
+
+  const loadMoreTrades = useCallback(async () => {
+    if (!aiPortfolio) return;
+    setLoadingMoreTrades(true);
+    try {
+      const offset = aiPortfolio.trades.length;
+      const res = await fetch(`/api/investing/ai-portfolio?tradeLimit=20&tradeOffset=${offset}`);
+      const json = await res.json();
+      if (res.ok && json.data) {
+        setAiPortfolio((prev) => prev ? {
+          ...prev,
+          trades: [...prev.trades, ...json.data.trades],
+        } : prev);
+      }
+    } catch { toast.error("Failed to load more trades"); }
+    finally { setLoadingMoreTrades(false); }
+  }, [aiPortfolio]);
 
   const fetchSnapshots = useCallback(async () => {
     try {
@@ -999,45 +1018,60 @@ export default function InvestingPage() {
                     <p className="text-sm text-muted-foreground">No trades yet. Ayden will evaluate positions hourly during market hours.</p>
                   </CardContent>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Side</TableHead>
-                        <TableHead>Ticker</TableHead>
-                        <TableHead>Shares</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead className="max-w-[300px]">Reasoning</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {aiPortfolio.trades.map((trade) => (
-                        <TableRow key={trade.id}>
-                          <TableCell className="text-sm whitespace-nowrap">
-                            {new Date(trade.executedAt).toLocaleDateString()}
-                            <div className="text-xs text-muted-foreground">
-                              {new Date(trade.executedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={trade.side === "BUY" ? "default" : "destructive"}>
-                              {trade.side}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-mono font-semibold">{trade.ticker}</TableCell>
-                          <TableCell>{parseFloat(trade.shares).toLocaleString()}</TableCell>
-                          <TableCell>{fmtMoney(parseFloat(trade.price))}</TableCell>
-                          <TableCell>{fmtMoney(parseFloat(trade.total))}</TableCell>
-                          <TableCell className="max-w-[300px]">
-                            <p className="text-sm text-muted-foreground truncate" title={trade.reasoning}>
-                              {trade.reasoning}
-                            </p>
-                          </TableCell>
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Side</TableHead>
+                          <TableHead>Ticker</TableHead>
+                          <TableHead>Shares</TableHead>
+                          <TableHead>Price</TableHead>
+                          <TableHead>Total</TableHead>
+                          <TableHead className="max-w-[300px]">Reasoning</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {aiPortfolio.trades.map((trade) => (
+                          <TableRow key={trade.id}>
+                            <TableCell className="text-sm whitespace-nowrap">
+                              {new Date(trade.executedAt).toLocaleDateString()}
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(trade.executedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={trade.side === "BUY" ? "default" : "destructive"}>
+                                {trade.side}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-mono font-semibold">{trade.ticker}</TableCell>
+                            <TableCell>{parseFloat(trade.shares).toLocaleString()}</TableCell>
+                            <TableCell>{fmtMoney(parseFloat(trade.price))}</TableCell>
+                            <TableCell>{fmtMoney(parseFloat(trade.total))}</TableCell>
+                            <TableCell className="max-w-[300px]">
+                              <p className="text-sm text-muted-foreground truncate" title={trade.reasoning}>
+                                {trade.reasoning}
+                              </p>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {aiPortfolio.trades.length < aiPortfolio.totalTrades && (
+                      <CardContent className="pt-2 pb-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-muted-foreground"
+                          onClick={loadMoreTrades}
+                          disabled={loadingMoreTrades}
+                        >
+                          {loadingMoreTrades ? "Loading..." : `Show More (${aiPortfolio.trades.length} of ${aiPortfolio.totalTrades})`}
+                        </Button>
+                      </CardContent>
+                    )}
+                  </>
                 )}
               </Card>
             </>
@@ -1142,7 +1176,7 @@ export default function InvestingPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Total Trades</span>
-                    <span className="font-medium">{aiPortfolio.trades.length}</span>
+                    <span className="font-medium">{aiPortfolio.totalTrades}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Cash Reserve</span>

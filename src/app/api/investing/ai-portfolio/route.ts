@@ -1,21 +1,30 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const tradeLimit = Math.min(parseInt(searchParams.get("tradeLimit") || "20", 10), 100);
+    const tradeOffset = parseInt(searchParams.get("tradeOffset") || "0", 10);
+
     const portfolio = await prisma.aiPortfolio.findFirst({
       where: { isActive: true },
       include: {
         positions: { orderBy: { ticker: "asc" } },
-        trades: { orderBy: { executedAt: "desc" }, take: 50 },
+        trades: { orderBy: { executedAt: "desc" }, take: tradeLimit, skip: tradeOffset },
       },
     });
 
     if (!portfolio) {
       return NextResponse.json({ data: null });
     }
+
+    // Get total trade count for pagination
+    const totalTrades = await prisma.aiTrade.count({
+      where: { portfolioId: portfolio.id },
+    });
 
     // Attach current quotes to positions
     const quotes = await prisma.stockQuote.findMany();
@@ -64,6 +73,7 @@ export async function GET() {
         totalValue,
         holdingsValue,
         totalReturn,
+        totalTrades,
         positions: positionsWithQuotes,
         trades: portfolio.trades.map((t) => ({
           ...t,

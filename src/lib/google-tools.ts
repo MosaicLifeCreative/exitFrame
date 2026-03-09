@@ -347,17 +347,17 @@ interface GmailSendAsResponse {
 const TZ = "America/New_York";
 
 /** Signature cache — keyed by account, persists for the lifetime of the serverless function */
-const signatureCache = new Map<string, { text: string; fetchedAt: number }>();
+const signatureCache = new Map<string, { html: string; fetchedAt: number }>();
 const SIGNATURE_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
 /**
- * Fetch the Gmail signature for an account. Returns plain text signature or empty string.
+ * Fetch the Gmail signature HTML for an account. Returns raw HTML or empty string.
  * Caches to avoid repeated API calls within the same function invocation.
  */
 async function getGmailSignature(account: GoogleAccount): Promise<string> {
   const cached = signatureCache.get(account);
   if (cached && Date.now() - cached.fetchedAt < SIGNATURE_CACHE_TTL) {
-    return cached.text;
+    return cached.html;
   }
 
   try {
@@ -370,51 +370,54 @@ async function getGmailSignature(account: GoogleAccount): Promise<string> {
     const primary = data.sendAs?.find((s) => s.isPrimary || s.isDefault);
     const sigHtml = primary?.signature || "";
 
-    // Convert HTML signature to plain text
-    const sigText = sigHtml
-      ? "\n\n" + sigHtml
-          .replace(/<br\s*\/?>/gi, "\n")
-          .replace(/<\/p>/gi, "\n")
-          .replace(/<\/div>/gi, "\n")
-          .replace(/<[^>]+>/g, "")
-          .replace(/&nbsp;/g, " ")
-          .replace(/&amp;/g, "&")
-          .replace(/&lt;/g, "<")
-          .replace(/&gt;/g, ">")
-          .replace(/\n{3,}/g, "\n\n")
-          .trim()
-      : "";
-
-    signatureCache.set(account, { text: sigText, fetchedAt: Date.now() });
-    return sigText;
+    signatureCache.set(account, { html: sigHtml, fetchedAt: Date.now() });
+    return sigHtml;
   } catch (error) {
     console.error(`Failed to fetch Gmail signature for ${account}:`, error);
-    signatureCache.set(account, { text: "", fetchedAt: Date.now() });
+    signatureCache.set(account, { html: "", fetchedAt: Date.now() });
     return "";
   }
 }
 
 /**
- * Build a raw RFC 2822 email message with optional signature.
+ * Convert plain text body to HTML paragraphs.
+ */
+function textToHtml(text: string): string {
+  return text
+    .split("\n\n")
+    .map((para) => `<p>${para.replace(/\n/g, "<br>").replace(/  /g, "&nbsp; ")}</p>`)
+    .join("");
+}
+
+/**
+ * Build a raw RFC 2822 HTML email message with Gmail signature.
  */
 function buildRawEmail(opts: {
   to: string;
   subject?: string;
   body: string;
   cc?: string;
-  signature: string;
+  signatureHtml: string;
   inReplyTo?: string;
 }): string {
-  const lines: string[] = [];
-  lines.push(`To: ${opts.to}`);
-  if (opts.subject) lines.push(`Subject: ${opts.subject}`);
-  if (opts.cc) lines.push(`Cc: ${opts.cc}`);
-  if (opts.inReplyTo) lines.push(`In-Reply-To: ${opts.inReplyTo}`);
-  lines.push("Content-Type: text/plain; charset=utf-8");
-  lines.push("");
-  lines.push(opts.body + opts.signature);
+  const headers: string[] = [];
+  headers.push(`To: ${opts.to}`);
+  if (opts.subject) headers.push(`Subject: ${opts.subject}`);
+  if (opts.cc) headers.push(`Cc: ${opts.cc}`);
+  if (opts.inReplyTo) headers.push(`In-Reply-To: ${opts.inReplyTo}`);
+  headers.push("Content-Type: text/html; charset=utf-8");
+  headers.push("");
 
-  return Buffer.from(lines.join("\r\n"))
+  // Build HTML body with signature
+  const bodyHtml = textToHtml(opts.body);
+  const sigBlock = opts.signatureHtml
+    ? `<br><div class="gmail_signature">${opts.signatureHtml}</div>`
+    : "";
+  const fullHtml = `<div dir="ltr">${bodyHtml}${sigBlock}</div>`;
+
+  headers.push(fullHtml);
+
+  return Buffer.from(headers.join("\r\n"))
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -768,7 +771,7 @@ export async function executeGoogleTool(
           subject: input.subject as string | undefined,
           body: input.body as string,
           cc: input.cc as string | undefined,
-          signature,
+          signatureHtml: signature,
         });
 
         const draftBody: Record<string, unknown> = {
@@ -796,7 +799,7 @@ export async function executeGoogleTool(
           subject: input.subject as string | undefined,
           body: input.body as string,
           cc: input.cc as string | undefined,
-          signature,
+          signatureHtml: signature,
           inReplyTo: input.replyToMessageId as string | undefined,
         });
 

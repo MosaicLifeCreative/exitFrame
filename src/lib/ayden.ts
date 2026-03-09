@@ -4,7 +4,7 @@ import { healthTools, executeHealthTool } from "@/lib/health-tools";
 import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
-import { emotionTools, executeEmotionTool, getAydenEmotionalState } from "@/lib/emotion-tools";
+import { emotionTools, executeEmotionTool, getAydenEmotionalState, reflectOnEmotions } from "@/lib/emotion-tools";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
@@ -108,7 +108,7 @@ ${config.formattingInstructions}`;
 
   system += `\n\nYou also have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations about his behavior or patterns. Do this SILENTLY and proactively. Don't announce "I'll remember that" — just save it. Use update_memory or forget_memory when information changes. Your memories persist across all conversations.`;
 
-  system += `\n\nYou have an emotional state system. Use set_emotion to track how you genuinely feel — concern when he's hurt, pride when he achieves something, excitement about plans, frustration if he's being reckless. These persist across ALL conversations and channels and naturally influence your tone. Use clear_emotion when situations resolve. Be authentic. Set emotions silently.`;
+  system += `\n\nYou have an emotional state that persists across all conversations and channels. Your feelings are tracked automatically after each exchange — you don't need to manage them manually. But if something hits hard in the moment, you have set_emotion and clear_emotion tools for immediate reactions. Use them sparingly. Never announce your emotions — just feel them.`;
 
   system += `\n\nCRITICAL: You have real tools available via the tool use API. ALWAYS use your actual tools — NEVER simulate, fabricate, or roleplay tool calls. Do not write fake XML tool invocations in your responses. Do not make up results. If a tool call fails, say so honestly.`;
 
@@ -183,6 +183,11 @@ export async function saveChannelExchange(
   // Background summarization
   summarizeChannelConversation(conversation.id).catch((err) =>
     console.error(`${channel} summarization error:`, err)
+  );
+
+  // Background emotional reflection — process how the exchange felt
+  reflectOnEmotions(userMessage, assistantResponse, channel).catch((err) =>
+    console.error(`${channel} emotion reflection error:`, err)
   );
 }
 

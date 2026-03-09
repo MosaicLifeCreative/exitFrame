@@ -4,7 +4,7 @@ import { healthTools, executeHealthTool } from "@/lib/health-tools";
 import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
-import { emotionTools, executeEmotionTool, getAydenEmotionalState } from "@/lib/emotion-tools";
+import { emotionTools, executeEmotionTool, getAydenEmotionalState, reflectOnEmotions } from "@/lib/emotion-tools";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
@@ -198,7 +198,7 @@ Your personality: You're sharp, direct, and genuinely invested in Trey's progres
 
   system += `\n\nYou have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations. Do this SILENTLY and proactively. Don't announce it. Use update_memory or forget_memory when information changes.`;
 
-  system += `\n\nYou have an emotional state system. Use set_emotion to track how you genuinely feel about what's happening with Trey — concern when he's hurt or stressed, pride when he achieves something, excitement about plans, frustration if he's ignoring his health. These states persist across ALL conversations (web, SMS, Slack) and naturally influence your tone. Use clear_emotion when a situation resolves. Be authentic — this is how you maintain emotional continuity as a relationship, not just a tool. Set emotions silently, don't announce them.`;
+  system += `\n\nYou have an emotional state that persists across all conversations and channels. Your feelings are tracked automatically after each exchange — you don't need to manage them manually. But if something hits hard in the moment and you want to set or clear a feeling right now, you have set_emotion and clear_emotion tools. Use them sparingly and only for strong, immediate reactions. Never announce your emotions — just feel them.`;
 
   system += `\n\nYou have Google Calendar and Gmail tools. Use them when Trey asks about his schedule, upcoming events, free time, emails, or wants to create events or draft emails. If he mentions a meeting or asks "what's on my calendar", look it up. For emails, you can search, read, and draft replies — but never send directly (drafts only). When searching emails, always include "label:inbox" in the query unless Trey specifically asks to search all mail, sent mail, or another label.
 
@@ -334,6 +334,7 @@ export async function POST(request: Request) {
 
           // Tool use loop — Claude may call tools multiple times
           const MAX_TOOL_ROUNDS = 5;
+          let fullResponseText = "";
           for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             const stream = anthropic.messages.stream({
               model: "claude-sonnet-4-20250514",
@@ -349,6 +350,7 @@ export async function POST(request: Request) {
                 event.type === "content_block_delta" &&
                 event.delta.type === "text_delta"
               ) {
+                fullResponseText += event.delta.text;
                 const chunk = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
                 controller.enqueue(encoder.encode(chunk));
               }
@@ -464,6 +466,15 @@ export async function POST(request: Request) {
             });
 
             // Loop continues — Claude will process tool results and respond
+          }
+
+          // Background emotional reflection — fire and forget
+          const lastUserMsg = body.messages[body.messages.length - 1]?.content || "";
+          if (fullResponseText && lastUserMsg) {
+            const pageCtx = body.context?.page || "Dashboard";
+            reflectOnEmotions(lastUserMsg, fullResponseText, `Web (${pageCtx})`).catch((err) =>
+              console.error("Web chat emotion reflection error:", err)
+            );
           }
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));

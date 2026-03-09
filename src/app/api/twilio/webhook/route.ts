@@ -79,10 +79,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`SMS from Trey: "${body.substring(0, 50)}..."${images.length > 0 ? ` + ${images.length} image(s)` : ""}`);
+    // Image-only MMS needs fallback text for Claude
+    const messageText = body.trim()
+      ? body
+      : "What do you think of this?";
+
+    console.log(`SMS from Trey: "${messageText.substring(0, 50)}..."${images.length > 0 ? ` + ${images.length} image(s)` : ""}`);
 
     // Run through Ayden (shared core)
-    const response = await runAyden("SMS", body, images.length > 0 ? images : undefined);
+    const response = await runAyden("SMS", messageText, images.length > 0 ? images : undefined);
 
     // Truncate if needed
     const smsResponse = response.length > SMS_MAX_LENGTH
@@ -91,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     // Save the exchange to DB (note image attachments in stored message)
     const savedUserMsg = images.length > 0
-      ? `${body}${body ? " " : ""}[${images.length} image${images.length > 1 ? "s" : ""} attached]`
+      ? `${body.trim() || "[no caption]"} [${images.length} image${images.length > 1 ? "s" : ""} attached]`
       : body;
     await saveChannelExchange("SMS", savedUserMsg, smsResponse);
 

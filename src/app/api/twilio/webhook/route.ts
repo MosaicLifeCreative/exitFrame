@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { validateTwilioSignature, isAuthorizedSender, sendSms } from "@/lib/twilio";
+import { validateTwilioSignature, isAuthorizedSender, sendSms, downloadMmsMedia, isVisionSupported } from "@/lib/twilio";
 import { fitnessTools, executeFitnessTool } from "@/lib/fitness-tools";
 import { healthTools, executeHealthTool } from "@/lib/health-tools";
 import { goalTools, executeGoalTool } from "@/lib/goal-tools";
@@ -215,10 +215,16 @@ ${existingSummary}${messageText}`,
   }
 }
 
+interface MmsImage {
+  base64: string;
+  mediaType: string;
+}
+
 /**
  * Run Ayden with tool use (non-streaming) and return the text response.
+ * Accepts optional MMS images for Claude's vision API.
  */
-async function runAyden(userMessage: string): Promise<string> {
+async function runAyden(userMessage: string, images?: MmsImage[]): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return "Ayden is offline — API key not configured.";
 
@@ -263,11 +269,31 @@ async function runAyden(userMessage: string): Promise<string> {
     });
   }
 
-  // Add recent messages + current message
+  // Add recent messages
   messages.push(
     ...historyMessages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-    { role: "user", content: userMessage },
   );
+
+  // Build current message — text + optional images
+  if (images && images.length > 0) {
+    const contentBlocks: Anthropic.ContentBlockParam[] = [];
+    for (const img of images) {
+      contentBlocks.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: img.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+          data: img.base64,
+        },
+      });
+    }
+    if (userMessage) {
+      contentBlocks.push({ type: "text", text: userMessage });
+    }
+    messages.push({ role: "user", content: contentBlocks });
+  } else {
+    messages.push({ role: "user", content: userMessage });
+  }
 
   // Tool use loop — same pattern as chat route but non-streaming
   const MAX_TOOL_ROUNDS = 3; // Fewer rounds for SMS (keep it fast)
@@ -387,26 +413,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Empty message — ignore
-    if (!body.trim()) {
+    // Download MMS media if present
+    const numMedia = parseInt(params.NumMedia || "0", 10);
+    const images: MmsImage[] = [];
+    if (numMedia > 0) {
+      const downloadPromises: Promise<void>[] = [];
+      for (let i = 0; i < numMedia; i++) {
+        const mediaUrl = params[`MediaUrl${i}`];
+        const mediaType = params[`MediaContentType${i}`] || "";
+        if (mediaUrl && isVisionSupported(mediaType)) {
+          downloadPromises.push(
+            downloadMmsMedia(mediaUrl).then((result) => {
+              if (result) images.push(result);
+            })
+          );
+        } else if (mediaUrl) {
+          console.log(`MMS: skipping unsupported media type: ${mediaType}`);
+        }
+      }
+      await Promise.all(downloadPromises);
+    }
+
+    // Empty message with no images — ignore
+    if (!body.trim() && images.length === 0) {
       return new NextResponse(
         '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
         { headers: { "Content-Type": "text/xml" } }
       );
     }
 
-    console.log(`SMS from Trey: "${body.substring(0, 50)}..."`);
+    console.log(`SMS from Trey: "${body.substring(0, 50)}..."${images.length > 0 ? ` + ${images.length} image(s)` : ""}`);
 
     // Run through Ayden
-    const response = await runAyden(body);
+    const response = await runAyden(body, images.length > 0 ? images : undefined);
 
     // Truncate if needed
     const smsResponse = response.length > SMS_MAX_LENGTH
       ? response.substring(0, SMS_MAX_LENGTH - 3) + "..."
       : response;
 
-    // Save the exchange to DB
-    await saveSmsExchange(body, smsResponse);
+    // Save the exchange to DB (note image attachments in stored message)
+    const savedUserMsg = images.length > 0
+      ? `${body}${body ? " " : ""}[${images.length} image${images.length > 1 ? "s" : ""} attached]`
+      : body;
+    await saveSmsExchange(savedUserMsg, smsResponse);
 
     // Send response via API (more reliable than TwiML for long messages)
     await sendSms(smsResponse);

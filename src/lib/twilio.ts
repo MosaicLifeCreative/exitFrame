@@ -74,3 +74,66 @@ export function isAuthorizedSender(from: string): boolean {
 export function isTwilioConfigured(): boolean {
   return !!(accountSid && authToken && twilioNumber && myNumber);
 }
+
+/**
+ * Download MMS media from Twilio's CDN.
+ * Twilio media URLs require HTTP Basic Auth (accountSid:authToken).
+ * Returns base64-encoded image data and the media type.
+ */
+export async function downloadMmsMedia(
+  mediaUrl: string
+): Promise<{ base64: string; mediaType: string } | null> {
+  if (!accountSid || !authToken) return null;
+
+  try {
+    const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+    const res = await fetch(mediaUrl, {
+      headers: { Authorization: `Basic ${auth}` },
+      redirect: "follow",
+    });
+
+    if (!res.ok) {
+      console.error(`MMS download failed: HTTP ${res.status} for ${mediaUrl}`);
+      return null;
+    }
+
+    const contentType = res.headers.get("content-type") || "image/jpeg";
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const base64 = buffer.toString("base64");
+
+    return { base64, mediaType: contentType };
+  } catch (err) {
+    console.error("MMS download error:", err);
+    return null;
+  }
+}
+
+/** Supported image types for Claude vision */
+const VISION_MEDIA_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+
+export function isVisionSupported(mediaType: string): boolean {
+  return VISION_MEDIA_TYPES.has(mediaType);
+}
+
+/**
+ * Send an MMS (image + optional text) to Trey's phone number.
+ */
+export async function sendMms(
+  body: string,
+  mediaUrls: string[],
+  to?: string
+): Promise<string> {
+  const client = getClient();
+  const message = await client.messages.create({
+    body: body || "",
+    from: twilioNumber,
+    to: to || myNumber,
+    mediaUrl: mediaUrls,
+  });
+  return message.sid;
+}

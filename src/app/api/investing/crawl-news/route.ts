@@ -21,7 +21,8 @@ async function fetchFinnhubNews(ticker: string): Promise<FinnhubNewsItem[]> {
   if (!apiKey) throw new Error("FINNHUB_API_KEY not configured");
 
   const now = new Date();
-  const from = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 1 day back
+  // 3-day lookback so Monday catches Friday/weekend articles
+  const from = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
   const fromStr = from.toISOString().split("T")[0];
   const toStr = now.toISOString().split("T")[0];
 

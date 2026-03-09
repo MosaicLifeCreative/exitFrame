@@ -120,6 +120,6 @@ export function shouldCrawlNews(): boolean {
   // M-F only
   if (day === 0 || day === 6) return false;
 
-  // Crawl at market open (9), midday (12), and close (16)
-  return hours === 9 || hours === 12 || hours === 16;
+  // Crawl at market open (9), midday (12), close (16), and evening (19)
+  return hours === 9 || hours === 12 || hours === 16 || hours === 19;
 }

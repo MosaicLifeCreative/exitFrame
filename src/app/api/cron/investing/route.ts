@@ -49,8 +49,8 @@ async function runCron(request: NextRequest) {
 
   log.push(`Market open: ${marketOpen}, Close window: ${closeWindow}, Crawl time: ${crawlTime}`);
 
-  // If market is closed and not in close window, skip everything
-  if (!marketOpen && !closeWindow) {
+  // If market is closed, not in close window, AND not crawl time, skip everything
+  if (!marketOpen && !closeWindow && !crawlTime) {
     return NextResponse.json({ data: { message: "Market closed", log } });
   }
 

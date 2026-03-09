@@ -66,14 +66,19 @@ CRITICAL: Keep responses SHORT and punchy — under 300 characters when possible
 /**
  * Load recent SMS conversation history from the DB for context continuity.
  */
-async function getRecentSmsHistory(): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
+interface SmsHistory {
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  lastMessageAt: Date | null;
+}
+
+async function getRecentSmsHistory(): Promise<SmsHistory> {
   // Find or use the SMS conversation
   const conversation = await prisma.chatConversation.findFirst({
     where: { context: "SMS" },
     orderBy: { updatedAt: "desc" },
   });
 
-  if (!conversation) return [];
+  if (!conversation) return { messages: [], lastMessageAt: null };
 
   const messages = await prisma.chatMessage.findMany({
     where: { conversationId: conversation.id },
@@ -81,12 +86,15 @@ async function getRecentSmsHistory(): Promise<Array<{ role: "user" | "assistant"
     take: 10, // Last 5 exchanges
   });
 
-  return messages
-    .reverse()
-    .map((m) => ({
+  const lastMessageAt = messages.length > 0 ? messages[0].createdAt : null;
+
+  return {
+    messages: messages.reverse().map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
-    }));
+    })),
+    lastMessageAt,
+  };
 }
 
 /**
@@ -139,12 +147,33 @@ async function runAyden(userMessage: string): Promise<string> {
   if (!apiKey) return "Ayden is offline — API key not configured.";
 
   const anthropic = new Anthropic({ apiKey });
-  const systemPrompt = await buildSmsSystemPrompt();
-  const history = await getRecentSmsHistory();
+  let systemPrompt = await buildSmsSystemPrompt();
+  const { messages: historyMessages, lastMessageAt } = await getRecentSmsHistory();
   const tools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools];
 
+  // Inject conversation gap context
+  if (lastMessageAt) {
+    const gapMs = Date.now() - lastMessageAt.getTime();
+    const gapMinutes = Math.floor(gapMs / 60000);
+    let gapText: string;
+    if (gapMinutes < 2) {
+      gapText = "just seconds ago";
+    } else if (gapMinutes < 60) {
+      gapText = `${gapMinutes} minutes ago`;
+    } else if (gapMinutes < 1440) {
+      const hours = Math.floor(gapMinutes / 60);
+      gapText = `${hours} hour${hours > 1 ? "s" : ""} ago`;
+    } else {
+      const days = Math.floor(gapMinutes / 1440);
+      gapText = `${days} day${days > 1 ? "s" : ""} ago`;
+    }
+    systemPrompt += `\n\nYour last text exchange with Trey was ${gapText}. Respond naturally for that gap — don't re-introduce yourself if you were just talking.`;
+  } else {
+    systemPrompt += `\n\nThis is your first ever text conversation with Trey.`;
+  }
+
   const messages: Anthropic.MessageParam[] = [
-    ...history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    ...historyMessages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
     { role: "user", content: userMessage },
   ];
 

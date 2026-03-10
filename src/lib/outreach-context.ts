@@ -148,65 +148,15 @@ export async function getMarketContext(): Promise<string | null> {
   }
 }
 
-// ─── News Search (Brave Search API) ─────────────────────
-
-export async function getNewsContext(): Promise<string | null> {
-  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
-  if (!apiKey) return null;
-
-  try {
-    // Search for topics relevant to Trey's interests
-    // Rotate through different queries based on time
-    const hour = new Date().getHours();
-    const queries = [
-      "stock market news today",
-      "health fitness nutrition research",
-      "tech AI news today",
-      "swimming workout news",
-    ];
-    const query = queries[hour % queries.length];
-
-    const url = `https://api.search.brave.com/res/v1/news/search?q=${encodeURIComponent(query)}&count=5&freshness=pd`;
-    const res = await fetch(url, {
-      headers: {
-        "Accept": "application/json",
-        "Accept-Encoding": "gzip",
-        "X-Subscription-Token": apiKey,
-      },
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    const results = data.results || [];
-
-    if (results.length === 0) return null;
-
-    const headlines = results
-      .slice(0, 3)
-      .map((r: { title: string; description?: string }) =>
-        `- ${r.title}${r.description ? `: ${r.description.slice(0, 100)}` : ""}`
-      )
-      .join("\n");
-
-    return `Recent news (${query}):\n${headlines}`;
-  } catch (err) {
-    console.error("News context error:", err);
-    return null;
-  }
-}
-
 // ─── Combined External Context ──────────────────────────
 
 export async function getExternalContext(): Promise<string | null> {
-  const [weather, market, news] = await Promise.all([
+  const [weather, market] = await Promise.all([
     getWeatherContext(),
     getMarketContext(),
-    getNewsContext(),
   ]);
 
-  const sections = [weather, market, news].filter(Boolean);
+  const sections = [weather, market].filter(Boolean);
   if (sections.length === 0) return null;
 
   return `EXTERNAL CONTEXT (real-time data for outreach decisions):\n${sections.join("\n\n")}`;

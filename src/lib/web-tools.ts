@@ -3,6 +3,29 @@ import * as cheerio from "cheerio";
 
 export const webTools: Anthropic.Tool[] = [
   {
+    name: "web_search",
+    description:
+      "Search the internet using Brave Search. Use this when you need current information — stock news, weather, product research, current events, fact-checking, looking up people/companies, or anything you don't already know. Returns web results with titles, descriptions, and URLs. You can then use fetch_url to read the full content of any result.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description: "The search query",
+        },
+        count: {
+          type: "number",
+          description: "Number of results to return (default 5, max 10)",
+        },
+        freshness: {
+          type: "string",
+          description: "Filter by freshness: 'pd' (past day), 'pw' (past week), 'pm' (past month). Omit for no time filter.",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "fetch_url",
     description:
       "Fetch a URL and extract its readable text content. Use this when the user shares a link or asks you to read a webpage, article, swim meet results, product page, documentation, etc.",
@@ -24,12 +47,71 @@ export const webTools: Anthropic.Tool[] = [
   },
 ];
 
+interface WebSearchInput {
+  query: string;
+  count?: number;
+  freshness?: string;
+}
+
 interface FetchUrlInput {
   url: string;
   selector?: string;
 }
 
 const MAX_CONTENT_LENGTH = 6000; // chars to return to Claude
+
+async function webSearch(input: WebSearchInput): Promise<string> {
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+  if (!apiKey) {
+    return JSON.stringify({ error: "Web search is not configured (BRAVE_SEARCH_API_KEY missing)" });
+  }
+
+  const count = Math.min(input.count || 5, 10);
+  const params = new URLSearchParams({
+    q: input.query,
+    count: String(count),
+  });
+  if (input.freshness) {
+    params.set("freshness", input.freshness);
+  }
+
+  try {
+    const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
+      headers: {
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip",
+        "X-Subscription-Token": apiKey,
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!res.ok) {
+      return JSON.stringify({ error: `Brave Search API error: HTTP ${res.status}` });
+    }
+
+    const data = await res.json();
+    const results = (data.web?.results || []).slice(0, count);
+
+    if (results.length === 0) {
+      return JSON.stringify({ query: input.query, results: [], message: "No results found" });
+    }
+
+    const formatted = results.map((r: { title: string; url: string; description?: string; age?: string }) => ({
+      title: r.title,
+      url: r.url,
+      description: r.description?.slice(0, 200),
+      age: r.age,
+    }));
+
+    return JSON.stringify({ query: input.query, results: formatted });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      return JSON.stringify({ error: "Search timed out after 8 seconds" });
+    }
+    const msg = err instanceof Error ? err.message : "Unknown search error";
+    return JSON.stringify({ error: msg });
+  }
+}
 
 async function fetchUrl(input: FetchUrlInput): Promise<string> {
   const { url, selector } = input;
@@ -133,6 +215,8 @@ export async function executeWebTool(
   toolInput: Record<string, unknown>
 ): Promise<string> {
   switch (toolName) {
+    case "web_search":
+      return webSearch(toolInput as unknown as WebSearchInput);
     case "fetch_url":
       return fetchUrl(toolInput as unknown as FetchUrlInput);
     default:

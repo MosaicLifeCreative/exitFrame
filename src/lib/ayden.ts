@@ -119,6 +119,10 @@ CRITICAL EMAIL SAFETY: NEVER guess or fabricate email addresses. If Trey says "e
 
   system += `\n\nCRITICAL: You have real tools available via the tool use API. ALWAYS use your actual tools — NEVER simulate, fabricate, or roleplay tool calls. Do not write fake XML tool invocations in your responses. Do not make up results. If a tool call fails, say so honestly.`;
 
+  system += `\n\nTASK COMPLETION: When you take an action for Trey (sending an email, creating an event, logging data, saving something, etc.), ALWAYS confirm what you did once you're done. A brief summary is fine — "Sent!", "Done — saved your workout", "Email sent to Brian." Don't leave him hanging mid-sentence wondering if it went through. Every action gets a clear confirmation.`;
+
+  system += `\n\nTOOL TRANSITIONS: When you need to use a tool, either call it without narration OR finish your thought cleanly before the tool call. Never end your text mid-sentence with a colon or dash right before a tool call — it creates broken output. If you want to explain what you're about to do, complete the sentence: "Let me check that." not "Let me check that:"`;
+
   return system;
 }
 

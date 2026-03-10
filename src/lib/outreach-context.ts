@@ -18,46 +18,23 @@ export async function getWeatherContext(): Promise<string | null> {
   if (!apiKey) return null;
 
   try {
-    // Columbus, OH (Trey's location)
+    // Columbus, OH (Trey's location) — use 2.5 API (free tier)
     const lat = 39.9612;
     const lon = -82.9988;
-    const url = `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&units=imperial&exclude=minutely,hourly&appid=${apiKey}`;
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`;
 
     const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) {
-      // Fall back to 2.5 API (free tier)
-      const fallbackUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`;
-      const fallbackRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(5000) });
-      if (!fallbackRes.ok) return null;
-
-      const data = await fallbackRes.json();
-      const weather: WeatherData = {
-        temp: Math.round(data.main.temp),
-        feelsLike: Math.round(data.main.feels_like),
-        description: data.weather?.[0]?.description || "unknown",
-        windMph: Math.round(data.wind?.speed || 0),
-        humidity: data.main.humidity,
-        high: Math.round(data.main.temp_max),
-        low: Math.round(data.main.temp_min),
-      };
-
-      return formatWeather(weather);
-    }
+    if (!res.ok) return null;
 
     const data = await res.json();
-    const current = data.current;
-    const today = data.daily?.[0];
-    const alerts = data.alerts?.map((a: { event: string }) => a.event) || [];
-
     const weather: WeatherData = {
-      temp: Math.round(current.temp),
-      feelsLike: Math.round(current.feels_like),
-      description: current.weather?.[0]?.description || "unknown",
-      windMph: Math.round(current.wind_speed || 0),
-      humidity: current.humidity,
-      high: Math.round(today?.temp?.max || current.temp),
-      low: Math.round(today?.temp?.min || current.temp),
-      alerts: alerts.length > 0 ? alerts : undefined,
+      temp: Math.round(data.main.temp),
+      feelsLike: Math.round(data.main.feels_like),
+      description: data.weather?.[0]?.description || "unknown",
+      windMph: Math.round(data.wind?.speed || 0),
+      humidity: data.main.humidity,
+      high: Math.round(data.main.temp_max),
+      low: Math.round(data.main.temp_min),
     };
 
     return formatWeather(weather);

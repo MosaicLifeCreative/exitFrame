@@ -91,98 +91,73 @@ async function getWeather(input: WeatherInput): Promise<string> {
   }
 
   try {
-    // Try OneCall 3.0 first
-    const url = `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&units=imperial&exclude=minutely&appid=${apiKey}`;
-    let res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    // Current weather + 5-day forecast (free tier 2.5 API)
+    const [currentRes, forecastRes] = await Promise.all([
+      fetch(
+        `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`,
+        { signal: AbortSignal.timeout(8000) }
+      ),
+      fetch(
+        `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`,
+        { signal: AbortSignal.timeout(8000) }
+      ),
+    ]);
 
-    if (!res.ok) {
-      // Fall back to 2.5 API (free tier)
-      const fallbackUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`;
-      res = await fetch(fallbackUrl, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) {
-        return JSON.stringify({ error: `Weather API error: HTTP ${res.status}` });
-      }
-
-      const data = await res.json();
-      return JSON.stringify({
-        success: true,
-        location: locationName,
-        current: {
-          temp: Math.round(data.main.temp),
-          feelsLike: Math.round(data.main.feels_like),
-          description: data.weather?.[0]?.description || "unknown",
-          windMph: Math.round(data.wind?.speed || 0),
-          humidity: data.main.humidity,
-          high: Math.round(data.main.temp_max),
-          low: Math.round(data.main.temp_min),
-          pressure: data.main.pressure,
-          visibility: data.visibility ? Math.round(data.visibility / 1609) : undefined, // meters to miles
-        },
-      });
+    if (!currentRes.ok) {
+      return JSON.stringify({ error: `Weather API error: HTTP ${currentRes.status}` });
     }
 
-    const data = await res.json();
-    const current = data.current;
-    const today = data.daily?.[0];
-    const alerts = data.alerts?.map((a: { event: string; description: string }) => ({
-      event: a.event,
-      description: a.description?.slice(0, 200),
-    })) || [];
+    const currentData = await currentRes.json();
+    const current = {
+      temp: Math.round(currentData.main.temp),
+      feelsLike: Math.round(currentData.main.feels_like),
+      description: currentData.weather?.[0]?.description || "unknown",
+      windMph: Math.round(currentData.wind?.speed || 0),
+      humidity: currentData.main.humidity,
+      high: Math.round(currentData.main.temp_max),
+      low: Math.round(currentData.main.temp_min),
+      pressure: currentData.main.pressure,
+      visibility: currentData.visibility ? Math.round(currentData.visibility / 1609) : undefined,
+    };
 
-    // Build hourly forecast (next 12 hours)
-    const hourly = (data.hourly || []).slice(0, 12).map((h: {
-      dt: number;
-      temp: number;
-      weather: { description: string }[];
-      pop: number;
-    }) => ({
-      time: new Date(h.dt * 1000).toLocaleTimeString("en-US", {
-        hour: "numeric",
-        timeZone: "America/New_York",
-      }),
-      temp: Math.round(h.temp),
-      description: h.weather?.[0]?.description,
-      precipChance: Math.round((h.pop || 0) * 100),
-    }));
+    // Parse 5-day / 3-hour forecast into daily summaries
+    let daily: { day: string; high: number; low: number; description: string; precipChance: number; windMph: number }[] = [];
+    if (forecastRes.ok) {
+      const forecastData = await forecastRes.json();
+      const dayMap = new Map<string, { temps: number[]; descriptions: string[]; pops: number[]; winds: number[] }>();
 
-    // Build daily forecast (next 5 days)
-    const daily = (data.daily || []).slice(0, 5).map((d: {
-      dt: number;
-      temp: { max: number; min: number };
-      weather: { description: string }[];
-      pop: number;
-      wind_speed: number;
-    }) => ({
-      day: new Date(d.dt * 1000).toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        timeZone: "America/New_York",
-      }),
-      high: Math.round(d.temp.max),
-      low: Math.round(d.temp.min),
-      description: d.weather?.[0]?.description,
-      precipChance: Math.round((d.pop || 0) * 100),
-      windMph: Math.round(d.wind_speed || 0),
-    }));
+      for (const entry of forecastData.list || []) {
+        const dayKey = new Date(entry.dt * 1000).toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          timeZone: "America/New_York",
+        });
+        if (!dayMap.has(dayKey)) {
+          dayMap.set(dayKey, { temps: [], descriptions: [], pops: [], winds: [] });
+        }
+        const d = dayMap.get(dayKey)!;
+        d.temps.push(entry.main.temp);
+        if (entry.weather?.[0]?.description) d.descriptions.push(entry.weather[0].description);
+        d.pops.push(entry.pop || 0);
+        d.winds.push(entry.wind?.speed || 0);
+      }
+
+      daily = Array.from(dayMap.entries()).slice(0, 5).map(([day, d]) => ({
+        day,
+        high: Math.round(Math.max(...d.temps)),
+        low: Math.round(Math.min(...d.temps)),
+        description: d.descriptions[Math.floor(d.descriptions.length / 2)] || "unknown",
+        precipChance: Math.round(Math.max(...d.pops) * 100),
+        windMph: Math.round(Math.max(...d.winds)),
+      }));
+    }
 
     return JSON.stringify({
       success: true,
       location: locationName,
-      current: {
-        temp: Math.round(current.temp),
-        feelsLike: Math.round(current.feels_like),
-        description: current.weather?.[0]?.description || "unknown",
-        windMph: Math.round(current.wind_speed || 0),
-        humidity: current.humidity,
-        high: Math.round(today?.temp?.max || current.temp),
-        low: Math.round(today?.temp?.min || current.temp),
-        uvIndex: current.uvi,
-        dewPoint: Math.round(current.dew_point || 0),
-      },
-      alerts: alerts.length > 0 ? alerts : undefined,
-      hourly,
-      daily,
+      current,
+      daily: daily.length > 0 ? daily : undefined,
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === "TimeoutError") {

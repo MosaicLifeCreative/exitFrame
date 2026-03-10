@@ -300,7 +300,11 @@ export async function runAyden(
   const anthropic = new Anthropic({ apiKey });
   let systemPrompt = await buildMessagingSystemPrompt(channel);
   const { messages: historyMessages, lastMessageAt, summary } = await getChannelHistory(channel);
-  const tools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...emotionTools, ...googleTools, ...webTools];
+  // Haiku gets ALL tools (including memory/emotion for background housekeeping)
+  const allTools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...emotionTools, ...googleTools, ...webTools];
+  // Sonnet gets only ACTION tools — no memory/emotion (Haiku handles those in Phase 1)
+  // This prevents Sonnet from burning all its rounds saving memories instead of responding
+  const sonnetTools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...googleTools, ...webTools];
 
   // Inject conversation gap context
   if (lastMessageAt) {
@@ -388,7 +392,7 @@ export async function runAyden(
       max_tokens: 1024,
       system: systemPrompt,
       messages,
-      tools,
+      tools: allTools,
     });
 
     if (response.stop_reason !== "tool_use") {
@@ -433,7 +437,7 @@ export async function runAyden(
       max_tokens: channel === "SMS" ? 1024 : 2048,
       system: systemPrompt,
       messages,
-      tools,
+      tools: sonnetTools,
     });
 
     // Collect any text from this response

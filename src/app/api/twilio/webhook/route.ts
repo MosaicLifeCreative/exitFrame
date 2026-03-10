@@ -4,8 +4,10 @@ import { runAyden, saveChannelExchange } from "@/lib/ayden";
 import type { AydenImage } from "@/lib/ayden";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const SMS_MAX_LENGTH = 1500;
+const SAFETY_TIMEOUT_MS = 50_000; // 50s — leaves 10s buffer before Vercel's 60s kill
 
 /**
  * POST handler for Twilio SMS webhook.
@@ -86,8 +88,29 @@ export async function POST(request: NextRequest) {
 
     console.log(`SMS from Trey: "${messageText.substring(0, 50)}..."${images.length > 0 ? ` + ${images.length} image(s)` : ""}`);
 
-    // Run through Ayden (shared core)
-    const response = await runAyden("SMS", messageText, images.length > 0 ? images : undefined);
+    // Race Ayden against a safety timer (same pattern as Slack)
+    const emptyTwiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+    let safetyFired = false;
+
+    const response = await Promise.race([
+      runAyden("SMS", messageText, images.length > 0 ? images : undefined),
+      new Promise<null>((resolve) =>
+        setTimeout(async () => {
+          safetyFired = true;
+          console.warn("SMS: safety timer fired — sending timeout message before Vercel kills the function");
+          try {
+            await sendSms("That's taking me longer than usual and I'm about to get cut off. Try again — or simplify the question.");
+          } catch (err) {
+            console.error("Failed to send safety timeout SMS:", err);
+          }
+          resolve(null);
+        }, SAFETY_TIMEOUT_MS)
+      ),
+    ]);
+
+    if (safetyFired || response === null) {
+      return new NextResponse(emptyTwiml, { headers: { "Content-Type": "text/xml" } });
+    }
 
     // Truncate if needed
     const smsResponse = response.length > SMS_MAX_LENGTH
@@ -104,15 +127,23 @@ export async function POST(request: NextRequest) {
     await sendSms(smsResponse);
 
     // Return empty TwiML (we already sent the response via API)
-    return new NextResponse(
-      '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
-      { headers: { "Content-Type": "text/xml" } }
-    );
+    return new NextResponse(emptyTwiml, { headers: { "Content-Type": "text/xml" } });
   } catch (error) {
     console.error("Twilio webhook error:", error);
+    const errMsg = error instanceof Error ? error.message : String(error);
+
+    // Context-aware error messages (matching Slack's approach)
+    let userErrorMsg = "Something went wrong on my end. Try again in a sec.";
+    if (errMsg.includes("timeout") || errMsg.includes("FUNCTION_INVOCATION_TIMEOUT")) {
+      userErrorMsg = "That took too long and timed out. Try a simpler question or try again.";
+    } else if (errMsg.includes("429") || errMsg.includes("rate")) {
+      userErrorMsg = "I'm being rate-limited right now. Give me a minute and try again.";
+    } else if (errMsg.includes("500") || errMsg.includes("529") || errMsg.includes("overloaded")) {
+      userErrorMsg = "The AI service is having issues right now. Try again in a bit.";
+    }
 
     try {
-      await sendSms("Something went wrong on my end. Try again in a sec.");
+      await sendSms(userErrorMsg);
     } catch {
       // Can't even send error SMS — just log
     }

@@ -76,8 +76,49 @@ async function downloadSlackFile(
 }
 
 /**
+ * Race Ayden against a safety timer. On Vercel Hobby (60s hard cap),
+ * waitUntil background work gets killed silently — no catch block fires.
+ * This ensures Trey always gets a response before the function dies.
+ */
+const SAFETY_TIMEOUT_MS = 50_000; // 50s — leaves 10s buffer before Vercel's 60s kill
+
+function withSafetyTimer<T>(
+  work: Promise<T>,
+  onTimeout: () => Promise<void>
+): Promise<{ result: T; timedOut: false } | { timedOut: true }> {
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const timer = setTimeout(async () => {
+      if (!settled) {
+        settled = true;
+        await onTimeout();
+        resolve({ timedOut: true });
+      }
+    }, SAFETY_TIMEOUT_MS);
+
+    work
+      .then((result) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve({ result, timedOut: false });
+        }
+      })
+      .catch(() => {
+        // Let the outer catch in processSlackMessage handle real errors
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+        }
+      });
+  });
+}
+
+/**
  * Process a Slack message in the background (via waitUntil).
  * Downloads images, runs Ayden, sends the response back to Slack.
+ * Includes a safety timer to send a fallback message before Vercel's 60s kill.
  */
 async function processSlackMessage(
   text: string,
@@ -129,7 +170,27 @@ async function processSlackMessage(
       console.log(`Slack: sending ${images.length} image(s) to Ayden — sizes: ${images.map((img) => `${(img.base64.length * 0.75 / 1024).toFixed(0)}KB (${img.mediaType})`).join(", ")}`);
     }
 
-    const response = await runAyden("Slack", messageText, images.length > 0 ? images : undefined);
+    // Race Ayden against the safety timer
+    const race = await withSafetyTimer(
+      runAyden("Slack", messageText, images.length > 0 ? images : undefined),
+      async () => {
+        console.warn("Slack: safety timer fired — sending timeout message before Vercel kills the function");
+        try {
+          await sendSlackMessage(
+            channel,
+            "That's taking me longer than usual and I'm about to get cut off. Try again — or if it was a heavy question, break it into smaller pieces."
+          );
+        } catch (err) {
+          console.error("Failed to send safety timeout message:", err);
+        }
+      }
+    );
+
+    if (race.timedOut) {
+      return; // Safety message already sent, nothing more we can do
+    }
+
+    const response = race.result;
 
     const slackResponse = response.length > 4000
       ? response.substring(0, 3997) + "..."

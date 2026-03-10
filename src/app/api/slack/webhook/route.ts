@@ -86,7 +86,7 @@ function withSafetyTimer<T>(
   work: Promise<T>,
   onTimeout: () => Promise<void>
 ): Promise<{ result: T; timedOut: false } | { timedOut: true }> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let settled = false;
 
     const timer = setTimeout(async () => {
@@ -105,11 +105,11 @@ function withSafetyTimer<T>(
           resolve({ result, timedOut: false });
         }
       })
-      .catch(() => {
-        // Let the outer catch in processSlackMessage handle real errors
+      .catch((err) => {
         if (!settled) {
           settled = true;
           clearTimeout(timer);
+          reject(err); // Propagate to outer catch in processSlackMessage
         }
       });
   });

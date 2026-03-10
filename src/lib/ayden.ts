@@ -444,6 +444,9 @@ export async function runAyden(
     // If Sonnet wants to use tools, execute them and continue
     if (finalResponse.stop_reason === "tool_use") {
       const toolBlocks = finalResponse.content.filter((b) => b.type === "tool_use");
+      const toolNames = toolBlocks.map((b) => b.type === "tool_use" ? b.name : "?").join(", ");
+      console.log(`Ayden (${channel}) Sonnet round ${round + 1}/${MAX_SONNET_TOOL_ROUNDS}: tools=[${toolNames}], text so far: ${finalText.length} chars, stop=${finalResponse.stop_reason}`);
+
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
       for (const block of toolBlocks) {
@@ -451,7 +454,6 @@ export async function runAyden(
         try {
           const result = await executeTool(block.name, block.input as Record<string, unknown>);
           toolResults.push({ type: "tool_result", tool_use_id: block.id, content: result });
-          console.log(`Ayden (${channel}) Sonnet tool: ${block.name}`);
         } catch (err) {
           console.error(`${channel} Sonnet tool ${block.name} error:`, err);
           toolResults.push({
@@ -465,9 +467,26 @@ export async function runAyden(
 
       messages.push({ role: "assistant", content: finalResponse.content });
       messages.push({ role: "user", content: toolResults });
+
+      // If this is the last round and we still have no text, the next iteration won't happen.
+      // Force one more call without tools to get a text response.
+      if (round === MAX_SONNET_TOOL_ROUNDS - 1 && !finalText) {
+        console.warn(`Ayden (${channel}): Sonnet used all ${MAX_SONNET_TOOL_ROUNDS} tool rounds without producing text — forcing text-only call`);
+        const forceText = await anthropic.messages.create({
+          model: RESPONSE_MODEL,
+          max_tokens: channel === "SMS" ? 1024 : 2048,
+          system: systemPrompt,
+          messages,
+        });
+        for (const block of forceText.content) {
+          if (block.type === "text") finalText += block.text;
+        }
+      }
+
       continue; // Loop for Sonnet to generate text after tool results
     }
 
+    console.log(`Ayden (${channel}) Sonnet round ${round + 1}: stop=${finalResponse.stop_reason}, text: ${finalText.length} chars`);
     break; // stop_reason is "end_turn" — we have the final text
   }
 

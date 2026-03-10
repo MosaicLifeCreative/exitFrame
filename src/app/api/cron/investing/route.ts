@@ -3,6 +3,7 @@ import { Receiver } from "@upstash/qstash";
 import { fetchAndStoreQuotes, isMarketOpen, isMarketCloseWindow, shouldCrawlNews } from "@/lib/investing/quotes";
 import { evaluateTrades, executeTrades, getAllTradableTickers } from "@/lib/investing/aiTrader";
 import { takePortfolioSnapshots } from "@/lib/investing/snapshots";
+import { crawlNews } from "@/lib/investing/newsCrawler";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -41,7 +42,7 @@ async function verifyRequest(request: NextRequest): Promise<boolean> {
   return false;
 }
 
-async function runCron(request: NextRequest) {
+async function runCron() {
   const log: string[] = [];
   const marketOpen = isMarketOpen();
   const closeWindow = isMarketCloseWindow();
@@ -63,19 +64,8 @@ async function runCron(request: NextRequest) {
     // Step 2: News crawl (3x/day: open, midday, close)
     if (crawlTime) {
       try {
-        const baseUrl = request.headers.get("x-forwarded-proto") && request.headers.get("x-forwarded-host")
-          ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get("x-forwarded-host")}`
-          : new URL(request.url).origin;
-
-        const crawlRes = await fetch(`${baseUrl}/api/investing/crawl-news`, {
-          method: "POST",
-        });
-        if (crawlRes.ok) {
-          const crawlData = await crawlRes.json();
-          log.push(`News crawl: ${crawlData.data?.fetched || 0} fetched, ${crawlData.data?.analyzed || 0} analyzed`);
-        } else {
-          log.push(`News crawl failed: ${crawlRes.status}`);
-        }
+        const crawlResult = await crawlNews();
+        log.push(`News crawl: ${crawlResult.fetched} fetched, ${crawlResult.stored} stored, ${crawlResult.analyzed} analyzed`);
       } catch (err) {
         log.push(`News crawl error: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -130,7 +120,7 @@ export async function GET(request: NextRequest) {
   if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return runCron(request);
+  return runCron();
 }
 
 // POST: QStash hourly schedule
@@ -139,5 +129,5 @@ export async function POST(request: NextRequest) {
   if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return runCron(request);
+  return runCron();
 }

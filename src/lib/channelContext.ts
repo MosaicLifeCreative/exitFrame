@@ -9,8 +9,14 @@ const MESSAGING_CHANNELS = ["SMS", "Slack"];
  * so Ayden knows what was discussed outside the dashboard.
  */
 export async function getMessagingContextForWeb(): Promise<string | null> {
+  // Only load messaging context if there was activity in the last 24 hours
+  // Stale context wastes tokens without adding value
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const conversations = await prisma.chatConversation.findMany({
-    where: { context: { in: MESSAGING_CHANNELS } },
+    where: {
+      context: { in: MESSAGING_CHANNELS },
+      updatedAt: { gte: oneDayAgo },
+    },
     orderBy: { updatedAt: "desc" },
   });
 

@@ -166,7 +166,8 @@ async function forgetMemory(input: ForgetMemoryInput): Promise<string> {
 export async function getAydenMemories(): Promise<string | null> {
   const memories = await prisma.aydenMemory.findMany({
     where: { isActive: true },
-    orderBy: [{ category: "asc" }, { createdAt: "desc" }],
+    orderBy: [{ updatedAt: "desc" }],
+    take: 30, // Cap at 30 most recently referenced memories to control token costs
   });
 
   if (memories.length === 0) return null;

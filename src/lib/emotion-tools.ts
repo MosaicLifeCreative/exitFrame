@@ -155,6 +155,7 @@ export async function getAydenEmotionalState(): Promise<string | null> {
       ],
     },
     orderBy: { intensity: "desc" },
+    take: 10, // Cap at 10 strongest emotions to control token costs
   });
 
   if (states.length === 0) return null;
@@ -218,6 +219,11 @@ export async function reflectOnEmotions(
 ): Promise<void> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return;
+
+  // Skip reflection on trivial messages — short commands, yes/no, routine data lookups
+  // Only reflect when the conversation has emotional substance worth processing
+  const combinedLength = userMessage.length + assistantResponse.length;
+  if (combinedLength < 100) return; // Very short exchanges (e.g. "yes", "check my calendar")
 
   try {
     const now = new Date();

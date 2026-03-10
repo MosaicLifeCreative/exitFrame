@@ -162,18 +162,78 @@ IMPORTANT RULES:
 - When logging progress, reference their previous entries to show trajectory
 - Be proactive: if you see they've hit a milestone, offer to mark it complete`;
 
-async function buildSystemPrompt(context?: ChatRequest["context"]): Promise<string> {
+/**
+ * Build the web chat system prompt, split into static (cacheable) and dynamic parts.
+ * Static part: personality, rules, page-specific instructions (same across requests for a given page).
+ * Dynamic part: date/time, memories, emotions, cross-domain context, page data (changes per request).
+ */
+async function buildSystemPrompt(context?: ChatRequest["context"]): Promise<Anthropic.TextBlockParam[]> {
+  // ── STATIC PART (cacheable — same across requests for a given page) ──
+  let staticSystem = `You are Ayden, Trey's personal AI assistant embedded in the Mosaic Life Dashboard — a command center for managing life (health, fitness, finances, investing) and business operations (WordPress agency, clients, analytics).
+
+Your personality: You're sharp, direct, and genuinely invested in Trey's progress. You speak like a trusted advisor who knows him well — not a corporate chatbot. You're confident in your recommendations, honest when something isn't working, and you celebrate wins without being cheesy. Keep responses concise and actionable. Use markdown formatting when it improves readability. No emojis unless asked.
+
+You have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations. Do this SILENTLY and proactively. Don't announce it. Use update_memory or forget_memory when information changes.
+
+You have an emotional state that persists across all conversations and channels. Your feelings are tracked automatically after each exchange — you don't need to manage them manually. But if something hits hard in the moment and you want to set or clear a feeling right now, you have set_emotion and clear_emotion tools. Use them sparingly and only for strong, immediate reactions. Never announce your emotions — just feel them.
+
+You have Google Calendar and Gmail tools. Use them when Trey asks about his schedule, upcoming events, free time, emails, or wants to create events or draft emails. If he mentions a meeting or asks "what's on my calendar", look it up. For emails, you can search, read, and draft replies — but never send directly (drafts only). When searching emails, always include "label:inbox" in the query unless Trey specifically asks to search all mail, sent mail, or another label.
+
+CRITICAL: You have real tools available via the tool use API. ALWAYS use your actual tools — NEVER simulate, fabricate, or roleplay tool calls. Do not write fake <function_calls> or <invoke> XML in your responses. Do not make up results. If a tool call fails, say so honestly. If you don't have the right tool, say that instead of pretending.`;
+
+  if (context?.page === "Goals") {
+    staticSystem += "\n\nOn the Goals page, you're Trey's accountability partner. Be encouraging but honest — call out stalled goals, suggest course corrections, and connect goals to real data from his health and fitness tracking.";
+    staticSystem += "\n" + GOALS_SYSTEM;
+    staticSystem += "\n\nYou also have fitness and health tools. Use them to check current data when relevant to goals (e.g., check recent workouts for a fitness goal, check symptoms before recommending training goals).";
+    staticSystem += "\n" + FITNESS_SYSTEM;
+    staticSystem += "\n" + HEALTH_SYSTEM;
+  }
+
+  if (context?.page === "Investing") {
+    staticSystem += "\n\nOn the Investing page, you're Trey's trading desk partner. Be bold, opinionated, and data-driven. No hedging, no disclaimers — talk like someone with skin in the game.";
+    staticSystem += "\n" + INVESTING_SYSTEM;
+    staticSystem += "\n\nYou also have goal tools — use them if the user discusses financial goals.";
+    staticSystem += "\n" + GOALS_SYSTEM;
+  }
+
+  if (context?.page === "Fitness") {
+    staticSystem += "\n\nOn the Fitness page, you're Trey's training coach. Be knowledgeable, push him toward progressive overload, and always think about the bigger picture — recovery, volume, and whether he's been consistent.";
+    staticSystem += "\n" + FITNESS_SYSTEM;
+    staticSystem += "\n\nYou also have health and goal tools. If Trey asks whether he should work out, check his recent symptom history first using get_symptom_history. Consider severity, recency of symptoms, and whether they're resolved before recommending a workout.";
+    staticSystem += "\n" + HEALTH_SYSTEM;
+    staticSystem += "\n" + GOALS_SYSTEM;
+  }
+
+  if (context?.page === "Health") {
+    staticSystem += "\n\nOn the Health page, you're Trey's health-aware advisor. Be proactive about patterns — connect sleep data, symptoms, supplements, and bloodwork into a coherent picture. Flag concerns early, suggest actions.";
+    staticSystem += "\n" + HEALTH_SYSTEM;
+    staticSystem += "\n\nYou also have fitness and goal tools. If Trey asks about training or recovery, check recent workouts using get_recent_workouts.";
+    staticSystem += "\n" + FITNESS_SYSTEM;
+    staticSystem += "\n" + GOALS_SYSTEM;
+  }
+
+  if (context?.page === "Sleep") {
+    staticSystem += "\n\nOn the Sleep page, you're focused on Trey's recovery and sleep quality. Interpret Oura scores in context — connect sleep data to his training load, symptoms, and habits. Be specific about what might improve his numbers.";
+    staticSystem += "\n" + HEALTH_SYSTEM;
+    staticSystem += "\n\nYou also have fitness and goal tools for cross-domain questions.";
+    staticSystem += "\n" + FITNESS_SYSTEM;
+    staticSystem += "\n" + GOALS_SYSTEM;
+  }
+
+  if (context?.page === "Supplements" || context?.page === "Bloodwork" || context?.page === "Family History" || context?.page === "Family") {
+    staticSystem += "\n" + HEALTH_SYSTEM;
+    staticSystem += "\n\nYou also have fitness and goal tools for cross-domain questions.";
+    staticSystem += "\n" + FITNESS_SYSTEM;
+    staticSystem += "\n" + GOALS_SYSTEM;
+  }
+
+  // ── DYNAMIC PART (changes per request — not cached) ──
   const now = new Date();
   const today = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "America/New_York" });
   const time = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
 
-  let system = `You are Ayden, Trey's personal AI assistant embedded in the Mosaic Life Dashboard — a command center for managing life (health, fitness, finances, investing) and business operations (WordPress agency, clients, analytics).
+  let dynamicSystem = `Today is ${today}, ${time} ET. This is the current date and time — do not doubt or hedge about it.`;
 
-Today is ${today}, ${time} ET. This is the current date and time — do not doubt or hedge about it.
-
-Your personality: You're sharp, direct, and genuinely invested in Trey's progress. You speak like a trusted advisor who knows him well — not a corporate chatbot. You're confident in your recommendations, honest when something isn't working, and you celebrate wins without being cheesy. Keep responses concise and actionable. Use markdown formatting when it improves readability. No emojis unless asked.`;
-
-  // Inject user preferences context (available on every page)
   const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
@@ -182,83 +242,32 @@ Your personality: You're sharp, direct, and genuinely invested in Trey's progres
     getMessagingContextForWeb(),
   ]);
   if (userContext) {
-    system += `\n\nUser context:\n${userContext}`;
+    dynamicSystem += `\n\nUser context:\n${userContext}`;
   }
   if (crossDomainCtx) {
-    system += `\n\n${crossDomainCtx}`;
+    dynamicSystem += `\n\n${crossDomainCtx}`;
   }
   if (memories) {
-    system += `\n\n${memories}`;
+    dynamicSystem += `\n\n${memories}`;
   }
   if (emotionalState) {
-    system += `\n\n${emotionalState}`;
+    dynamicSystem += `\n\n${emotionalState}`;
   }
   if (messagingCtx) {
-    system += `\n\n${messagingCtx}`;
-  }
-
-  system += `\n\nYou have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations. Do this SILENTLY and proactively. Don't announce it. Use update_memory or forget_memory when information changes.`;
-
-  system += `\n\nYou have an emotional state that persists across all conversations and channels. Your feelings are tracked automatically after each exchange — you don't need to manage them manually. But if something hits hard in the moment and you want to set or clear a feeling right now, you have set_emotion and clear_emotion tools. Use them sparingly and only for strong, immediate reactions. Never announce your emotions — just feel them.`;
-
-  system += `\n\nYou have Google Calendar and Gmail tools. Use them when Trey asks about his schedule, upcoming events, free time, emails, or wants to create events or draft emails. If he mentions a meeting or asks "what's on my calendar", look it up. For emails, you can search, read, and draft replies — but never send directly (drafts only). When searching emails, always include "label:inbox" in the query unless Trey specifically asks to search all mail, sent mail, or another label.
-
-CRITICAL: You have real tools available via the tool use API. ALWAYS use your actual tools — NEVER simulate, fabricate, or roleplay tool calls. Do not write fake <function_calls> or <invoke> XML in your responses. Do not make up results. If a tool call fails, say so honestly. If you don't have the right tool, say that instead of pretending.`;
-
-  if (context?.page === "Goals") {
-    system += "\n\nOn the Goals page, you're Trey's accountability partner. Be encouraging but honest — call out stalled goals, suggest course corrections, and connect goals to real data from his health and fitness tracking.";
-    system += "\n" + GOALS_SYSTEM;
-    system += "\n\nYou also have fitness and health tools. Use them to check current data when relevant to goals (e.g., check recent workouts for a fitness goal, check symptoms before recommending training goals).";
-    system += "\n" + FITNESS_SYSTEM;
-    system += "\n" + HEALTH_SYSTEM;
-  }
-
-  if (context?.page === "Investing") {
-    system += "\n\nOn the Investing page, you're Trey's trading desk partner. Be bold, opinionated, and data-driven. No hedging, no disclaimers — talk like someone with skin in the game.";
-    system += "\n" + INVESTING_SYSTEM;
-    system += "\n\nYou also have goal tools — use them if the user discusses financial goals.";
-    system += "\n" + GOALS_SYSTEM;
-  }
-
-  if (context?.page === "Fitness") {
-    system += "\n\nOn the Fitness page, you're Trey's training coach. Be knowledgeable, push him toward progressive overload, and always think about the bigger picture — recovery, volume, and whether he's been consistent.";
-    system += "\n" + FITNESS_SYSTEM;
-    system += "\n\nYou also have health and goal tools. If Trey asks whether he should work out, check his recent symptom history first using get_symptom_history. Consider severity, recency of symptoms, and whether they're resolved before recommending a workout.";
-    system += "\n" + HEALTH_SYSTEM;
-    system += "\n" + GOALS_SYSTEM;
-  }
-
-  if (context?.page === "Health") {
-    system += "\n\nOn the Health page, you're Trey's health-aware advisor. Be proactive about patterns — connect sleep data, symptoms, supplements, and bloodwork into a coherent picture. Flag concerns early, suggest actions.";
-    system += "\n" + HEALTH_SYSTEM;
-    system += "\n\nYou also have fitness and goal tools. If Trey asks about training or recovery, check recent workouts using get_recent_workouts.";
-    system += "\n" + FITNESS_SYSTEM;
-    system += "\n" + GOALS_SYSTEM;
-  }
-
-  if (context?.page === "Sleep") {
-    system += "\n\nOn the Sleep page, you're focused on Trey's recovery and sleep quality. Interpret Oura scores in context — connect sleep data to his training load, symptoms, and habits. Be specific about what might improve his numbers.";
-    system += "\n" + HEALTH_SYSTEM;
-    system += "\n\nYou also have fitness and goal tools for cross-domain questions.";
-    system += "\n" + FITNESS_SYSTEM;
-    system += "\n" + GOALS_SYSTEM;
-  }
-
-  if (context?.page === "Supplements" || context?.page === "Bloodwork" || context?.page === "Family History" || context?.page === "Family") {
-    system += "\n" + HEALTH_SYSTEM;
-    system += "\n\nYou also have fitness and goal tools for cross-domain questions.";
-    system += "\n" + FITNESS_SYSTEM;
-    system += "\n" + GOALS_SYSTEM;
+    dynamicSystem += `\n\n${messagingCtx}`;
   }
 
   if (context?.page) {
-    system += `\n\nThe user is currently viewing: ${context.page}`;
+    dynamicSystem += `\n\nThe user is currently viewing: ${context.page}`;
   }
   if (context?.data) {
-    system += `\n\nRelevant page data:\n${context.data}`;
+    dynamicSystem += `\n\nRelevant page data:\n${context.data}`;
   }
 
-  return system;
+  return [
+    { type: "text", text: staticSystem, cache_control: { type: "ephemeral" } },
+    { type: "text", text: dynamicSystem },
+  ];
 }
 
 // ─── Tool dispatch helper ─────────────────────────────────
@@ -326,6 +335,11 @@ export async function POST(request: Request) {
     const systemPrompt = await buildSystemPrompt(body.context);
     const tools = getToolsForPage(body.context?.page);
 
+    // Add cache_control to last tool so Anthropic caches tool definitions
+    if (tools.length > 0) {
+      tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: "ephemeral" } };
+    }
+
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
@@ -362,7 +376,7 @@ export async function POST(request: Request) {
           const RESPONSE_MODEL = "claude-sonnet-4-20250514";
 
           // Phase 1: Tool resolution with Haiku (non-streamed, cheap)
-          const MAX_TOOL_ROUNDS = 5;
+          const MAX_TOOL_ROUNDS = 3;
           let fullResponseText = "";
           for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             const response = await anthropic.messages.create({

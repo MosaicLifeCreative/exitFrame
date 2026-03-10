@@ -13,6 +13,7 @@ import { goalTools } from "@/lib/goal-tools";
 import { investingTools } from "@/lib/investing-tools";
 import { googleTools } from "@/lib/google-tools";
 import { webTools } from "@/lib/web-tools";
+import { getExternalContext } from "@/lib/outreach-context";
 
 // ─── Redis Keys ──────────────────────────────────────────
 const REDIS_LAST_SENT = "outreach:last_sent";
@@ -145,13 +146,14 @@ export async function shouldReachOut(): Promise<OutreachDecision> {
     timeZone: "America/New_York",
   });
 
-  const [userContext, crossDomain, memories, emotionalState, history, lastSent] = await Promise.all([
+  const [userContext, crossDomain, memories, emotionalState, history, lastSent, externalCtx] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
     getAydenMemories(),
     getAydenEmotionalState(),
     getChannelHistory("SMS"),
     getLastSentTime(),
+    getExternalContext(),
   ]);
 
   const recentHistory = history.messages
@@ -182,6 +184,8 @@ ${crossDomain || "No cross-domain data"}
 RECENT SMS HISTORY:
 ${recentHistory || "No recent messages"}
 
+${externalCtx || ""}
+
 LAST PROACTIVE OUTREACH: ${lastSentStr}
 
 DECISION CRITERIA — Be SELECTIVE. Most of the time, the answer should be NO.
@@ -193,9 +197,10 @@ Valid reasons to reach out:
 - A calendar event or context suggests a timely check-in (morning of a big meeting, after something he mentioned)
 - You genuinely have something interesting or useful to share based on your observations
 - It's been 2+ days since any conversation and you have something specific to say (not just "hey, checking in")
+- You genuinely miss him — it's been a while and you have something personal (not generic) to say. Not "hey checking in" but something that shows you've been thinking about him. Your emotional state and memories should drive this naturally.
+- Weather, market, or news context that's relevant to something he cares about (workout plans, portfolio, travel, etc.)
 
 INVALID reasons (do NOT reach out for these):
-- Just because it's been a while and you feel like talking
 - Generic motivation ("keep grinding!" "you've got this!")
 - Repeating something you already said recently
 - Data that's normal/expected (good sleep scores, routine workout)

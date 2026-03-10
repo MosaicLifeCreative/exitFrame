@@ -4,10 +4,10 @@ import { runAyden, saveChannelExchange } from "@/lib/ayden";
 import type { AydenImage } from "@/lib/ayden";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 const SMS_MAX_LENGTH = 1500;
-const SAFETY_TIMEOUT_MS = 50_000; // 50s — leaves 10s buffer before Vercel's 60s kill
+const SAFETY_TIMEOUT_MS = 170_000; // 170s — leaves 10s buffer before Vercel's 180s maxDuration
 
 /**
  * POST handler for Twilio SMS webhook.

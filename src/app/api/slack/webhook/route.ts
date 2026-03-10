@@ -7,8 +7,8 @@ import type { AydenImage } from "@/lib/ayden";
 export const dynamic = "force-dynamic";
 
 // waitUntil keeps the function alive after the response is sent.
-// Hobby plan: 60s total. Pro plan: up to 300s.
-export const maxDuration = 60;
+// Pro plan: up to 300s. Safety timer fires at 170s as a last resort.
+export const maxDuration = 180;
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -80,7 +80,7 @@ async function downloadSlackFile(
  * waitUntil background work gets killed silently — no catch block fires.
  * This ensures Trey always gets a response before the function dies.
  */
-const SAFETY_TIMEOUT_MS = 50_000; // 50s — leaves 10s buffer before Vercel's 60s kill
+const SAFETY_TIMEOUT_MS = 170_000; // 170s — leaves 10s buffer before Vercel's 180s maxDuration
 
 function withSafetyTimer<T>(
   work: Promise<T>,

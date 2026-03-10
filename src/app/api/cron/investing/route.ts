@@ -6,7 +6,7 @@ import { takePortfolioSnapshots } from "@/lib/investing/snapshots";
 import { crawlNews } from "@/lib/investing/newsCrawler";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 async function verifyRequest(request: NextRequest): Promise<boolean> {
   // QStash signature verification

@@ -39,20 +39,35 @@ async function geocodeLocation(
   location: string,
   apiKey: string
 ): Promise<{ lat: number; lon: number; name: string } | null> {
-  try {
-    const res = await fetch(
-      `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(location)}&limit=1&appid=${apiKey}`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-    if (!res.ok) return null;
-    const data: GeoResult[] = await res.json();
-    if (data.length === 0) return null;
-    const { lat, lon, name, state, country } = data[0];
-    const displayName = state ? `${name}, ${state}` : `${name}, ${country}`;
-    return { lat, lon, name: displayName };
-  } catch {
-    return null;
+  // OpenWeatherMap geocoding expects "city,state,country" format
+  // "Columbus, OH" won't work but "Columbus,OH,US" will
+  const queries = [location];
+
+  // If it looks like "City, ST" (US state abbreviation), also try with ",US" appended
+  const usStatePattern = /^(.+),\s*([A-Z]{2})$/i;
+  const match = location.match(usStatePattern);
+  if (match) {
+    queries.push(`${match[1].trim()},${match[2].trim()},US`);
   }
+
+  for (const query of queries) {
+    try {
+      const res = await fetch(
+        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=1&appid=${apiKey}`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+      if (!res.ok) continue;
+      const data: GeoResult[] = await res.json();
+      if (data.length === 0) continue;
+      const { lat, lon, name, state, country } = data[0];
+      const displayName = state ? `${name}, ${state}` : `${name}, ${country}`;
+      return { lat, lon, name: displayName };
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
 }
 
 async function getWeather(input: WeatherInput): Promise<string> {

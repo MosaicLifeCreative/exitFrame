@@ -486,13 +486,21 @@ export async function runAyden(
       continue; // Loop for Sonnet to generate text after tool results
     }
 
-    console.log(`Ayden (${channel}) Sonnet round ${round + 1}: stop=${finalResponse.stop_reason}, text: ${finalText.length} chars`);
+    console.log(`Ayden (${channel}) Sonnet round ${round + 1}: stop=${finalResponse.stop_reason}, text: ${finalText.length} chars, blocks: ${JSON.stringify(finalResponse.content.map((b) => ({ type: b.type, len: b.type === "text" ? b.text.length : undefined })))}`);
     break; // stop_reason is "end_turn" — we have the final text
   }
 
   // If Sonnet produced no text, retry once without tools to force a text response
   if (!finalText) {
     console.warn(`Ayden (${channel}): Sonnet produced no text — retrying without tools. Messages: ${messages.length}, usedTools: ${usedTools}`);
+    // Log the last few messages to diagnose conversation structure issues
+    const lastMessages = messages.slice(-4).map((m, i) => ({
+      idx: messages.length - 4 + i,
+      role: m.role,
+      contentType: typeof m.content === "string" ? "string" : "array",
+      len: typeof m.content === "string" ? m.content.length : JSON.stringify(m.content).length,
+    }));
+    console.warn(`Ayden (${channel}): last messages: ${JSON.stringify(lastMessages)}`);
     try {
       const retry = await anthropic.messages.create({
         model: RESPONSE_MODEL,
@@ -500,6 +508,7 @@ export async function runAyden(
         system: systemPrompt,
         messages,
       });
+      console.warn(`Ayden (${channel}): retry response: stop=${retry.stop_reason}, blocks: ${JSON.stringify(retry.content.map((b) => ({ type: b.type, len: b.type === "text" ? b.text.length : undefined })))}`);
       for (const block of retry.content) {
         if (block.type === "text") finalText += block.text;
       }

@@ -13,6 +13,7 @@ import { goalTools } from "@/lib/goal-tools";
 import { investingTools } from "@/lib/investing-tools";
 import { googleTools } from "@/lib/google-tools";
 import { webTools } from "@/lib/web-tools";
+import { weatherTools } from "@/lib/weather-tools";
 import { getExternalContext } from "@/lib/outreach-context";
 
 // ─── Redis Keys ──────────────────────────────────────────
@@ -300,6 +301,7 @@ Don't ask more than one question. Don't stack multiple topics.`;
     ...investingTools,
     ...googleTools,
     ...webTools,
+    ...weatherTools,
   ];
   if (sonnetTools.length > 0) {
     sonnetTools[sonnetTools.length - 1] = {

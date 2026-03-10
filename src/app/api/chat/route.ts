@@ -7,6 +7,7 @@ import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-t
 import { emotionTools, executeEmotionTool, getAydenEmotionalState, reflectOnEmotions } from "@/lib/emotion-tools";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { webTools, executeWebTool } from "@/lib/web-tools";
+import { weatherTools, executeWeatherTool } from "@/lib/weather-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -280,6 +281,7 @@ const toolNameSets = {
   emotion: new Set(emotionTools.map((t) => t.name)),
   google: new Set(googleTools.map((t) => t.name)),
   web: new Set(webTools.map((t) => t.name)),
+  weather: new Set(weatherTools.map((t) => t.name)),
 };
 
 async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -291,13 +293,14 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.emotion.has(name)) return executeEmotionTool(name, input);
   if (toolNameSets.google.has(name)) return executeGoogleTool(name, input);
   if (toolNameSets.web.has(name)) return executeWebTool(name, input);
+  if (toolNameSets.weather.has(name)) return executeWeatherTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...googleTools, ...webTools];
+  const shared = [...memoryTools, ...emotionTools, ...googleTools, ...webTools, ...weatherTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...shared];
@@ -541,6 +544,14 @@ export async function POST(request: Request) {
 
             apiMessages.push({ role: "assistant", content: finalMessage.content });
             apiMessages.push({ role: "user", content: sonnetToolResults });
+
+            // Inject paragraph break so text before/after tool calls doesn't run together
+            if (fullResponseText.length > 0) {
+              const separator = "\n\n";
+              fullResponseText += separator;
+              const sepChunk = `data: ${JSON.stringify({ text: separator })}\n\n`;
+              controller.enqueue(encoder.encode(sepChunk));
+            }
             // Loop continues — Sonnet will generate text after tool results
           }
 

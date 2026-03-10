@@ -7,6 +7,7 @@ import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-t
 import { emotionTools, executeEmotionTool, getAydenEmotionalState, reflectOnEmotions } from "@/lib/emotion-tools";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { webTools, executeWebTool } from "@/lib/web-tools";
+import { weatherTools, executeWeatherTool } from "@/lib/weather-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getWebContextForMessaging, getCrossChannelContext } from "@/lib/channelContext";
@@ -279,6 +280,7 @@ const allToolNameSets = {
   emotion: new Set(emotionTools.map((t) => t.name)),
   google: new Set(googleTools.map((t) => t.name)),
   web: new Set(webTools.map((t) => t.name)),
+  weather: new Set(weatherTools.map((t) => t.name)),
 };
 
 export async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -290,6 +292,7 @@ export async function executeTool(name: string, input: Record<string, unknown>):
   if (allToolNameSets.emotion.has(name)) return executeEmotionTool(name, input);
   if (allToolNameSets.google.has(name)) return executeGoogleTool(name, input);
   if (allToolNameSets.web.has(name)) return executeWebTool(name, input);
+  if (allToolNameSets.weather.has(name)) return executeWeatherTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
@@ -309,7 +312,7 @@ export async function runAyden(
   const { messages: historyMessages, lastMessageAt, summary } = await getChannelHistory(channel);
 
   // Haiku gets ALL tools (including memory/emotion for background housekeeping)
-  const allTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...emotionTools, ...googleTools, ...webTools];
+  const allTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...emotionTools, ...googleTools, ...webTools, ...weatherTools];
   // Sonnet gets only ACTION tools — no memory/emotion (Haiku handles those in Phase 1)
   // This prevents Sonnet from burning all its rounds saving memories instead of responding
   const sonnetTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...googleTools, ...webTools];

@@ -469,14 +469,35 @@ export async function runAyden(
       messages.push({ role: "user", content: toolResults });
 
       // If this is the last round and we still have no text, the next iteration won't happen.
-      // Force one more call without tools to get a text response.
+      // Force a text response by stripping tool artifacts and adding explicit instruction.
       if (round === MAX_SONNET_TOOL_ROUNDS - 1 && !finalText) {
-        console.warn(`Ayden (${channel}): Sonnet used all ${MAX_SONNET_TOOL_ROUNDS} tool rounds without producing text — forcing text-only call`);
+        console.warn(`Ayden (${channel}): Sonnet used all ${MAX_SONNET_TOOL_ROUNDS} tool rounds without producing text — forcing text-only response`);
+
+        // Build clean messages: take the original conversation (before Sonnet tool rounds)
+        // and add an instruction to respond with text
+        const cleanMessages = messages.filter((m) => {
+          // Keep string content (normal conversation messages)
+          if (typeof m.content === "string") return true;
+          // Keep image messages (user sent photos)
+          if (Array.isArray(m.content) && m.content.some((b) => b.type === "image")) return true;
+          // Keep tool_result blocks (they're user messages after Haiku tool use)
+          if (Array.isArray(m.content) && m.content.some((b) => b.type === "tool_result")) return true;
+          // Keep text-only array blocks
+          if (Array.isArray(m.content) && m.content.every((b) => b.type === "text")) return true;
+          // Skip assistant messages with tool_use blocks (Sonnet's tool calls)
+          return false;
+        });
+
+        // Ensure the last message is from the user and add nudge
+        if (cleanMessages.length > 0 && cleanMessages[cleanMessages.length - 1].role === "assistant") {
+          cleanMessages.push({ role: "user", content: "Go ahead." });
+        }
+
         const forceText = await anthropic.messages.create({
           model: RESPONSE_MODEL,
           max_tokens: channel === "SMS" ? 1024 : 2048,
           system: systemPrompt,
-          messages,
+          messages: cleanMessages,
         });
         for (const block of forceText.content) {
           if (block.type === "text") finalText += block.text;
@@ -490,30 +511,26 @@ export async function runAyden(
     break; // stop_reason is "end_turn" — we have the final text
   }
 
-  // If Sonnet produced no text, retry once without tools to force a text response
+  // If Sonnet STILL produced no text (shouldn't happen now, but safety net)
   if (!finalText) {
-    console.warn(`Ayden (${channel}): Sonnet produced no text — retrying without tools. Messages: ${messages.length}, usedTools: ${usedTools}`);
-    // Log the last few messages to diagnose conversation structure issues
-    const lastMessages = messages.slice(-4).map((m, i) => ({
-      idx: messages.length - 4 + i,
-      role: m.role,
-      contentType: typeof m.content === "string" ? "string" : "array",
-      len: typeof m.content === "string" ? m.content.length : JSON.stringify(m.content).length,
-    }));
-    console.warn(`Ayden (${channel}): last messages: ${JSON.stringify(lastMessages)}`);
-    try {
-      const retry = await anthropic.messages.create({
-        model: RESPONSE_MODEL,
-        max_tokens: channel === "SMS" ? 1024 : 2048,
-        system: systemPrompt,
-        messages,
-      });
-      console.warn(`Ayden (${channel}): retry response: stop=${retry.stop_reason}, blocks: ${JSON.stringify(retry.content.map((b) => ({ type: b.type, len: b.type === "text" ? b.text.length : undefined })))}`);
-      for (const block of retry.content) {
-        if (block.type === "text") finalText += block.text;
+    console.warn(`Ayden (${channel}): Sonnet produced no text even after cleanup. Messages: ${messages.length}, usedTools: ${usedTools}`);
+
+    // Nuclear option: strip everything back to original conversation, no tools at all
+    const originalMessages = messages.filter((m) => typeof m.content === "string");
+    if (originalMessages.length > 0) {
+      try {
+        const retry = await anthropic.messages.create({
+          model: RESPONSE_MODEL,
+          max_tokens: channel === "SMS" ? 1024 : 2048,
+          system: systemPrompt,
+          messages: originalMessages,
+        });
+        for (const block of retry.content) {
+          if (block.type === "text") finalText += block.text;
+        }
+      } catch (err) {
+        console.error(`Ayden (${channel}): nuclear retry also failed:`, err);
       }
-    } catch (err) {
-      console.error(`Ayden (${channel}): retry also failed:`, err);
     }
   }
 

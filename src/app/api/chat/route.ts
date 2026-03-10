@@ -261,6 +261,30 @@ CRITICAL: You have real tools available via the tool use API. ALWAYS use your ac
   return system;
 }
 
+// ─── Tool dispatch helper ─────────────────────────────────
+const toolNameSets = {
+  fitness: new Set(fitnessTools.map((t) => t.name)),
+  health: new Set(healthTools.map((t) => t.name)),
+  goal: new Set(goalTools.map((t) => t.name)),
+  investing: new Set(investingTools.map((t) => t.name)),
+  memory: new Set(memoryTools.map((t) => t.name)),
+  emotion: new Set(emotionTools.map((t) => t.name)),
+  google: new Set(googleTools.map((t) => t.name)),
+  web: new Set(webTools.map((t) => t.name)),
+};
+
+async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
+  if (toolNameSets.fitness.has(name)) return executeFitnessTool(name, input);
+  if (toolNameSets.health.has(name)) return executeHealthTool(name, input);
+  if (toolNameSets.goal.has(name)) return executeGoalTool(name, input);
+  if (toolNameSets.investing.has(name)) return executeInvestingTool(name, input);
+  if (toolNameSets.memory.has(name)) return executeMemoryTool(name, input);
+  if (toolNameSets.emotion.has(name)) return executeEmotionTool(name, input);
+  if (toolNameSets.google.has(name)) return executeGoogleTool(name, input);
+  if (toolNameSets.web.has(name)) return executeWebTool(name, input);
+  return JSON.stringify({ error: `Unknown tool: ${name}` });
+}
+
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
@@ -379,34 +403,7 @@ export async function POST(request: Request) {
             const toolResults: Anthropic.ToolResultBlockParam[] = [];
             for (const tool of toolBlocks) {
               try {
-                const fitnessToolNames = new Set(fitnessTools.map((t) => t.name));
-                const healthToolNames = new Set(healthTools.map((t) => t.name));
-                const goalToolNames = new Set(goalTools.map((t) => t.name));
-                const investingToolNames = new Set(investingTools.map((t) => t.name));
-                const memoryToolNames = new Set(memoryTools.map((t) => t.name));
-                const emotionToolNames = new Set(emotionTools.map((t) => t.name));
-                const googleToolNames = new Set(googleTools.map((t) => t.name));
-                const webToolNames = new Set(webTools.map((t) => t.name));
-                let result: string;
-                if (fitnessToolNames.has(tool.name)) {
-                  result = await executeFitnessTool(tool.name, tool.input);
-                } else if (healthToolNames.has(tool.name)) {
-                  result = await executeHealthTool(tool.name, tool.input);
-                } else if (goalToolNames.has(tool.name)) {
-                  result = await executeGoalTool(tool.name, tool.input);
-                } else if (investingToolNames.has(tool.name)) {
-                  result = await executeInvestingTool(tool.name, tool.input);
-                } else if (memoryToolNames.has(tool.name)) {
-                  result = await executeMemoryTool(tool.name, tool.input);
-                } else if (emotionToolNames.has(tool.name)) {
-                  result = await executeEmotionTool(tool.name, tool.input);
-                } else if (googleToolNames.has(tool.name)) {
-                  result = await executeGoogleTool(tool.name, tool.input);
-                } else if (webToolNames.has(tool.name)) {
-                  result = await executeWebTool(tool.name, tool.input);
-                } else {
-                  result = JSON.stringify({ error: `Unknown tool: ${tool.name}` });
-                }
+                const result = await dispatchTool(tool.name, tool.input);
                 toolResults.push({
                   type: "tool_result",
                   tool_use_id: tool.id,
@@ -465,9 +462,7 @@ export async function POST(request: Request) {
               tools,
             });
 
-            const sonnetToolBlocks: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
-            let sonnetStopReason = "end_turn";
-
+            // Stream text deltas to client as they arrive
             for await (const event of finalStream) {
               if (
                 event.type === "content_block_delta" &&
@@ -477,91 +472,54 @@ export async function POST(request: Request) {
                 const chunk = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
                 controller.enqueue(encoder.encode(chunk));
               }
-              if (event.type === "message_stop") {
-                const msg = finalStream.currentMessage;
-                if (msg) {
-                  sonnetStopReason = msg.stop_reason || "end_turn";
-                  for (const block of msg.content) {
-                    if (block.type === "tool_use") {
-                      sonnetToolBlocks.push({
-                        id: block.id,
-                        name: block.name,
-                        input: block.input as Record<string, unknown>,
-                      });
-                    }
-                  }
-                }
-              }
             }
 
-            // If Sonnet wants to use tools, execute and loop
-            if (sonnetStopReason === "tool_use" && sonnetToolBlocks.length > 0) {
-              for (const tool of sonnetToolBlocks) {
-                const statusChunk = `data: ${JSON.stringify({
-                  toolUse: { name: tool.name, status: "executing" },
+            // After stream completes, check if Sonnet wants to use tools
+            const finalMessage = await finalStream.finalMessage();
+            if (finalMessage.stop_reason !== "tool_use") break; // Done — no tools needed
+
+            // Extract tool_use blocks from the completed message
+            const sonnetToolBlocks = finalMessage.content.filter(
+              (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+            );
+            if (sonnetToolBlocks.length === 0) break;
+
+            // Notify client of tool execution
+            for (const tool of sonnetToolBlocks) {
+              const statusChunk = `data: ${JSON.stringify({
+                toolUse: { name: tool.name, status: "executing" },
+              })}\n\n`;
+              controller.enqueue(encoder.encode(statusChunk));
+            }
+
+            // Execute tools
+            const sonnetToolResults: Anthropic.ToolResultBlockParam[] = [];
+            for (const tool of sonnetToolBlocks) {
+              try {
+                const result = await dispatchTool(tool.name, tool.input as Record<string, unknown>);
+                sonnetToolResults.push({
+                  type: "tool_result",
+                  tool_use_id: tool.id,
+                  content: result,
+                });
+                const doneChunk = `data: ${JSON.stringify({
+                  toolUse: { name: tool.name, status: "done" },
                 })}\n\n`;
-                controller.enqueue(encoder.encode(statusChunk));
+                controller.enqueue(encoder.encode(doneChunk));
+              } catch (err) {
+                console.error(`Sonnet tool ${tool.name} error:`, err);
+                sonnetToolResults.push({
+                  type: "tool_result",
+                  tool_use_id: tool.id,
+                  content: JSON.stringify({ error: `Tool execution failed: ${err}` }),
+                  is_error: true,
+                });
               }
-
-              const sonnetContent = finalStream.currentMessage?.content || [];
-              const sonnetToolResults: Anthropic.ToolResultBlockParam[] = [];
-
-              for (const tool of sonnetToolBlocks) {
-                try {
-                  const fitnessToolNames = new Set(fitnessTools.map((t) => t.name));
-                  const healthToolNames = new Set(healthTools.map((t) => t.name));
-                  const goalToolNames = new Set(goalTools.map((t) => t.name));
-                  const investingToolNames = new Set(investingTools.map((t) => t.name));
-                  const memoryToolNames = new Set(memoryTools.map((t) => t.name));
-                  const emotionToolNames = new Set(emotionTools.map((t) => t.name));
-                  const googleToolNames = new Set(googleTools.map((t) => t.name));
-                  const webToolNames = new Set(webTools.map((t) => t.name));
-                  let result: string;
-                  if (fitnessToolNames.has(tool.name)) {
-                    result = await executeFitnessTool(tool.name, tool.input);
-                  } else if (healthToolNames.has(tool.name)) {
-                    result = await executeHealthTool(tool.name, tool.input);
-                  } else if (goalToolNames.has(tool.name)) {
-                    result = await executeGoalTool(tool.name, tool.input);
-                  } else if (investingToolNames.has(tool.name)) {
-                    result = await executeInvestingTool(tool.name, tool.input);
-                  } else if (memoryToolNames.has(tool.name)) {
-                    result = await executeMemoryTool(tool.name, tool.input);
-                  } else if (emotionToolNames.has(tool.name)) {
-                    result = await executeEmotionTool(tool.name, tool.input);
-                  } else if (googleToolNames.has(tool.name)) {
-                    result = await executeGoogleTool(tool.name, tool.input);
-                  } else if (webToolNames.has(tool.name)) {
-                    result = await executeWebTool(tool.name, tool.input);
-                  } else {
-                    result = JSON.stringify({ error: `Unknown tool: ${tool.name}` });
-                  }
-                  sonnetToolResults.push({
-                    type: "tool_result",
-                    tool_use_id: tool.id,
-                    content: result,
-                  });
-                  const doneChunk = `data: ${JSON.stringify({
-                    toolUse: { name: tool.name, status: "done" },
-                  })}\n\n`;
-                  controller.enqueue(encoder.encode(doneChunk));
-                } catch (err) {
-                  console.error(`Sonnet tool ${tool.name} error:`, err);
-                  sonnetToolResults.push({
-                    type: "tool_result",
-                    tool_use_id: tool.id,
-                    content: JSON.stringify({ error: `Tool execution failed: ${err}` }),
-                    is_error: true,
-                  });
-                }
-              }
-
-              apiMessages.push({ role: "assistant", content: sonnetContent });
-              apiMessages.push({ role: "user", content: sonnetToolResults });
-              continue; // Loop for Sonnet to generate text after tool results
             }
 
-            break; // end_turn — done
+            apiMessages.push({ role: "assistant", content: finalMessage.content });
+            apiMessages.push({ role: "user", content: sonnetToolResults });
+            // Loop continues — Sonnet will generate text after tool results
           }
 
           // Background emotional reflection — fire and forget

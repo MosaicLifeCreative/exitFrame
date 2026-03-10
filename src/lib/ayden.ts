@@ -6,6 +6,7 @@ import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
 import { emotionTools, executeEmotionTool, getAydenEmotionalState, reflectOnEmotions } from "@/lib/emotion-tools";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
+import { webTools, executeWebTool } from "@/lib/web-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getWebContextForMessaging, getCrossChannelContext } from "@/lib/channelContext";
@@ -266,6 +267,7 @@ const allToolNameSets = {
   memory: new Set(memoryTools.map((t) => t.name)),
   emotion: new Set(emotionTools.map((t) => t.name)),
   google: new Set(googleTools.map((t) => t.name)),
+  web: new Set(webTools.map((t) => t.name)),
 };
 
 async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -276,6 +278,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
   if (allToolNameSets.memory.has(name)) return executeMemoryTool(name, input);
   if (allToolNameSets.emotion.has(name)) return executeEmotionTool(name, input);
   if (allToolNameSets.google.has(name)) return executeGoogleTool(name, input);
+  if (allToolNameSets.web.has(name)) return executeWebTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
@@ -293,7 +296,7 @@ export async function runAyden(
   const anthropic = new Anthropic({ apiKey });
   let systemPrompt = await buildMessagingSystemPrompt(channel);
   const { messages: historyMessages, lastMessageAt, summary } = await getChannelHistory(channel);
-  const tools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...emotionTools, ...googleTools];
+  const tools = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...emotionTools, ...googleTools, ...webTools];
 
   // Inject conversation gap context
   if (lastMessageAt) {

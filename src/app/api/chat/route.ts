@@ -6,6 +6,7 @@ import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
 import { emotionTools, executeEmotionTool, getAydenEmotionalState, reflectOnEmotions } from "@/lib/emotion-tools";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
+import { webTools, executeWebTool } from "@/lib/web-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -263,7 +264,7 @@ CRITICAL: You have real tools available via the tool use API. ALWAYS use your ac
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...googleTools];
+  const shared = [...memoryTools, ...emotionTools, ...googleTools, ...webTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...shared];
@@ -385,6 +386,7 @@ export async function POST(request: Request) {
                 const memoryToolNames = new Set(memoryTools.map((t) => t.name));
                 const emotionToolNames = new Set(emotionTools.map((t) => t.name));
                 const googleToolNames = new Set(googleTools.map((t) => t.name));
+                const webToolNames = new Set(webTools.map((t) => t.name));
                 let result: string;
                 if (fitnessToolNames.has(tool.name)) {
                   result = await executeFitnessTool(tool.name, tool.input);
@@ -400,6 +402,8 @@ export async function POST(request: Request) {
                   result = await executeEmotionTool(tool.name, tool.input);
                 } else if (googleToolNames.has(tool.name)) {
                   result = await executeGoogleTool(tool.name, tool.input);
+                } else if (webToolNames.has(tool.name)) {
+                  result = await executeWebTool(tool.name, tool.input);
                 } else {
                   result = JSON.stringify({ error: `Unknown tool: ${tool.name}` });
                 }

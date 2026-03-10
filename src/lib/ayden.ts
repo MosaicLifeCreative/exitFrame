@@ -174,12 +174,14 @@ export async function saveChannelExchange(
     });
   }
 
-  await prisma.chatMessage.createMany({
-    data: [
-      { conversationId: conversation.id, role: "user", content: userMessage },
-      { conversationId: conversation.id, role: "assistant", content: assistantResponse },
-    ],
-  });
+  const messagesToSave = [
+    userMessage.trim() ? { conversationId: conversation.id, role: "user", content: userMessage } : null,
+    assistantResponse.trim() ? { conversationId: conversation.id, role: "assistant", content: assistantResponse } : null,
+  ].filter((m): m is NonNullable<typeof m> => m !== null);
+
+  if (messagesToSave.length > 0) {
+    await prisma.chatMessage.createMany({ data: messagesToSave });
+  }
 
   await prisma.chatConversation.update({
     where: { id: conversation.id },
@@ -328,9 +330,13 @@ export async function runAyden(
     });
   }
 
-  messages.push(
-    ...historyMessages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-  );
+  // Filter empty messages, then ensure alternating roles (Anthropic requires this)
+  const validHistory = historyMessages.filter((m) => m.content && m.content.trim().length > 0);
+  for (const m of validHistory) {
+    const lastRole = messages.length > 0 ? messages[messages.length - 1].role : null;
+    if (lastRole === m.role) continue; // Skip consecutive same-role messages
+    messages.push({ role: m.role as "user" | "assistant", content: m.content });
+  }
 
   // Build current message — text + optional images
   if (images && images.length > 0) {

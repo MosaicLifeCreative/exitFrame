@@ -471,6 +471,24 @@ export async function runAyden(
     break; // stop_reason is "end_turn" — we have the final text
   }
 
+  // If Sonnet produced no text, retry once without tools to force a text response
+  if (!finalText) {
+    console.warn(`Ayden (${channel}): Sonnet produced no text — retrying without tools. Messages: ${messages.length}, usedTools: ${usedTools}`);
+    try {
+      const retry = await anthropic.messages.create({
+        model: RESPONSE_MODEL,
+        max_tokens: channel === "SMS" ? 1024 : 2048,
+        system: systemPrompt,
+        messages,
+      });
+      for (const block of retry.content) {
+        if (block.type === "text") finalText += block.text;
+      }
+    } catch (err) {
+      console.error(`Ayden (${channel}): retry also failed:`, err);
+    }
+  }
+
   // Safety net: strip any hallucinated XML tool tags from the response
   finalText = finalText
     .replace(/<tool_use>[\s\S]*?<\/tool_use>/g, "")
@@ -482,5 +500,5 @@ export async function runAyden(
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return finalText || "No response generated.";
+  return finalText || "Something went wrong — I couldn't form a response. Try again.";
 }

@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
 import { useChatContext } from "@/hooks/useChatContext";
@@ -58,6 +59,10 @@ interface LifestylePrefs {
   notes: string;
 }
 
+interface AydenPrefs {
+  quietMode: boolean;
+}
+
 // ─── Defaults ────────────────────────────────────────────
 
 const defaultProfile: ProfilePrefs = {
@@ -98,6 +103,10 @@ const defaultLifestyle: LifestylePrefs = {
   notes: "",
 };
 
+const defaultAyden: AydenPrefs = {
+  quietMode: false,
+};
+
 // ─── Page ────────────────────────────────────────────────
 
 export default function PreferencesPage() {
@@ -107,6 +116,7 @@ export default function PreferencesPage() {
   const [health, setHealth] = useState<HealthPrefs>(defaultHealth);
   const [fitness, setFitness] = useState<FitnessPrefs>(defaultFitness);
   const [lifestyle, setLifestyle] = useState<LifestylePrefs>(defaultLifestyle);
+  const [ayden, setAyden] = useState<AydenPrefs>(defaultAyden);
 
   useChatContext("Settings", "User preferences and profile settings page");
 
@@ -121,6 +131,7 @@ export default function PreferencesPage() {
       if (data.health) setHealth({ ...defaultHealth, ...data.health });
       if (data.fitness) setFitness({ ...defaultFitness, ...data.fitness });
       if (data.lifestyle) setLifestyle({ ...defaultLifestyle, ...data.lifestyle });
+      if (data.ayden) setAyden({ ...defaultAyden, ...data.ayden });
     } catch {
       toast.error("Failed to load preferences");
     } finally {
@@ -132,7 +143,7 @@ export default function PreferencesPage() {
     loadPreferences();
   }, [loadPreferences]);
 
-  const saveCategory = async (category: string, data: ProfilePrefs | HealthPrefs | FitnessPrefs | LifestylePrefs) => {
+  const saveCategory = async (category: string, data: ProfilePrefs | HealthPrefs | FitnessPrefs | LifestylePrefs | AydenPrefs) => {
     setSaving(category);
     try {
       const res = await fetch("/api/settings/preferences", {
@@ -177,6 +188,7 @@ export default function PreferencesPage() {
           <TabsTrigger value="health">Health</TabsTrigger>
           <TabsTrigger value="fitness">Fitness</TabsTrigger>
           <TabsTrigger value="lifestyle">Lifestyle</TabsTrigger>
+          <TabsTrigger value="ayden">Ayden</TabsTrigger>
         </TabsList>
 
         {/* ── Profile Tab ── */}
@@ -506,6 +518,39 @@ export default function PreferencesPage() {
                 saving={saving === "lifestyle"}
                 onClick={() => saveCategory("lifestyle", lifestyle)}
               />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Ayden Tab ── */}
+        <TabsContent value="ayden">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Ayden</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Proactive Outreach</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Ayden can text you on her own when she has something worth saying — a health concern, goal reminder, or follow-up on something you discussed.
+                </p>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Quiet Mode</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Pause all proactive texts from Ayden
+                    </p>
+                  </div>
+                  <Switch
+                    checked={ayden.quietMode}
+                    onCheckedChange={(checked) => {
+                      const updated = { ...ayden, quietMode: checked };
+                      setAyden(updated);
+                      saveCategory("ayden", updated);
+                    }}
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

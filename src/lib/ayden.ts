@@ -20,7 +20,7 @@ export interface AydenImage {
   mediaType: string;
 }
 
-interface ChannelHistory {
+export interface ChannelHistory {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   lastMessageAt: Date | null;
   summary: string | null;
@@ -51,7 +51,7 @@ const CHANNEL_CONFIG: Record<AydenChannel, {
  * staticPrompt is the same across requests and gets cached by Anthropic,
  * dynamicPrompt contains per-request context (date/time, memories, emotions, etc.)
  */
-async function buildMessagingSystemPrompt(channel: AydenChannel): Promise<{ staticPrompt: string; dynamicPrompt: string }> {
+export async function buildMessagingSystemPrompt(channel: AydenChannel): Promise<{ staticPrompt: string; dynamicPrompt: string }> {
   const config = CHANNEL_CONFIG[channel];
   const channelVerb = channel === "SMS" ? "texting with" : "chatting with";
 
@@ -136,7 +136,7 @@ TOOL TRANSITIONS: When you need to use a tool, either call it without narration 
 /**
  * Load recent conversation history for a channel.
  */
-async function getChannelHistory(channel: AydenChannel): Promise<ChannelHistory> {
+export async function getChannelHistory(channel: AydenChannel): Promise<ChannelHistory> {
   const conversation = await prisma.chatConversation.findFirst({
     where: { context: channel },
     orderBy: { updatedAt: "desc" },
@@ -281,7 +281,7 @@ const allToolNameSets = {
   web: new Set(webTools.map((t) => t.name)),
 };
 
-async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
+export async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
   if (allToolNameSets.fitness.has(name)) return executeFitnessTool(name, input);
   if (allToolNameSets.health.has(name)) return executeHealthTool(name, input);
   if (allToolNameSets.goal.has(name)) return executeGoalTool(name, input);

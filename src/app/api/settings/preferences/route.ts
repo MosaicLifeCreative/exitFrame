@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { redis } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,11 @@ export async function PUT(request: NextRequest) {
         ...(body.profile?.name ? { displayName: body.profile.name } : {}),
       },
     });
+
+    // Sync quiet mode to Redis for fast cron reads
+    if (body.ayden && typeof body.ayden.quietMode === "boolean") {
+      await redis.set("outreach:quiet_mode", body.ayden.quietMode ? "true" : "false");
+    }
 
     return NextResponse.json({ data: updated.preferences });
   } catch (error) {

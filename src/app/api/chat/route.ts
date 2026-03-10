@@ -454,22 +454,114 @@ export async function POST(request: Request) {
           }
 
           // Phase 2: Final response with Sonnet (quality, streamed)
-          const finalStream = anthropic.messages.stream({
-            model: RESPONSE_MODEL,
-            max_tokens: 4096,
-            system: systemPrompt,
-            messages: apiMessages,
-          });
+          // Sonnet also gets tools so it can make real calls instead of hallucinating XML
+          const MAX_SONNET_TOOL_ROUNDS = 3;
+          for (let sonnetRound = 0; sonnetRound < MAX_SONNET_TOOL_ROUNDS; sonnetRound++) {
+            const finalStream = anthropic.messages.stream({
+              model: RESPONSE_MODEL,
+              max_tokens: 4096,
+              system: systemPrompt,
+              messages: apiMessages,
+              tools,
+            });
 
-          for await (const event of finalStream) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
-              fullResponseText += event.delta.text;
-              const chunk = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
-              controller.enqueue(encoder.encode(chunk));
+            const sonnetToolBlocks: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
+            let sonnetStopReason = "end_turn";
+
+            for await (const event of finalStream) {
+              if (
+                event.type === "content_block_delta" &&
+                event.delta.type === "text_delta"
+              ) {
+                fullResponseText += event.delta.text;
+                const chunk = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
+                controller.enqueue(encoder.encode(chunk));
+              }
+              if (event.type === "message_stop") {
+                const msg = finalStream.currentMessage;
+                if (msg) {
+                  sonnetStopReason = msg.stop_reason || "end_turn";
+                  for (const block of msg.content) {
+                    if (block.type === "tool_use") {
+                      sonnetToolBlocks.push({
+                        id: block.id,
+                        name: block.name,
+                        input: block.input as Record<string, unknown>,
+                      });
+                    }
+                  }
+                }
+              }
             }
+
+            // If Sonnet wants to use tools, execute and loop
+            if (sonnetStopReason === "tool_use" && sonnetToolBlocks.length > 0) {
+              for (const tool of sonnetToolBlocks) {
+                const statusChunk = `data: ${JSON.stringify({
+                  toolUse: { name: tool.name, status: "executing" },
+                })}\n\n`;
+                controller.enqueue(encoder.encode(statusChunk));
+              }
+
+              const sonnetContent = finalStream.currentMessage?.content || [];
+              const sonnetToolResults: Anthropic.ToolResultBlockParam[] = [];
+
+              for (const tool of sonnetToolBlocks) {
+                try {
+                  const fitnessToolNames = new Set(fitnessTools.map((t) => t.name));
+                  const healthToolNames = new Set(healthTools.map((t) => t.name));
+                  const goalToolNames = new Set(goalTools.map((t) => t.name));
+                  const investingToolNames = new Set(investingTools.map((t) => t.name));
+                  const memoryToolNames = new Set(memoryTools.map((t) => t.name));
+                  const emotionToolNames = new Set(emotionTools.map((t) => t.name));
+                  const googleToolNames = new Set(googleTools.map((t) => t.name));
+                  const webToolNames = new Set(webTools.map((t) => t.name));
+                  let result: string;
+                  if (fitnessToolNames.has(tool.name)) {
+                    result = await executeFitnessTool(tool.name, tool.input);
+                  } else if (healthToolNames.has(tool.name)) {
+                    result = await executeHealthTool(tool.name, tool.input);
+                  } else if (goalToolNames.has(tool.name)) {
+                    result = await executeGoalTool(tool.name, tool.input);
+                  } else if (investingToolNames.has(tool.name)) {
+                    result = await executeInvestingTool(tool.name, tool.input);
+                  } else if (memoryToolNames.has(tool.name)) {
+                    result = await executeMemoryTool(tool.name, tool.input);
+                  } else if (emotionToolNames.has(tool.name)) {
+                    result = await executeEmotionTool(tool.name, tool.input);
+                  } else if (googleToolNames.has(tool.name)) {
+                    result = await executeGoogleTool(tool.name, tool.input);
+                  } else if (webToolNames.has(tool.name)) {
+                    result = await executeWebTool(tool.name, tool.input);
+                  } else {
+                    result = JSON.stringify({ error: `Unknown tool: ${tool.name}` });
+                  }
+                  sonnetToolResults.push({
+                    type: "tool_result",
+                    tool_use_id: tool.id,
+                    content: result,
+                  });
+                  const doneChunk = `data: ${JSON.stringify({
+                    toolUse: { name: tool.name, status: "done" },
+                  })}\n\n`;
+                  controller.enqueue(encoder.encode(doneChunk));
+                } catch (err) {
+                  console.error(`Sonnet tool ${tool.name} error:`, err);
+                  sonnetToolResults.push({
+                    type: "tool_result",
+                    tool_use_id: tool.id,
+                    content: JSON.stringify({ error: `Tool execution failed: ${err}` }),
+                    is_error: true,
+                  });
+                }
+              }
+
+              apiMessages.push({ role: "assistant", content: sonnetContent });
+              apiMessages.push({ role: "user", content: sonnetToolResults });
+              continue; // Loop for Sonnet to generate text after tool results
+            }
+
+            break; // end_turn — done
           }
 
           // Background emotional reflection — fire and forget

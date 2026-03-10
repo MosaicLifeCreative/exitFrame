@@ -207,7 +207,7 @@ export const googleTools: Anthropic.Tool[] = [
   {
     name: "create_email_draft",
     description:
-      "Create a Gmail draft for review before sending. Use when Trey wants to review the email first, or when composing something sensitive. Defaults to business Gmail. NEVER guess email addresses — search past threads first, or ask Trey.",
+      "Create a Gmail draft for review before sending. Use when Trey wants to review the email first, or when composing something sensitive. Defaults to business Gmail. For REPLY drafts: pass the threadId from search_emails to keep it in the same thread. NEVER guess email addresses — search past threads first, or ask Trey.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -239,7 +239,7 @@ export const googleTools: Anthropic.Tool[] = [
   {
     name: "send_email",
     description:
-      "Send an email immediately. Signature is appended automatically. Defaults to business Gmail. IMPORTANT: (1) Email body must be 100% professional — you are representing Trey's business. (2) Always tell Trey what you're sending before calling this tool. (3) NEVER guess email addresses — if you don't have the recipient's address, use search_emails to find it in past threads first. If not found, ask Trey. Never construct addresses from name + company domain.",
+      "Send an email immediately. Signature is appended automatically. Defaults to business Gmail. For REPLIES: you MUST pass both threadId AND replyToMessageId from search_emails/read_email to keep the reply in the same thread. Omit 'subject' for replies (Gmail auto-uses Re: subject). IMPORTANT: (1) Email body must be 100% professional — you are representing Trey's business. (2) Always tell Trey what you're sending before calling this tool. (3) NEVER guess email addresses — if you don't have the recipient's address, use search_emails to find it in past threads first. If not found, ask Trey. Never construct addresses from name + company domain.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -261,11 +261,11 @@ export const googleTools: Anthropic.Tool[] = [
         },
         replyToMessageId: {
           type: "string",
-          description: "Message ID to reply to (sets In-Reply-To header and thread).",
+          description: "Message ID (msgId) to reply to. Get this from search_emails or read_email. Sets the In-Reply-To header for proper threading.",
         },
         threadId: {
           type: "string",
-          description: "Thread ID for threading replies.",
+          description: "Thread ID (threadId) for threading replies. Get this from search_emails or read_email. REQUIRED for replies to stay in the same Gmail thread.",
         },
         account: accountProperty,
       },
@@ -871,7 +871,7 @@ export async function executeGoogleTool(
               const from = getHeader(headers, "From");
               const subject = getHeader(headers, "Subject");
               const date = getHeader(headers, "Date");
-              return `[${msg.id}] ${date} | From: ${from} | Subject: ${subject}\n  Preview: ${full.snippet || ""}`;
+              return `[msgId: ${msg.id}] [threadId: ${msg.threadId}] ${date} | From: ${from} | Subject: ${subject}\n  Preview: ${full.snippet || ""}`;
             } catch {
               return `[${msg.id}] (failed to fetch details)`;
             }

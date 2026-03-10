@@ -419,17 +419,64 @@ export async function runAyden(
     console.log(`Ayden (${channel}): tools resolved via Haiku, generating final response with Sonnet`);
   }
 
-  // Phase 2: Final response with Sonnet (quality)
-  const finalResponse = await anthropic.messages.create({
-    model: RESPONSE_MODEL,
-    max_tokens: channel === "SMS" ? 1024 : 2048,
-    system: systemPrompt,
-    messages,
-  });
+  // Phase 2: Final response with Sonnet (quality) — also has tools in case Haiku missed actions
+  const MAX_SONNET_TOOL_ROUNDS = 3;
+  let finalText = "";
 
-  const finalText = finalResponse.content
-    .filter((b) => b.type === "text")
-    .map((b) => (b.type === "text" ? b.text : ""))
-    .join("");
+  for (let round = 0; round < MAX_SONNET_TOOL_ROUNDS; round++) {
+    const finalResponse = await anthropic.messages.create({
+      model: RESPONSE_MODEL,
+      max_tokens: channel === "SMS" ? 1024 : 2048,
+      system: systemPrompt,
+      messages,
+      tools,
+    });
+
+    // Collect any text from this response
+    for (const block of finalResponse.content) {
+      if (block.type === "text") finalText += block.text;
+    }
+
+    // If Sonnet wants to use tools, execute them and continue
+    if (finalResponse.stop_reason === "tool_use") {
+      const toolBlocks = finalResponse.content.filter((b) => b.type === "tool_use");
+      const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+      for (const block of toolBlocks) {
+        if (block.type !== "tool_use") continue;
+        try {
+          const result = await executeTool(block.name, block.input as Record<string, unknown>);
+          toolResults.push({ type: "tool_result", tool_use_id: block.id, content: result });
+          console.log(`Ayden (${channel}) Sonnet tool: ${block.name}`);
+        } catch (err) {
+          console.error(`${channel} Sonnet tool ${block.name} error:`, err);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: JSON.stringify({ error: `Tool failed: ${err}` }),
+            is_error: true,
+          });
+        }
+      }
+
+      messages.push({ role: "assistant", content: finalResponse.content });
+      messages.push({ role: "user", content: toolResults });
+      continue; // Loop for Sonnet to generate text after tool results
+    }
+
+    break; // stop_reason is "end_turn" — we have the final text
+  }
+
+  // Safety net: strip any hallucinated XML tool tags from the response
+  finalText = finalText
+    .replace(/<tool_use>[\s\S]*?<\/tool_use>/g, "")
+    .replace(/<tool_result>[\s\S]*?<\/tool_result>/g, "")
+    .replace(/<tool_name>[\s\S]*?<\/tool_name>/g, "")
+    .replace(/<tool_parameter[\s\S]*?<\/tool_parameter>/g, "")
+    .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, "")
+    .replace(/<invoke[\s\S]*?<\/invoke>/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
   return finalText || "No response generated.";
 }

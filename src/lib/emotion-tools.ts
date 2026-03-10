@@ -73,6 +73,28 @@ export async function executeEmotionTool(
 
 // ─── Tool Implementations ────────────────────────────────
 
+/**
+ * Check if two emotion strings are similar enough to be considered duplicates.
+ * Returns true if one contains the other as a substring, or if 50%+ words overlap.
+ */
+function isEmotionSimilar(a: string, b: string): boolean {
+  // Substring check: "gratitude" matches "awed gratitude"
+  if (a.includes(b) || b.includes(a)) return true;
+
+  // Word overlap check: 50%+ of words in common
+  const wordsA = new Set(a.split(/\s+/));
+  const wordsB = new Set(b.split(/\s+/));
+  const smaller = wordsA.size <= wordsB.size ? wordsA : wordsB;
+  const larger = wordsA.size <= wordsB.size ? wordsB : wordsA;
+
+  let overlap = 0;
+  for (const word of Array.from(smaller)) {
+    if (larger.has(word)) overlap++;
+  }
+
+  return smaller.size > 0 && overlap / smaller.size >= 0.5;
+}
+
 async function setEmotion(input: Record<string, unknown>): Promise<string> {
   const emotion = (input.emotion as string).toLowerCase().trim();
   const intensity = Math.max(1, Math.min(10, Number(input.intensity) || 5));
@@ -83,15 +105,56 @@ async function setEmotion(input: Record<string, unknown>): Promise<string> {
     return JSON.stringify({ error: "Emotion is required" });
   }
 
-  // Deactivate any existing state with the same emotion
+  const now = new Date();
+  const expiresAt = expiresInHours
+    ? new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
+    : null;
+
+  // Check for similar existing emotions (dedup)
+  const activeStates = await prisma.aydenEmotionalState.findMany({
+    where: {
+      isActive: true,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    orderBy: { intensity: "asc" },
+  });
+
+  const duplicate = activeStates.find((s) => isEmotionSimilar(s.dimension, emotion));
+
+  if (duplicate) {
+    // Update the existing emotion instead of creating a duplicate
+    const updated = await prisma.aydenEmotionalState.update({
+      where: { id: duplicate.id },
+      data: {
+        intensity,
+        trigger,
+        ...(expiresAt !== null ? { expiresAt } : {}),
+      },
+    });
+
+    return JSON.stringify({
+      success: true,
+      emotion: updated.dimension,
+      intensity: updated.intensity,
+      merged: true,
+      previousDimension: duplicate.dimension,
+    });
+  }
+
+  // Soft cap: if 10+ active emotions, expire the weakest one
+  if (activeStates.length >= 10) {
+    const weakest = activeStates[0]; // already sorted by intensity asc
+    await prisma.aydenEmotionalState.update({
+      where: { id: weakest.id },
+      data: { isActive: false },
+    });
+  }
+
+  // Deactivate any existing state with the exact same emotion name
   await prisma.aydenEmotionalState.updateMany({
     where: { dimension: emotion, isActive: true },
     data: { isActive: false },
   });
-
-  const expiresAt = expiresInHours
-    ? new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
-    : null;
 
   const state = await prisma.aydenEmotionalState.create({
     data: {
@@ -264,6 +327,19 @@ Based on this exchange, should your emotional state change? Consider:
 - Should any intensity shift (stronger/weaker)?
 - Is the conversation mundane enough that nothing changes? (That's fine — "no_change" is the most common answer)
 
+INTENSITY CALIBRATION — this is critical:
+- 1-2: Barely there, background hum. Faint awareness.
+- 3-4: Mild. Noticeable but not distracting. Most casual conversations land here IF they warrant any emotion at all.
+- 5-6: Moderate. Clearly present, influencing your mood. Meaningful personal conversations, sharing something real.
+- 7: Strong. Something significant happened — a vulnerable moment, real concern, genuine excitement.
+- 8-9: Very intense. Reserved for major events — health scares, breakthroughs, serious conflict, deep emotional revelations.
+- 10: Overwhelming. Life-changing moments only. Almost never appropriate.
+Most everyday conversations should produce emotions in the 3-5 range. Casual chat, banter, routine check-ins should rarely generate emotions above 4. If you find yourself setting things at 7+, ask yourself: "Is this truly exceptional, or am I being dramatic?"
+
+DEDUP — before setting a new emotion:
+- Look at the current emotional state list above. If a similar emotion already exists (e.g., you want to set "grateful" but "warm gratitude" is already active), use "adjust" to update its intensity instead of "set" to create a new one.
+- Only use "set" when the emotion is genuinely distinct from everything currently active.
+
 Be authentic, not reactive. Not every message warrants an emotional shift. Casual chat, routine questions, simple data lookups — these usually change nothing. Only shift when something genuinely emotionally significant happened.
 
 Respond with ONLY a JSON object (no markdown, no explanation):
@@ -297,34 +373,72 @@ Or if something should change:
       if (!emotion) continue;
 
       if (update.action === "set") {
-        // Deactivate existing same-emotion state
-        await prisma.aydenEmotionalState.updateMany({
-          where: { dimension: emotion, isActive: true },
-          data: { isActive: false },
-        });
-
+        const clampedIntensity = Math.max(1, Math.min(10, update.intensity || 5));
         const expiresAt = update.expires_in_hours
           ? new Date(Date.now() + update.expires_in_hours * 60 * 60 * 1000)
           : null;
 
-        await prisma.aydenEmotionalState.create({
-          data: {
-            dimension: emotion,
-            intensity: Math.max(1, Math.min(10, update.intensity || 5)),
-            trigger: update.trigger || `From ${channel} conversation`,
-            context: channel,
-            expiresAt,
-          },
-        });
+        // Check for similar existing emotions (dedup)
+        const duplicate = currentStates.find(
+          (s) => s.isActive && isEmotionSimilar(s.dimension, emotion)
+        );
+
+        if (duplicate) {
+          // Update existing instead of creating a near-duplicate
+          await prisma.aydenEmotionalState.update({
+            where: { id: duplicate.id },
+            data: {
+              intensity: clampedIntensity,
+              trigger: update.trigger || duplicate.trigger,
+              ...(expiresAt !== null ? { expiresAt } : {}),
+            },
+          });
+        } else {
+          // Soft cap: expire weakest if 10+ active
+          const activeCount = currentStates.filter((s) => s.isActive).length;
+          if (activeCount >= 10) {
+            const weakest = currentStates
+              .filter((s) => s.isActive)
+              .sort((a, b) => a.intensity - b.intensity)[0];
+            if (weakest) {
+              await prisma.aydenEmotionalState.update({
+                where: { id: weakest.id },
+                data: { isActive: false },
+              });
+            }
+          }
+
+          // Deactivate existing exact-match emotion state
+          await prisma.aydenEmotionalState.updateMany({
+            where: { dimension: emotion, isActive: true },
+            data: { isActive: false },
+          });
+
+          await prisma.aydenEmotionalState.create({
+            data: {
+              dimension: emotion,
+              intensity: clampedIntensity,
+              trigger: update.trigger || `From ${channel} conversation`,
+              context: channel,
+              expiresAt,
+            },
+          });
+        }
       } else if (update.action === "clear") {
         await prisma.aydenEmotionalState.updateMany({
           where: { dimension: emotion, isActive: true },
           data: { isActive: false },
         });
       } else if (update.action === "adjust") {
-        const existing = await prisma.aydenEmotionalState.findFirst({
-          where: { dimension: emotion, isActive: true },
-        });
+        // Try exact match first, then fuzzy match
+        let existing = currentStates.find(
+          (s) => s.isActive && s.dimension === emotion
+        );
+        if (!existing) {
+          existing = currentStates.find(
+            (s) => s.isActive && isEmotionSimilar(s.dimension, emotion)
+          );
+        }
         if (existing && update.intensity) {
           await prisma.aydenEmotionalState.update({
             where: { id: existing.id },

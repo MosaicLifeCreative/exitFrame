@@ -333,11 +333,19 @@ export async function POST(request: Request) {
 
     const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
     const systemPrompt = await buildSystemPrompt(body.context);
+    // Haiku gets ALL tools (including memory/emotion for background housekeeping)
     const tools = getToolsForPage(body.context?.page);
+    // Sonnet gets only ACTION tools — no memory/emotion (Haiku handles those in Phase 1)
+    const memoryToolNames = new Set(memoryTools.map((t) => t.name));
+    const emotionToolNames = new Set(emotionTools.map((t) => t.name));
+    const sonnetTools = tools.filter((t) => !memoryToolNames.has(t.name) && !emotionToolNames.has(t.name));
 
-    // Add cache_control to last tool so Anthropic caches tool definitions
+    // Add cache_control to last tool in each set so Anthropic caches tool definitions
     if (tools.length > 0) {
       tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: "ephemeral" } };
+    }
+    if (sonnetTools.length > 0) {
+      sonnetTools[sonnetTools.length - 1] = { ...sonnetTools[sonnetTools.length - 1], cache_control: { type: "ephemeral" } };
     }
 
     const encoder = new TextEncoder();
@@ -465,7 +473,7 @@ export async function POST(request: Request) {
           }
 
           // Phase 2: Final response with Sonnet (quality, streamed)
-          // Sonnet also gets tools so it can make real calls instead of hallucinating XML
+          // Sonnet gets action tools only (no memory/emotion — Haiku handles those in Phase 1)
           const MAX_SONNET_TOOL_ROUNDS = 3;
           for (let sonnetRound = 0; sonnetRound < MAX_SONNET_TOOL_ROUNDS; sonnetRound++) {
             const finalStream = anthropic.messages.stream({
@@ -473,7 +481,7 @@ export async function POST(request: Request) {
               max_tokens: 4096,
               system: systemPrompt,
               messages: apiMessages,
-              tools,
+              tools: sonnetTools,
             });
 
             // Stream text deltas to client as they arrive

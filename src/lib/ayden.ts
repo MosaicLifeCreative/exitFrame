@@ -240,7 +240,7 @@ async function summarizeChannelConversation(conversationId: string): Promise<voi
     .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
     .join("\n\n");
 
-  const anthropic = new Anthropic({ apiKey });
+  const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
   const result = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
@@ -304,7 +304,7 @@ export async function runAyden(
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return "Ayden is offline — API key not configured.";
 
-  const anthropic = new Anthropic({ apiKey });
+  const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
   const { staticPrompt, dynamicPrompt } = await buildMessagingSystemPrompt(channel);
   const { messages: historyMessages, lastMessageAt, summary } = await getChannelHistory(channel);
 

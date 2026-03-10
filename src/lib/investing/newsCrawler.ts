@@ -48,7 +48,7 @@ async function analyzeNewsWithClaude(
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
 
-  const anthropic = new Anthropic({ apiKey });
+  const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
 
   const portfolioDesc = portfolio.length > 0
     ? portfolio.map((h) => `${h.ticker} (${h.companyName}${h.sector ? ", " + h.sector : ""})`).join(", ")

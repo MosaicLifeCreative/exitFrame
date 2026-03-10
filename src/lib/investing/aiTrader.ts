@@ -194,7 +194,7 @@ export async function evaluateTrades(): Promise<TradeDecision[]> {
     `[${n.id}] ${n.headline} | ${n.aiSentiment} | Score: ${n.aiRelevanceScore?.toFixed(2)} | ${n.aiSummary}`
   ).join("\n");
 
-  const anthropic = new Anthropic({ apiKey });
+  const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
 
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",

@@ -241,7 +241,7 @@ export async function reflectOnEmotions(
       ? currentStates.map((s) => `- ${s.dimension} (${s.intensity}/10): ${s.trigger}`).join("\n")
       : "(no active emotions)";
 
-    const anthropic = new Anthropic({ apiKey });
+    const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
 
     const result = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",

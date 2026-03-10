@@ -331,7 +331,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const anthropic = new Anthropic({ apiKey });
+    const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
     const systemPrompt = await buildSystemPrompt(body.context);
     const tools = getToolsForPage(body.context?.page);
 

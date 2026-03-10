@@ -33,6 +33,7 @@ loadEnv(".env.local");
 loadEnv(".env");
 
 const QSTASH_TOKEN = process.env.QSTASH_TOKEN;
+const QSTASH_URL = process.env.QSTASH_URL || "https://qstash.upstash.io";
 const APP_URL = process.env.APP_URL || "https://www.exitframe.org";
 
 if (!QSTASH_TOKEN) {
@@ -41,14 +42,14 @@ if (!QSTASH_TOKEN) {
 }
 
 async function listSchedules() {
-  const res = await fetch("https://qstash.upstash.io/v2/schedules", {
+  const res = await fetch(`${QSTASH_URL}/v2/schedules`, {
     headers: { Authorization: `Bearer ${QSTASH_TOKEN}` },
   });
   return res.json();
 }
 
 async function deleteSchedule(scheduleId: string) {
-  const res = await fetch(`https://qstash.upstash.io/v2/schedules/${scheduleId}`, {
+  const res = await fetch(`${QSTASH_URL}/v2/schedules/${scheduleId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${QSTASH_TOKEN}` },
   });
@@ -58,7 +59,7 @@ async function deleteSchedule(scheduleId: string) {
 async function createSchedule() {
   const destination = `${APP_URL}/api/cron/outreach`;
 
-  const res = await fetch(`https://qstash.upstash.io/v2/schedules/${encodeURIComponent(destination)}`, {
+  const res = await fetch(`${QSTASH_URL}/v2/schedules/${destination}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${QSTASH_TOKEN}`,

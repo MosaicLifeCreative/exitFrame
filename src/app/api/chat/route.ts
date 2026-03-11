@@ -19,6 +19,11 @@ interface ChatMessage {
   content: string;
 }
 
+interface ChatImage {
+  base64: string;
+  mediaType: string;
+}
+
 interface ChatRequest {
   messages: ChatMessage[];
   context?: {
@@ -26,6 +31,7 @@ interface ChatRequest {
     data?: string;
   };
   conversationSummary?: string;
+  images?: ChatImage[];
 }
 
 const INVESTING_SYSTEM = `
@@ -378,8 +384,26 @@ export async function POST(request: Request) {
             });
           }
 
-          for (const m of messagesToSend) {
-            apiMessages.push({ role: m.role, content: m.content });
+          for (let idx = 0; idx < messagesToSend.length; idx++) {
+            const m = messagesToSend[idx];
+            // Attach images to the last user message if present
+            if (idx === messagesToSend.length - 1 && m.role === "user" && body.images && body.images.length > 0) {
+              const contentBlocks: Anthropic.ContentBlockParam[] = [];
+              for (const img of body.images) {
+                contentBlocks.push({
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: img.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+                    data: img.base64,
+                  },
+                });
+              }
+              contentBlocks.push({ type: "text", text: m.content });
+              apiMessages.push({ role: "user", content: contentBlocks });
+            } else {
+              apiMessages.push({ role: m.role, content: m.content });
+            }
           }
 
           // Two-model strategy: Haiku for tool selection (cheap), Sonnet for final response (quality)

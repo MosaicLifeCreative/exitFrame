@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { sendSms } from "@/lib/twilio";
+import { sendPushNotification } from "@/lib/push";
 import { buildMessagingSystemPrompt, getChannelHistory, saveChannelExchange, executeTool } from "@/lib/ayden";
 import { getAydenMemories } from "@/lib/memory-tools";
 import { getAydenEmotionalState } from "@/lib/emotion-tools";
@@ -418,9 +419,14 @@ export async function executeOutreach(): Promise<OutreachResult> {
     return { sent: false, reason: "Sonnet failed to generate message", decision };
   }
 
-  // Step 4: Send via Twilio
+  // Step 4: Send via Twilio + push notification
   try {
-    await sendSms(message);
+    await Promise.all([
+      sendSms(message),
+      sendPushNotification({ body: message, tag: "ayden-outreach" }).catch((err) =>
+        console.error("Outreach push notification error:", err)
+      ),
+    ]);
   } catch (err) {
     console.error("Outreach SMS send error:", err);
     return { sent: false, reason: `SMS send failed: ${err}`, decision, message };

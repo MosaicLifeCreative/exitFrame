@@ -55,7 +55,7 @@ interface ChatStore {
   openChat: () => void;
   closeChat: () => void;
   setPageContext: (ctx: PageContext | null) => void;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, images?: Array<{ base64: string; mediaType: string }>) => Promise<void>;
   clearMessages: () => void;
   loadConversation: (context: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
@@ -180,7 +180,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set({ messages: [], conversationId: null, conversationSummary: null, hasMoreMessages: false });
   },
 
-  sendMessage: async (content: string) => {
+  sendMessage: async (content: string, images?: Array<{ base64: string; mediaType: string }>) => {
     const { messages, pageContext, conversationSummary } = get();
     const context = pageContext?.page || "General";
 
@@ -218,6 +218,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           messages: apiMessages,
           context: pageContext,
           ...(conversationSummary ? { conversationSummary } : {}),
+          ...(images && images.length > 0 ? { images } : {}),
         }),
       });
 

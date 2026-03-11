@@ -115,3 +115,19 @@
 .terminal-input:focus {
   box-shadow: 0 0 15px rgba(0, 255, 65, 0.05), inset 0 0 15px rgba(0, 255, 65, 0.02);
 }
+
+/* PWA safe area support */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Hide elements in standalone PWA mode */
+@media (display-mode: standalone) {
+  .pwa-hidden {
+    display: none !important;
+  }
+}

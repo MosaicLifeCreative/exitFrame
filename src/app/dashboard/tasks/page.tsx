@@ -19,6 +19,7 @@ import {
   RotateCcw,
   Bell,
   Loader2,
+  FolderPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,6 +91,15 @@ interface Task {
   tags: Array<{ tag: TaskTag }>;
 }
 
+interface RecurringInput {
+  frequency: string;
+  intervalDays: number | null;
+  daysOfWeek: number[];
+  dayOfMonth: number | null;
+  endDate: string | null;
+  maxOccurrences: number | null;
+}
+
 // ────────────────────────────────────────────────────────
 // CONSTANTS
 // ────────────────────────────────────────────────────────
@@ -103,6 +113,18 @@ const priorityColors: Record<string, string> = {
 };
 
 const GROCERY_GROUP_NAME = "Grocery List";
+
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const FREQUENCY_LABELS: Record<string, string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  biweekly: "Every 2 Weeks",
+  monthly: "Monthly",
+  quarterly: "Quarterly",
+  yearly: "Yearly",
+  custom: "Custom Interval",
+};
 
 // ────────────────────────────────────────────────────────
 // MAIN
@@ -123,7 +145,6 @@ function TasksPageContent() {
   // Data
   const [tasks, setTasks] = useState<Task[]>([]);
   const [groups, setGroups] = useState<TaskGroup[]>([]);
-  const [, setAllTags] = useState<TaskTag[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -145,6 +166,15 @@ function TasksPageContent() {
 
   // Edit dialog
   const [editTask, setEditTask] = useState<Task | null>(null);
+
+  // Create dialog (for recurring / advanced)
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+
+  // New list inline input
+  const [showNewListInput, setShowNewListInput] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [creatingList, setCreatingList] = useState(false);
+  const newListInputRef = useRef<HTMLInputElement>(null);
 
   // Expanded groups in sidebar
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -194,20 +224,6 @@ function TasksPageContent() {
     }
   }, []);
 
-  const fetchTags = useCallback(async () => {
-    try {
-      const res = await fetch("/api/tasks/tags");
-      const json = await res.json();
-      if (res.ok) setAllTags(json.data.map((t: TaskTag & { _count?: { assignments: number } }) => ({
-        id: t.id,
-        name: t.name,
-        color: t.color,
-      })));
-    } catch {
-      console.error("Failed to load tags");
-    }
-  }, []);
-
   // Fetch past grocery items for auto-suggest
   const fetchPastGroceryItems = useCallback(async () => {
     if (!groceryGroup) return;
@@ -219,7 +235,6 @@ function TasksPageContent() {
       const res = await fetch(`/api/tasks?${params}`);
       const json = await res.json();
       if (res.ok) {
-        // Unique titles from past completed grocery items
         const titles = Array.from(new Set(
           (json.data as Task[]).map((t) => t.title)
         )) as string[];
@@ -233,8 +248,7 @@ function TasksPageContent() {
   useEffect(() => {
     fetchTasks();
     fetchGroups();
-    fetchTags();
-  }, [fetchTasks, fetchGroups, fetchTags]);
+  }, [fetchTasks, fetchGroups]);
 
   useEffect(() => {
     if (groceryGroup) fetchPastGroceryItems();
@@ -254,6 +268,11 @@ function TasksPageContent() {
       setShowSuggestions(false);
     }
   }, [quickTitle, isGroceryMode, pastGroceryItems]);
+
+  // Focus new list input when shown
+  useEffect(() => {
+    if (showNewListInput) newListInputRef.current?.focus();
+  }, [showNewListInput]);
 
   // ─── Filtered / Sorted ────────────────────────────────
 
@@ -372,6 +391,48 @@ function TasksPageContent() {
       }
     } catch {
       toast.error("Failed to update task");
+    }
+  };
+
+  const createNewList = async () => {
+    if (!newListName.trim()) return;
+    setCreatingList(true);
+    try {
+      const res = await fetch("/api/tasks/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newListName.trim() }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setNewListName("");
+        setShowNewListInput(false);
+        fetchGroups();
+        setSelectedGroupId(json.data.id);
+        toast.success(`List "${newListName.trim()}" created`);
+      }
+    } catch {
+      toast.error("Failed to create list");
+    } finally {
+      setCreatingList(false);
+    }
+  };
+
+  const createTask = async (data: Record<string, unknown>) => {
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        toast.success("Task created");
+        setShowCreateDialog(false);
+        fetchTasks();
+        fetchGroups();
+      }
+    } catch {
+      toast.error("Failed to create task");
     }
   };
 
@@ -495,6 +556,35 @@ function TasksPageContent() {
             ))}
           </div>
         ))}
+
+        {/* New List */}
+        {showNewListInput ? (
+          <div className="px-1 pt-1">
+            <Input
+              ref={newListInputRef}
+              placeholder="List name..."
+              value={newListName}
+              onChange={(e) => setNewListName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") createNewList();
+                if (e.key === "Escape") { setShowNewListInput(false); setNewListName(""); }
+              }}
+              onBlur={() => {
+                if (!newListName.trim()) { setShowNewListInput(false); setNewListName(""); }
+              }}
+              className="h-7 text-xs"
+              disabled={creatingList}
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowNewListInput(true)}
+            className="w-full text-left px-3 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-muted flex items-center gap-2"
+          >
+            <FolderPlus className="h-3 w-3" />
+            New List
+          </button>
+        )}
       </div>
 
       {/* Main content */}
@@ -509,6 +599,12 @@ function TasksPageContent() {
                 : groups.flatMap((g) => [g, ...(g.children || [])]).find((g) => g.id === selectedGroupId)?.name || "Tasks"}
             {isGroceryMode && <ShoppingCart className="inline h-5 w-5 ml-2 text-muted-foreground" />}
           </h1>
+          {!isGroceryMode && (
+            <Button size="sm" variant="outline" onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              New Task
+            </Button>
+          )}
         </div>
 
         {/* Quick add */}
@@ -517,7 +613,7 @@ function TasksPageContent() {
             <div className="relative flex-1 max-w-lg">
               <Input
                 ref={quickInputRef}
-                placeholder={isGroceryMode ? "Add item..." : "Add task..."}
+                placeholder={isGroceryMode ? "Add item..." : "Quick add task..."}
                 value={quickTitle}
                 onChange={(e) => setQuickTitle(e.target.value)}
                 onKeyDown={(e) => {
@@ -699,6 +795,16 @@ function TasksPageContent() {
           onDelete={() => deleteTask(editTask.id)}
         />
       )}
+
+      {/* Create Dialog */}
+      {showCreateDialog && (
+        <TaskCreateDialog
+          groups={groups}
+          defaultGroupId={selectedGroupId !== "all" ? selectedGroupId : undefined}
+          onClose={() => setShowCreateDialog(false)}
+          onCreate={createTask}
+        />
+      )}
     </div>
   );
 }
@@ -811,6 +917,353 @@ function TaskRow({
 }
 
 // ────────────────────────────────────────────────────────
+// RECURRING CONFIG UI (shared between create & edit)
+// ────────────────────────────────────────────────────────
+
+function RecurringSection({
+  enabled,
+  onToggle,
+  config,
+  onChange,
+}: {
+  enabled: boolean;
+  onToggle: (v: boolean) => void;
+  config: RecurringInput;
+  onChange: (c: RecurringInput) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          checked={enabled}
+          onCheckedChange={(checked) => onToggle(checked === true)}
+        />
+        <label className="text-sm font-medium">Recurring</label>
+      </div>
+
+      {enabled && (
+        <div className="space-y-3 pl-6 border-l-2 border-muted">
+          <div>
+            <Label className="text-xs">Frequency</Label>
+            <Select
+              value={config.frequency}
+              onValueChange={(v) => onChange({ ...config, frequency: v })}
+            >
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(FREQUENCY_LABELS).map(([val, label]) => (
+                  <SelectItem key={val} value={val}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Days of week for weekly */}
+          {config.frequency === "weekly" && (
+            <div>
+              <Label className="text-xs mb-1 block">Days of Week</Label>
+              <div className="flex gap-1">
+                {DAY_LABELS.map((label, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      const days = config.daysOfWeek.includes(i)
+                        ? config.daysOfWeek.filter((d) => d !== i)
+                        : [...config.daysOfWeek, i];
+                      onChange({ ...config, daysOfWeek: days });
+                    }}
+                    className={`w-8 h-8 rounded text-xs font-medium ${
+                      config.daysOfWeek.includes(i)
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Day of month for monthly/quarterly/yearly */}
+          {["monthly", "quarterly", "yearly"].includes(config.frequency) && (
+            <div>
+              <Label className="text-xs">Day of Month</Label>
+              <Select
+                value={String(config.dayOfMonth || 1)}
+                onValueChange={(v) => onChange({ ...config, dayOfMonth: Number(v) })}
+              >
+                <SelectTrigger className="h-8 text-xs w-20"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                    <SelectItem key={d} value={String(d)}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Custom interval */}
+          {config.frequency === "custom" && (
+            <div>
+              <Label className="text-xs">Every N days</Label>
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={config.intervalDays || ""}
+                onChange={(e) => onChange({ ...config, intervalDays: Number(e.target.value) || null })}
+                className="h-8 text-xs w-24"
+              />
+            </div>
+          )}
+
+          {/* End date */}
+          <div>
+            <Label className="text-xs">End Date (optional)</Label>
+            <Input
+              type="date"
+              value={config.endDate || ""}
+              onChange={(e) => onChange({ ...config, endDate: e.target.value || null })}
+              className="h-8 text-xs w-40"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────
+// CREATE DIALOG
+// ────────────────────────────────────────────────────────
+
+function TaskCreateDialog({
+  groups,
+  defaultGroupId,
+  onClose,
+  onCreate,
+}: {
+  groups: TaskGroup[];
+  defaultGroupId?: string;
+  onClose: () => void;
+  onCreate: (data: Record<string, unknown>) => void;
+}) {
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    priority: "medium",
+    dueDate: "",
+    groupId: defaultGroupId || "none",
+    importanceScore: 3,
+    urgencyScore: 3,
+    effortScore: 3,
+    reminderEnabled: false,
+    reminderInterval: "daily",
+  });
+
+  const [recurringEnabled, setRecurringEnabled] = useState(false);
+  const [recurringConfig, setRecurringConfig] = useState<RecurringInput>({
+    frequency: "weekly",
+    intervalDays: null,
+    daysOfWeek: [],
+    dayOfMonth: null,
+    endDate: null,
+    maxOccurrences: null,
+  });
+
+  const flatGroups = useMemo(() => {
+    const flat: Array<{ id: string; name: string; depth: number }> = [];
+    for (const g of groups) {
+      flat.push({ id: g.id, name: g.name, depth: 0 });
+      for (const c of g.children || []) {
+        flat.push({ id: c.id, name: c.name, depth: 1 });
+      }
+    }
+    return flat;
+  }, [groups]);
+
+  const computedScore = ((form.importanceScore * form.urgencyScore) / form.effortScore).toFixed(1);
+
+  const handleCreate = () => {
+    if (!form.title.trim()) return;
+    const data: Record<string, unknown> = {
+      title: form.title.trim(),
+      description: form.description || null,
+      priority: form.priority,
+      dueDate: form.dueDate ? new Date(form.dueDate + "T12:00:00").toISOString() : null,
+      groupId: form.groupId === "none" ? null : form.groupId,
+      importanceScore: form.importanceScore,
+      urgencyScore: form.urgencyScore,
+      effortScore: form.effortScore,
+      reminderEnabled: form.reminderEnabled,
+      reminderInterval: form.reminderEnabled ? form.reminderInterval : null,
+    };
+
+    if (recurringEnabled) {
+      data.recurring = {
+        frequency: recurringConfig.frequency,
+        intervalDays: recurringConfig.intervalDays,
+        daysOfWeek: recurringConfig.daysOfWeek,
+        dayOfMonth: recurringConfig.dayOfMonth,
+        endDate: recurringConfig.endDate,
+        maxOccurrences: recurringConfig.maxOccurrences,
+      };
+    }
+
+    onCreate(data);
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>New Task</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Title</Label>
+            <Input
+              value={form.title}
+              onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+              autoFocus
+            />
+          </div>
+          <div>
+            <Label>Description</Label>
+            <Textarea
+              value={form.description}
+              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              rows={2}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Priority</Label>
+              <Select value={form.priority} onValueChange={(v) => setForm((p) => ({ ...p, priority: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Due Date</Label>
+              <Input
+                type="date"
+                value={form.dueDate}
+                onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div>
+            <Label>List</Label>
+            <Select value={form.groupId} onValueChange={(v) => setForm((p) => ({ ...p, groupId: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No List</SelectItem>
+                {flatGroups.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.depth > 0 ? `  ${g.name}` : g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Scoring */}
+          <div>
+            <Label className="mb-2 block">Score ({computedScore})</Label>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">Importance</label>
+                <Select
+                  value={String(form.importanceScore)}
+                  onValueChange={(v) => setForm((p) => ({ ...p, importanceScore: Number(v) }))}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[1,2,3,4,5].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Urgency</label>
+                <Select
+                  value={String(form.urgencyScore)}
+                  onValueChange={(v) => setForm((p) => ({ ...p, urgencyScore: Number(v) }))}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[1,2,3,4,5].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Effort</label>
+                <Select
+                  value={String(form.effortScore)}
+                  onValueChange={(v) => setForm((p) => ({ ...p, effortScore: Number(v) }))}
+                >
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[1,2,3,4,5].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {/* Reminders */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={form.reminderEnabled}
+                onCheckedChange={(checked) => setForm((p) => ({ ...p, reminderEnabled: checked === true }))}
+              />
+              <label className="text-sm">Reminders</label>
+            </div>
+            {form.reminderEnabled && (
+              <Select
+                value={form.reminderInterval}
+                onValueChange={(v) => setForm((p) => ({ ...p, reminderInterval: v }))}
+              >
+                <SelectTrigger className="w-[100px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="hourly">Nag me</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {/* Recurring */}
+          <RecurringSection
+            enabled={recurringEnabled}
+            onToggle={setRecurringEnabled}
+            config={recurringConfig}
+            onChange={setRecurringConfig}
+          />
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+            <Button size="sm" onClick={handleCreate} disabled={!form.title.trim()}>
+              Create Task
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ────────────────────────────────────────────────────────
 // EDIT DIALOG
 // ────────────────────────────────────────────────────────
 
@@ -872,9 +1325,16 @@ function TaskEditDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Task</DialogTitle>
+          <DialogTitle>
+            Edit Task
+            {task.source === "recurring" && (
+              <span className="text-xs font-normal text-muted-foreground ml-2 inline-flex items-center gap-1">
+                <RotateCcw className="h-3 w-3" /> Recurring
+              </span>
+            )}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>
@@ -930,11 +1390,11 @@ function TaskEditDialog({
               />
             </div>
             <div>
-              <Label>Group</Label>
+              <Label>List</Label>
               <Select value={form.groupId} onValueChange={(v) => setForm((p) => ({ ...p, groupId: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Group</SelectItem>
+                  <SelectItem value="none">No List</SelectItem>
                   {flatGroups.map((g) => (
                     <SelectItem key={g.id} value={g.id}>
                       {g.depth > 0 ? `  ${g.name}` : g.name}

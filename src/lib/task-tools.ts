@@ -793,7 +793,7 @@ async function completeTask(input: CompleteTaskInput): Promise<string> {
           });
         } else {
           // Create next instance
-          const nextTask = await prisma.task.create({
+          await prisma.task.create({
             data: {
               title: template.title,
               description: template.description,
@@ -1016,7 +1016,7 @@ async function updateTask(input: UpdateTaskInput): Promise<string> {
   }
 
   // Update the task
-  const task = await prisma.task.update({
+  await prisma.task.update({
     where: { id: taskId },
     data,
     include: {

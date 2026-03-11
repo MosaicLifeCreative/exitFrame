@@ -7,7 +7,6 @@ import {
   Plus,
   Trash2,
   TrendingUp,
-
   Eye,
   Newspaper,
   Pencil,
@@ -20,7 +19,8 @@ import {
   Minus,
   Bot,
   BarChart3,
-  RotateCcw,
+  FlaskConical,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,45 +111,37 @@ interface QuoteData {
   updatedAt: string;
 }
 
-interface AiPosition {
-  id: string;
-  ticker: string;
-  companyName: string;
-  shares: string;
-  avgCostBasis: string;
+interface TastyPosition {
+  symbol: string;
+  instrumentType: string;
+  underlyingSymbol: string;
+  quantity: number;
+  direction: string;
+  averageOpenPrice: number;
+  closePrice: number;
   currentPrice: number;
-  dailyChange: number | null;
-  dailyChangePct: number | null;
   marketValue: number;
-  pnl: number;
-  pnlPct: number;
+  realizedDayGain: number;
+  unrealizedPnl: number;
+  unrealizedPnlPct: number;
+  multiplier: number;
+  expirationDate?: string;
+  strikePrice?: number;
+  optionType?: string;
 }
 
-interface AiTradeRecord {
-  id: string;
-  ticker: string;
-  companyName: string;
-  side: string;
-  shares: string;
-  price: string;
-  total: string;
-  reasoning: string;
-  newsIds: string[];
-  executedAt: string;
-}
-
-interface AiPortfolioData {
-  id: string;
-  name: string;
+interface TastyBalance {
+  accountNumber: string;
   cashBalance: number;
-  startingCapital: number;
-  inceptionDate: string;
-  totalValue: number;
-  holdingsValue: number;
-  totalReturn: number;
-  totalTrades: number;
-  positions: AiPosition[];
-  trades: AiTradeRecord[];
+  netLiquidatingValue: number;
+  equityBuyingPower: number;
+  derivativeBuyingPower: number;
+  maintenanceRequirement: number;
+  longEquityValue: number;
+  shortEquityValue: number;
+  longDerivativeValue: number;
+  shortDerivativeValue: number;
+  pendingCash: number;
 }
 
 interface SnapshotData {
@@ -214,6 +206,19 @@ function formatTimeAgo(dateStr: string): string {
   if (diffHours < 24) return diffHours + "h ago";
   const diffDays = Math.floor(diffHours / 24);
   return diffDays + "d ago";
+}
+
+function formatOptionSymbol(pos: TastyPosition): string {
+  if (pos.instrumentType !== "Equity Option") return pos.symbol;
+  const parts = [];
+  parts.push(pos.underlyingSymbol);
+  if (pos.expirationDate) {
+    const d = new Date(pos.expirationDate);
+    parts.push(d.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+  }
+  if (pos.strikePrice) parts.push("$" + pos.strikePrice);
+  if (pos.optionType) parts.push(pos.optionType === "C" ? "Call" : "Put");
+  return parts.join(" ");
 }
 
 // ============================================
@@ -366,64 +371,6 @@ function AddWatchlistDialog({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function ResetPortfolioDialog({ onReset, currentValue }: { onReset: () => void; currentValue: number }) {
-  const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const handleReset = async () => {
-    const capital = parseFloat(amount);
-    if (!capital || capital <= 0) { toast.error("Enter a valid amount"); return; }
-    setSaving(true);
-    try {
-      const res = await fetch("/api/investing/ai-portfolio/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startingCapital: capital }),
-      });
-      if (res.ok) {
-        toast.success("Portfolio reset with $" + capital.toLocaleString());
-        setOpen(false);
-        setAmount("");
-        onReset();
-      } else {
-        const json = await res.json();
-        toast.error(json.error);
-      }
-    } catch { toast.error("Failed to reset portfolio"); }
-    finally { setSaving(false); }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline"><RotateCcw className="h-4 w-4 mr-1" />Reset</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Reset Ayden&apos;s Portfolio</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          This will deactivate the current portfolio and start fresh. All positions will be closed. Trade history is preserved for reference.
-        </p>
-        <div className="space-y-2 mt-2">
-          <Label htmlFor="resetAmount">Starting Capital ($)</Label>
-          <Input
-            id="resetAmount"
-            type="number"
-            step="0.01"
-            placeholder={currentValue.toFixed(0)}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">Your current portfolio value: {fmtMoney(currentValue)}</p>
-        </div>
-        <Button onClick={handleReset} disabled={saving} variant="destructive">
-          {saving ? "Resetting..." : "Reset Portfolio"}
-        </Button>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ============================================
 // HOLDINGS ROW (with live prices)
 // ============================================
@@ -539,23 +486,38 @@ function EditableHoldingRow({
 // ============================================
 
 export default function InvestingPage() {
+  // My Portfolio (Fidelity — manual tracking)
   const [holdings, setHoldings] = useState<PortfolioHolding[]>([]);
+  const [quotes, setQuotes] = useState<QuoteData[]>([]);
+  const [loadingHoldings, setLoadingHoldings] = useState(true);
+
+  // Our Portfolio (tastytrade live — Ayden-managed)
+  const [ttPositions, setTtPositions] = useState<TastyPosition[]>([]);
+  const [ttBalance, setTtBalance] = useState<TastyBalance | null>(null);
+  const [loadingTt, setLoadingTt] = useState(true);
+  const [ttError, setTtError] = useState<string | null>(null);
+
+  // Sandbox (tastytrade sandbox — Ayden paper trading)
+  const [sandboxPositions, setSandboxPositions] = useState<TastyPosition[]>([]);
+  const [sandboxBalance, setSandboxBalance] = useState<TastyBalance | null>(null);
+  const [loadingSandbox, setLoadingSandbox] = useState(true);
+  const [sandboxError, setSandboxError] = useState<string | null>(null);
+
+  // Watchlist & News
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [news, setNews] = useState<MarketNewsArticle[]>([]);
-  const [quotes, setQuotes] = useState<QuoteData[]>([]);
-  const [aiPortfolio, setAiPortfolio] = useState<AiPortfolioData | null>(null);
-  const [snapshots, setSnapshots] = useState<SnapshotData[]>([]);
-  const [loadingHoldings, setLoadingHoldings] = useState(true);
   const [loadingWatchlist, setLoadingWatchlist] = useState(true);
   const [loadingNews, setLoadingNews] = useState(true);
-  const [loadingAi, setLoadingAi] = useState(true);
-  const [loadingSnapshots, setLoadingSnapshots] = useState(true);
   const [crawling, setCrawling] = useState(false);
-  const [evaluating, setEvaluating] = useState(false);
-  const [loadingMoreTrades, setLoadingMoreTrades] = useState(false);
   const [newsFilter, setNewsFilter] = useState<string>("all");
 
+  // Performance
+  const [snapshots, setSnapshots] = useState<SnapshotData[]>([]);
+  const [loadingSnapshots, setLoadingSnapshots] = useState(true);
+
   const quoteMap = new Map(quotes.map((q) => [q.ticker, q]));
+
+  // ── Fetch functions ──────────────────────────────────
 
   const fetchHoldings = useCallback(async () => {
     try {
@@ -565,6 +527,62 @@ export default function InvestingPage() {
       else toast.error(json.error);
     } catch { toast.error("Failed to load holdings"); }
     finally { setLoadingHoldings(false); }
+  }, []);
+
+  const fetchQuotes = useCallback(async () => {
+    try {
+      const res = await fetch("/api/investing/quotes");
+      const json = await res.json();
+      if (res.ok) setQuotes(json.data);
+    } catch { /* quotes are supplemental, don't toast */ }
+  }, []);
+
+  const fetchTastytrade = useCallback(async () => {
+    try {
+      const [posRes, balRes] = await Promise.all([
+        fetch("/api/investing/tastytrade/positions"),
+        fetch("/api/investing/tastytrade/balance"),
+      ]);
+      const posJson = await posRes.json();
+      const balJson = await balRes.json();
+      if (posRes.ok && posJson.data) {
+        setTtPositions(posJson.data.positions || []);
+        setTtError(null);
+      } else {
+        setTtError(posJson.error || "Failed to load positions");
+      }
+      if (balRes.ok && balJson.data) {
+        setTtBalance(balJson.data);
+      }
+    } catch {
+      setTtError("Failed to connect to tastytrade");
+    } finally {
+      setLoadingTt(false);
+    }
+  }, []);
+
+  const fetchSandbox = useCallback(async () => {
+    try {
+      const [posRes, balRes] = await Promise.all([
+        fetch("/api/investing/tastytrade/sandbox/positions"),
+        fetch("/api/investing/tastytrade/sandbox/balance"),
+      ]);
+      const posJson = await posRes.json();
+      const balJson = await balRes.json();
+      if (posRes.ok && posJson.data) {
+        setSandboxPositions(posJson.data.positions || []);
+        setSandboxError(null);
+      } else {
+        setSandboxError(posJson.error || "Sandbox not configured");
+      }
+      if (balRes.ok && balJson.data) {
+        setSandboxBalance(balJson.data);
+      }
+    } catch {
+      setSandboxError("Sandbox not configured");
+    } finally {
+      setLoadingSandbox(false);
+    }
   }, []);
 
   const fetchWatchlist = useCallback(async () => {
@@ -586,40 +604,6 @@ export default function InvestingPage() {
     } catch { toast.error("Failed to load news"); }
     finally { setLoadingNews(false); }
   }, []);
-
-  const fetchQuotes = useCallback(async () => {
-    try {
-      const res = await fetch("/api/investing/quotes");
-      const json = await res.json();
-      if (res.ok) setQuotes(json.data);
-    } catch { /* quotes are supplemental, don't toast */ }
-  }, []);
-
-  const fetchAiPortfolio = useCallback(async () => {
-    try {
-      const res = await fetch("/api/investing/ai-portfolio?tradeLimit=20");
-      const json = await res.json();
-      if (res.ok) setAiPortfolio(json.data);
-    } catch { toast.error("Failed to load AI portfolio"); }
-    finally { setLoadingAi(false); }
-  }, []);
-
-  const loadMoreTrades = useCallback(async () => {
-    if (!aiPortfolio) return;
-    setLoadingMoreTrades(true);
-    try {
-      const offset = aiPortfolio.trades.length;
-      const res = await fetch(`/api/investing/ai-portfolio?tradeLimit=20&tradeOffset=${offset}`);
-      const json = await res.json();
-      if (res.ok && json.data) {
-        setAiPortfolio((prev) => prev ? {
-          ...prev,
-          trades: [...prev.trades, ...json.data.trades],
-        } : prev);
-      }
-    } catch { toast.error("Failed to load more trades"); }
-    finally { setLoadingMoreTrades(false); }
-  }, [aiPortfolio]);
 
   const fetchSnapshots = useCallback(async () => {
     try {
@@ -643,78 +627,23 @@ export default function InvestingPage() {
     finally { setCrawling(false); }
   };
 
-  const evaluateNow = async () => {
-    setEvaluating(true);
-    try {
-      const res = await fetch("/api/investing/ai-portfolio/evaluate", { method: "POST" });
-      const json = await res.json();
-      if (res.ok) {
-        const d = json.data;
-        toast.success(`Evaluated: ${d.decisions} decisions, ${d.executed} trades`);
-        fetchAiPortfolio();
-        fetchQuotes();
-      } else {
-        toast.error(json.error);
-      }
-    } catch {
-      toast.error("Failed to evaluate trades");
-    } finally {
-      setEvaluating(false);
-    }
-  };
-
   useEffect(() => {
     fetchHoldings();
+    fetchQuotes();
+    fetchTastytrade();
+    fetchSandbox();
     fetchWatchlist();
     fetchNews();
-    fetchQuotes();
-    fetchAiPortfolio();
     fetchSnapshots();
-  }, [fetchHoldings, fetchWatchlist, fetchNews, fetchQuotes, fetchAiPortfolio, fetchSnapshots]);
+  }, [fetchHoldings, fetchQuotes, fetchTastytrade, fetchSandbox, fetchWatchlist, fetchNews, fetchSnapshots]);
 
-  // Chat context — pre-calculate totals
+  // ── Computed values ──────────────────────────────────
+
   const userTotalValue = holdings.reduce((sum, h) => {
     const q = quoteMap.get(h.ticker);
     const price = q?.price || parseFloat(h.avgCostBasis);
     return sum + parseFloat(h.shares) * price;
   }, 0);
-
-  const chatContextData = [
-    `Your Portfolio: ${holdings.length} positions, ${fmtMoney(userTotalValue)} total value`,
-    holdings.length > 0 ? holdings.map((h) => {
-      const q = quoteMap.get(h.ticker);
-      const price = q?.price || parseFloat(h.avgCostBasis);
-      const value = parseFloat(h.shares) * price;
-      const cost = parseFloat(h.shares) * parseFloat(h.avgCostBasis);
-      const pnl = value - cost;
-      return `  ${h.ticker}: ${parseFloat(h.shares)} shares, ${fmtMoney(value)} (${pnl >= 0 ? "+" : ""}${fmtMoney(pnl)})`;
-    }).join("\n") : "",
-    aiPortfolio ? `\nAyden's Portfolio: ${fmtMoney(aiPortfolio.totalValue)} (${fmtPct(aiPortfolio.totalReturn)} return), ${aiPortfolio.positions.length} positions, ${fmtMoney(aiPortfolio.cashBalance)} cash` : "",
-    aiPortfolio && aiPortfolio.positions.length > 0 ? aiPortfolio.positions.map((p) =>
-      `  ${p.ticker}: ${parseFloat(p.shares)} shares, ${fmtMoney(p.marketValue)} (${fmtPct(p.pnlPct)})`
-    ).join("\n") : "",
-    watchlist.length > 0 ? `\nWatchlist: ${watchlist.map((w) => w.value).join(", ")}` : "",
-    news.length > 0 ? `\nRecent news: ${news.slice(0, 5).map((n) => n.headline + (n.aiSentiment ? " [" + n.aiSentiment + "]" : "")).join("; ")}` : "",
-  ].filter(Boolean).join("\n");
-  useChatContext("Investing", chatContextData);
-
-  const deleteHolding = async (id: string) => {
-    try {
-      const res = await fetch("/api/investing/holdings/" + id, { method: "DELETE" });
-      if (res.ok) { toast.success("Removed from portfolio"); fetchHoldings(); }
-      else { const json = await res.json(); toast.error(json.error); }
-    } catch { toast.error("Failed to remove holding"); }
-  };
-
-  const deleteWatchlistItem = async (id: string) => {
-    try {
-      const res = await fetch("/api/investing/watchlist/" + id, { method: "DELETE" });
-      if (res.ok) { toast.success("Removed from watchlist"); fetchWatchlist(); }
-      else { const json = await res.json(); toast.error(json.error); }
-    } catch { toast.error("Failed to remove from watchlist"); }
-  };
-
-  // Computed values for user portfolio
   const totalCostBasis = holdings.reduce((sum, h) => sum + parseFloat(h.shares) * parseFloat(h.avgCostBasis), 0);
   const totalMarketValue = userTotalValue;
   const totalPnl = totalMarketValue - totalCostBasis;
@@ -725,11 +654,19 @@ export default function InvestingPage() {
   }, 0);
   const totalTodayGainPct = totalMarketValue > 0 ? (totalTodayGain / (totalMarketValue - totalTodayGain)) * 100 : 0;
   const totalPositions = holdings.length;
-  const sectors = Array.from(new Set(holdings.map((h) => h.sector).filter(Boolean)));
-  const tickerItems = watchlist.filter((w) => w.type === "ticker");
+const tickerItems = watchlist.filter((w) => w.type === "ticker");
   const sectorItems = watchlist.filter((w) => w.type === "sector");
 
-  // Filtered news
+  // tastytrade computed
+  const ttNetLiq = ttBalance?.netLiquidatingValue ?? 0;
+  const ttTotalUnrealizedPnl = ttPositions.reduce((sum, p) => sum + p.unrealizedPnl, 0);
+  const ttEquityPositions = ttPositions.filter((p) => p.instrumentType === "Equity");
+  const ttOptionPositions = ttPositions.filter((p) => p.instrumentType === "Equity Option");
+
+  // sandbox computed
+  const sbNetLiq = sandboxBalance?.netLiquidatingValue ?? 0;
+
+  // News filtering
   const filteredNews = newsFilter === "all"
     ? news
     : newsFilter === "bullish" || newsFilter === "bearish" || newsFilter === "neutral"
@@ -750,17 +687,61 @@ export default function InvestingPage() {
     return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
   })();
 
-  // AI portfolio metrics
   const quotesUpdatedAt = quotes.length > 0
     ? formatTimeAgo(quotes.reduce((latest, q) => q.updatedAt > latest ? q.updatedAt : latest, quotes[0].updatedAt))
     : null;
+
+  // ── Chat context ──────────────────────────────────
+
+  const chatContextData = [
+    `My Portfolio (Fidelity): ${holdings.length} positions, ${fmtMoney(userTotalValue)} total value`,
+    holdings.length > 0 ? holdings.map((h) => {
+      const q = quoteMap.get(h.ticker);
+      const price = q?.price || parseFloat(h.avgCostBasis);
+      const value = parseFloat(h.shares) * price;
+      const cost = parseFloat(h.shares) * parseFloat(h.avgCostBasis);
+      const pnl = value - cost;
+      return `  ${h.ticker}: ${parseFloat(h.shares)} shares, ${fmtMoney(value)} (${pnl >= 0 ? "+" : ""}${fmtMoney(pnl)})`;
+    }).join("\n") : "",
+    ttBalance ? `\nOur Portfolio (tastytrade): Net Liq ${fmtMoney(ttNetLiq)}, Cash ${fmtMoney(ttBalance.cashBalance)}, Buying Power ${fmtMoney(ttBalance.equityBuyingPower)}` : "",
+    ttPositions.length > 0 ? ttPositions.map((p) =>
+      `  ${p.symbol}: ${p.quantity} ${p.direction}, ${fmtMoney(p.marketValue)} (${fmtPct(p.unrealizedPnlPct)})`
+    ).join("\n") : "",
+    sandboxBalance ? `\nSandbox: Net Liq ${fmtMoney(sbNetLiq)}, Cash ${fmtMoney(sandboxBalance.cashBalance)}` : "",
+    sandboxPositions.length > 0 ? sandboxPositions.map((p) =>
+      `  ${p.symbol}: ${p.quantity} ${p.direction}, ${fmtMoney(p.marketValue)} (${fmtPct(p.unrealizedPnlPct)})`
+    ).join("\n") : "",
+    watchlist.length > 0 ? `\nWatchlist: ${watchlist.map((w) => w.value).join(", ")}` : "",
+    news.length > 0 ? `\nRecent news: ${news.slice(0, 5).map((n) => n.headline + (n.aiSentiment ? " [" + n.aiSentiment + "]" : "")).join("; ")}` : "",
+  ].filter(Boolean).join("\n");
+  useChatContext("Investing", chatContextData);
+
+  // ── Actions ──────────────────────────────────
+
+  const deleteHolding = async (id: string) => {
+    try {
+      const res = await fetch("/api/investing/holdings/" + id, { method: "DELETE" });
+      if (res.ok) { toast.success("Removed from portfolio"); fetchHoldings(); }
+      else { const json = await res.json(); toast.error(json.error); }
+    } catch { toast.error("Failed to remove holding"); }
+  };
+
+  const deleteWatchlistItem = async (id: string) => {
+    try {
+      const res = await fetch("/api/investing/watchlist/" + id, { method: "DELETE" });
+      if (res.ok) { toast.success("Removed from watchlist"); fetchWatchlist(); }
+      else { const json = await res.json(); toast.error(json.error); }
+    } catch { toast.error("Failed to remove from watchlist"); }
+  };
+
+  // ── Render ──────────────────────────────────
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Investing</h1>
         <p className="text-muted-foreground">
-          Portfolio, AI trading, and market analysis
+          Portfolio tracking, AI-managed trading, and market analysis
           {quotesUpdatedAt && <span className="ml-2 text-xs">(quotes {quotesUpdatedAt})</span>}
         </p>
       </div>
@@ -768,31 +749,40 @@ export default function InvestingPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Your Portfolio</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">My Portfolio</CardTitle></CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{fmtMoney(totalMarketValue)}</div>
-            <PnlText value={totalPnl} className="text-sm" />
-            <span className="text-sm text-muted-foreground"> (<PctText value={totalPnlPct} className="text-sm" />)</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Ayden&apos;s Portfolio</CardTitle></CardHeader>
-          <CardContent>
-            {aiPortfolio ? (
+            {totalCostBasis > 0 ? (
               <>
-                <div className="text-2xl font-bold">{fmtMoney(aiPortfolio.totalValue)}</div>
-                <PctText value={aiPortfolio.totalReturn} className="text-sm" />
+                <PnlText value={totalPnl} className="text-sm" />
+                <span className="text-sm text-muted-foreground"> (<PctText value={totalPnlPct} className="text-sm" />)</span>
               </>
             ) : (
-              <div className="text-2xl font-bold text-muted-foreground">--</div>
+              <p className="text-xs text-muted-foreground">Fidelity</p>
             )}
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Positions</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Our Portfolio</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalPositions}</div>
-            <p className="text-xs text-muted-foreground">{sectors.length} sectors</p>
+            <div className="text-2xl font-bold">{fmtMoney(ttNetLiq)}</div>
+            {ttPositions.length > 0 ? (
+              <>
+                <PnlText value={ttTotalUnrealizedPnl} className="text-sm" />
+                <span className="text-xs text-muted-foreground ml-1">unrealized</span>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">tastytrade</p>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Sandbox</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{sandboxBalance ? fmtMoney(sbNetLiq) : "--"}</div>
+            <p className="text-xs text-muted-foreground">
+              {sandboxBalance ? `${sandboxPositions.length} positions` : "Not configured"}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -808,7 +798,8 @@ export default function InvestingPage() {
       <Tabs defaultValue="portfolio">
         <TabsList>
           <TabsTrigger value="portfolio" className="gap-1.5"><TrendingUp className="h-4 w-4" />My Portfolio</TabsTrigger>
-          <TabsTrigger value="ai" className="gap-1.5"><Bot className="h-4 w-4" />Ayden&apos;s Portfolio</TabsTrigger>
+          <TabsTrigger value="our-portfolio" className="gap-1.5"><Wallet className="h-4 w-4" />Our Portfolio</TabsTrigger>
+          <TabsTrigger value="sandbox" className="gap-1.5"><FlaskConical className="h-4 w-4" />Sandbox</TabsTrigger>
           <TabsTrigger value="performance" className="gap-1.5"><BarChart3 className="h-4 w-4" />Performance</TabsTrigger>
           <TabsTrigger value="watchlist" className="gap-1.5"><Eye className="h-4 w-4" />Watchlist</TabsTrigger>
           <TabsTrigger value="news" className="gap-1.5">
@@ -820,7 +811,7 @@ export default function InvestingPage() {
         {/* ==================== MY PORTFOLIO ==================== */}
         <TabsContent value="portfolio" className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Holdings</h2>
+            <h2 className="text-lg font-semibold">My Holdings (Fidelity)</h2>
             <AddHoldingDialog onCreated={fetchHoldings} />
           </div>
           {loadingHoldings ? (
@@ -830,7 +821,7 @@ export default function InvestingPage() {
               <CardContent className="py-12 text-center">
                 <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
                 <h3 className="text-lg font-medium mb-1">No holdings yet</h3>
-                <p className="text-sm text-muted-foreground mb-4">Add your stock positions to start tracking your portfolio.</p>
+                <p className="text-sm text-muted-foreground mb-4">Add your Fidelity positions to track your portfolio.</p>
                 <AddHoldingDialog onCreated={fetchHoldings} />
               </CardContent>
             </Card>
@@ -879,208 +870,323 @@ export default function InvestingPage() {
           )}
         </TabsContent>
 
-        {/* ==================== AYDEN'S PORTFOLIO ==================== */}
-        <TabsContent value="ai" className="space-y-4">
+        {/* ==================== OUR PORTFOLIO (tastytrade live) ==================== */}
+        <TabsContent value="our-portfolio" className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Ayden&apos;s Portfolio</h2>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={evaluateNow} disabled={evaluating}>
-                <RefreshCw className={"h-4 w-4 mr-1" + (evaluating ? " animate-spin" : "")} />
-                {evaluating ? "Evaluating..." : "Evaluate Now"}
-              </Button>
-              {aiPortfolio && (
-                <ResetPortfolioDialog onReset={fetchAiPortfolio} currentValue={totalMarketValue} />
-              )}
+            <div>
+              <h2 className="text-lg font-semibold">Our Portfolio</h2>
+              <p className="text-sm text-muted-foreground">tastytrade — managed by Ayden</p>
             </div>
+            <Button size="sm" variant="outline" onClick={() => { setLoadingTt(true); fetchTastytrade(); }}>
+              <RefreshCw className="h-4 w-4 mr-1" />Refresh
+            </Button>
           </div>
 
-          {loadingAi ? (
-            <p className="text-muted-foreground text-sm">Loading AI portfolio...</p>
-          ) : !aiPortfolio ? (
+          {loadingTt ? (
+            <p className="text-muted-foreground text-sm">Loading tastytrade data...</p>
+          ) : ttError ? (
             <Card>
               <CardContent className="py-12 text-center">
-                <Bot className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-                <h3 className="text-lg font-medium mb-1">No AI portfolio yet</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Ayden&apos;s portfolio will be created automatically when the first trade evaluation runs.
-                  It will start with capital matching your portfolio value.
-                </p>
+                <Wallet className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                <h3 className="text-lg font-medium mb-1">Connection Error</h3>
+                <p className="text-sm text-muted-foreground mb-4">{ttError}</p>
               </CardContent>
             </Card>
           ) : (
             <>
-              {/* AI Portfolio summary */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{fmtMoney(aiPortfolio.totalValue)}</div>
-                    <PctText value={aiPortfolio.totalReturn} className="text-sm" />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Cash</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{fmtMoney(aiPortfolio.cashBalance)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      {((aiPortfolio.cashBalance / aiPortfolio.totalValue) * 100).toFixed(1)}% of portfolio
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Holdings</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{fmtMoney(aiPortfolio.holdingsValue)}</div>
-                    <p className="text-xs text-muted-foreground">{aiPortfolio.positions.length} positions</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Starting Capital</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{fmtMoney(aiPortfolio.startingCapital)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Since {new Date(aiPortfolio.inceptionDate).toLocaleDateString()}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+              {/* Balance summary */}
+              {ttBalance && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Net Liquidating Value</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{fmtMoney(ttBalance.netLiquidatingValue)}</div>
+                      <p className="text-xs text-muted-foreground">Account {ttBalance.accountNumber}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Cash Balance</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{fmtMoney(ttBalance.cashBalance)}</div>
+                      {ttBalance.netLiquidatingValue > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {((ttBalance.cashBalance / ttBalance.netLiquidatingValue) * 100).toFixed(1)}% of portfolio
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Buying Power</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{fmtMoney(ttBalance.equityBuyingPower)}</div>
+                      <p className="text-xs text-muted-foreground">
+                        Options: {fmtMoney(ttBalance.derivativeBuyingPower)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Maintenance Req</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{fmtMoney(ttBalance.maintenanceRequirement)}</div>
+                      <p className="text-xs text-muted-foreground">
+                        Pending: {fmtMoney(ttBalance.pendingCash)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
 
-              {/* AI Positions */}
-              {aiPortfolio.positions.length > 0 && (
+              {/* Positions */}
+              {ttPositions.length === 0 ? (
                 <Card>
-                  <CardHeader><CardTitle className="text-base">Open Positions</CardTitle></CardHeader>
+                  <CardContent className="py-12 text-center">
+                    <Bot className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                    <h3 className="text-lg font-medium mb-1">No positions yet</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Fund this account and Ayden will start managing positions based on your trading preferences and rules.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  {/* Equity positions */}
+                  {ttEquityPositions.length > 0 && (
+                    <Card>
+                      <CardHeader><CardTitle className="text-base">Equity Positions</CardTitle></CardHeader>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Symbol</TableHead>
+                            <TableHead>Qty</TableHead>
+                            <TableHead>Direction</TableHead>
+                            <TableHead>Avg Open</TableHead>
+                            <TableHead>Current</TableHead>
+                            <TableHead>Market Value</TableHead>
+                            <TableHead>Unrealized P&L</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {ttEquityPositions.map((pos, i) => (
+                            <TableRow key={i}>
+                              <TableCell className="font-mono font-semibold">{pos.symbol}</TableCell>
+                              <TableCell>{pos.quantity}</TableCell>
+                              <TableCell>
+                                <Badge variant={pos.direction === "Long" ? "default" : "destructive"}>
+                                  {pos.direction}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>{fmtMoney(pos.averageOpenPrice)}</TableCell>
+                              <TableCell>{fmtMoney(pos.currentPrice)}</TableCell>
+                              <TableCell>{fmtMoney(pos.marketValue)}</TableCell>
+                              <TableCell>
+                                <PnlText value={pos.unrealizedPnl} />
+                                <div><PctText value={pos.unrealizedPnlPct} className="text-xs" /></div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </Card>
+                  )}
+
+                  {/* Options positions */}
+                  {ttOptionPositions.length > 0 && (
+                    <Card>
+                      <CardHeader><CardTitle className="text-base">Options Positions</CardTitle></CardHeader>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Contract</TableHead>
+                            <TableHead>Qty</TableHead>
+                            <TableHead>Direction</TableHead>
+                            <TableHead>Avg Open</TableHead>
+                            <TableHead>Current</TableHead>
+                            <TableHead>Market Value</TableHead>
+                            <TableHead>Unrealized P&L</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {ttOptionPositions.map((pos, i) => (
+                            <TableRow key={i}>
+                              <TableCell>
+                                <div className="font-mono font-semibold text-sm">{formatOptionSymbol(pos)}</div>
+                                <div className="text-xs text-muted-foreground">{pos.symbol}</div>
+                              </TableCell>
+                              <TableCell>{pos.quantity}</TableCell>
+                              <TableCell>
+                                <Badge variant={pos.direction === "Long" ? "default" : "destructive"}>
+                                  {pos.direction}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>{fmtMoney(pos.averageOpenPrice)}</TableCell>
+                              <TableCell>{fmtMoney(pos.currentPrice)}</TableCell>
+                              <TableCell>{fmtMoney(pos.marketValue)}</TableCell>
+                              <TableCell>
+                                <PnlText value={pos.unrealizedPnl} />
+                                <div><PctText value={pos.unrealizedPnlPct} className="text-xs" /></div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </Card>
+                  )}
+
+                  {/* Totals */}
+                  <Card>
+                    <CardContent className="py-4">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold">Total Positions: {ttPositions.length}</span>
+                        <div className="flex gap-6">
+                          <div className="text-right">
+                            <div className="text-xs text-muted-foreground">Total Market Value</div>
+                            <div className="font-semibold">{fmtMoney(ttPositions.reduce((s, p) => s + p.marketValue, 0))}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-muted-foreground">Total Unrealized P&L</div>
+                            <PnlText value={ttTotalUnrealizedPnl} className="font-semibold" />
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+            </>
+          )}
+        </TabsContent>
+
+        {/* ==================== SANDBOX ==================== */}
+        <TabsContent value="sandbox" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-semibold">Sandbox</h2>
+              <p className="text-sm text-muted-foreground">tastytrade paper trading — Ayden&apos;s practice arena</p>
+            </div>
+            {!sandboxError && (
+              <Button size="sm" variant="outline" onClick={() => { setLoadingSandbox(true); fetchSandbox(); }}>
+                <RefreshCw className="h-4 w-4 mr-1" />Refresh
+              </Button>
+            )}
+          </div>
+
+          {loadingSandbox ? (
+            <p className="text-muted-foreground text-sm">Loading sandbox data...</p>
+          ) : sandboxError ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <FlaskConical className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                <h3 className="text-lg font-medium mb-1">Sandbox Not Configured</h3>
+                <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+                  Create a tastytrade sandbox account and add the credentials to your environment variables to enable Ayden&apos;s paper trading.
+                </p>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>Required env vars:</p>
+                  <code className="block bg-muted px-3 py-2 rounded text-left max-w-sm mx-auto">
+                    TASTYTRADE_SANDBOX_CLIENT_SECRET<br />
+                    TASTYTRADE_SANDBOX_REFRESH_TOKEN
+                  </code>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Sandbox balance */}
+              {sandboxBalance && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Net Liquidating Value</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{fmtMoney(sandboxBalance.netLiquidatingValue)}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Cash Balance</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{fmtMoney(sandboxBalance.cashBalance)}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Buying Power</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{fmtMoney(sandboxBalance.equityBuyingPower)}</div>
+                      <p className="text-xs text-muted-foreground">Options: {fmtMoney(sandboxBalance.derivativeBuyingPower)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Positions</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{sandboxPositions.length}</div>
+                      <p className="text-xs text-muted-foreground">Paper trades</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Sandbox positions */}
+              {sandboxPositions.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <FlaskConical className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                    <h3 className="text-lg font-medium mb-1">No sandbox positions</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Ayden will use the sandbox to practice trading strategies with fake money before going live.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Sandbox Positions</CardTitle></CardHeader>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Ticker</TableHead>
-                        <TableHead>Company</TableHead>
-                        <TableHead>Shares</TableHead>
-                        <TableHead>Avg Cost</TableHead>
-                        <TableHead>Price</TableHead>
+                        <TableHead>Symbol</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Qty</TableHead>
+                        <TableHead>Direction</TableHead>
+                        <TableHead>Avg Open</TableHead>
+                        <TableHead>Current</TableHead>
                         <TableHead>Market Value</TableHead>
-                        <TableHead>Today</TableHead>
-                        <TableHead>Total P&L</TableHead>
+                        <TableHead>Unrealized P&L</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {aiPortfolio.positions.map((pos) => {
-                        const posTodayGain = pos.dailyChange !== null ? parseFloat(pos.shares) * pos.dailyChange : 0;
-                        return (
-                          <TableRow key={pos.id}>
-                            <TableCell className="font-mono font-semibold">{pos.ticker}</TableCell>
-                            <TableCell>{pos.companyName}</TableCell>
-                            <TableCell>{parseFloat(pos.shares).toLocaleString()}</TableCell>
-                            <TableCell>{fmtMoney(parseFloat(pos.avgCostBasis))}</TableCell>
-                            <TableCell>
-                              <div>
-                                <div>{fmtMoney(pos.currentPrice)}</div>
-                                {pos.dailyChangePct !== null && <PctText value={pos.dailyChangePct} className="text-xs" />}
-                              </div>
-                            </TableCell>
-                            <TableCell>{fmtMoney(pos.marketValue)}</TableCell>
-                            <TableCell>
-                              {pos.dailyChange !== null ? (
-                                <div>
-                                  <PnlText value={posTodayGain} />
-                                  <div><PctText value={pos.dailyChangePct ?? 0} className="text-xs" /></div>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">--</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <PnlText value={pos.pnl} />
-                              <div><PctText value={pos.pnlPct} className="text-xs" /></div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      <TableRow className="font-semibold bg-muted/50">
-                        <TableCell colSpan={5}>Total</TableCell>
-                        <TableCell>{fmtMoney(aiPortfolio.holdingsValue)}</TableCell>
-                        <TableCell>
-                          <PnlText value={aiPortfolio.positions.reduce((sum, p) => sum + (p.dailyChange !== null ? parseFloat(p.shares) * p.dailyChange : 0), 0)} />
-                        </TableCell>
-                        <TableCell>
-                          <PnlText value={aiPortfolio.holdingsValue - aiPortfolio.positions.reduce((sum, p) => sum + parseFloat(p.shares) * parseFloat(p.avgCostBasis), 0)} />
-                        </TableCell>
-                      </TableRow>
+                      {sandboxPositions.map((pos, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-mono font-semibold">
+                            {pos.instrumentType === "Equity Option" ? formatOptionSymbol(pos) : pos.symbol}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {pos.instrumentType === "Equity Option" ? "Option" : "Equity"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{pos.quantity}</TableCell>
+                          <TableCell>
+                            <Badge variant={pos.direction === "Long" ? "default" : "destructive"}>
+                              {pos.direction}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{fmtMoney(pos.averageOpenPrice)}</TableCell>
+                          <TableCell>{fmtMoney(pos.currentPrice)}</TableCell>
+                          <TableCell>{fmtMoney(pos.marketValue)}</TableCell>
+                          <TableCell>
+                            <PnlText value={pos.unrealizedPnl} />
+                            <div><PctText value={pos.unrealizedPnlPct} className="text-xs" /></div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </Card>
               )}
-
-              {/* AI Trade Log */}
-              <Card>
-                <CardHeader><CardTitle className="text-base">Recent Trades</CardTitle></CardHeader>
-                {aiPortfolio.trades.length === 0 ? (
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">No trades yet. Ayden will evaluate positions hourly during market hours.</p>
-                  </CardContent>
-                ) : (
-                  <>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Side</TableHead>
-                          <TableHead>Ticker</TableHead>
-                          <TableHead>Shares</TableHead>
-                          <TableHead>Price</TableHead>
-                          <TableHead>Total</TableHead>
-                          <TableHead className="max-w-[300px]">Reasoning</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {aiPortfolio.trades.map((trade) => (
-                          <TableRow key={trade.id}>
-                            <TableCell className="text-sm whitespace-nowrap">
-                              {new Date(trade.executedAt).toLocaleDateString()}
-                              <div className="text-xs text-muted-foreground">
-                                {new Date(trade.executedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={trade.side === "BUY" ? "default" : "destructive"}>
-                                {trade.side}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-mono font-semibold">{trade.ticker}</TableCell>
-                            <TableCell>{parseFloat(trade.shares).toLocaleString()}</TableCell>
-                            <TableCell>{fmtMoney(parseFloat(trade.price))}</TableCell>
-                            <TableCell>{fmtMoney(parseFloat(trade.total))}</TableCell>
-                            <TableCell className="max-w-[300px]">
-                              <p className="text-sm text-muted-foreground truncate" title={trade.reasoning}>
-                                {trade.reasoning}
-                              </p>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    {aiPortfolio.trades.length < aiPortfolio.totalTrades && (
-                      <CardContent className="pt-2 pb-4">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full text-muted-foreground"
-                          onClick={loadMoreTrades}
-                          disabled={loadingMoreTrades}
-                        >
-                          {loadingMoreTrades ? "Loading..." : `Show More (${aiPortfolio.trades.length} of ${aiPortfolio.totalTrades})`}
-                        </Button>
-                      </CardContent>
-                    )}
-                  </>
-                )}
-              </Card>
             </>
           )}
         </TabsContent>
 
         {/* ==================== PERFORMANCE ==================== */}
         <TabsContent value="performance" className="space-y-4">
-          <h2 className="text-lg font-semibold">Performance Comparison</h2>
+          <h2 className="text-lg font-semibold">Performance</h2>
 
           {loadingSnapshots ? (
             <p className="text-muted-foreground text-sm">Loading performance data...</p>
@@ -1115,8 +1221,8 @@ export default function InvestingPage() {
                       labelFormatter={(label) => new Date(label).toLocaleDateString()}
                     />
                     <Legend />
-                    <Line type="monotone" dataKey="user" stroke="#3b82f6" name="Your Portfolio" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="ai" stroke="#8b5cf6" name="Ayden's Portfolio" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="user" stroke="#3b82f6" name="My Portfolio" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="ai" stroke="#8b5cf6" name="Our Portfolio" strokeWidth={2} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -1124,70 +1230,81 @@ export default function InvestingPage() {
           )}
 
           {/* Metrics comparison */}
-          {aiPortfolio && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Your Stats</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Market Value</span>
-                    <span className="font-medium">{fmtMoney(totalMarketValue)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Cost Basis</span>
-                    <span className="font-medium">{fmtMoney(totalCostBasis)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Total P&L</span>
-                    <PnlText value={totalPnl} className="font-medium" />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Return</span>
-                    <PctText value={totalPnlPct} className="font-medium" />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Positions</span>
-                    <span className="font-medium">{totalPositions}</span>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader><CardTitle className="text-base">Ayden&apos;s Stats</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Total Value</span>
-                    <span className="font-medium">{fmtMoney(aiPortfolio.totalValue)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Starting Capital</span>
-                    <span className="font-medium">{fmtMoney(aiPortfolio.startingCapital)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Total P&L</span>
-                    <PnlText value={aiPortfolio.totalValue - aiPortfolio.startingCapital} className="font-medium" />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Return</span>
-                    <PctText value={aiPortfolio.totalReturn} className="font-medium" />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Positions</span>
-                    <span className="font-medium">{aiPortfolio.positions.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Total Trades</span>
-                    <span className="font-medium">{aiPortfolio.totalTrades}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Cash Reserve</span>
-                    <span className="font-medium">
-                      {fmtMoney(aiPortfolio.cashBalance)} ({((aiPortfolio.cashBalance / aiPortfolio.totalValue) * 100).toFixed(1)}%)
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader><CardTitle className="text-base">My Portfolio</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Market Value</span>
+                  <span className="font-medium">{fmtMoney(totalMarketValue)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Cost Basis</span>
+                  <span className="font-medium">{fmtMoney(totalCostBasis)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Total P&L</span>
+                  <PnlText value={totalPnl} className="font-medium" />
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Return</span>
+                  <PctText value={totalPnlPct} className="font-medium" />
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Positions</span>
+                  <span className="font-medium">{totalPositions}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-base">Our Portfolio</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Net Liq Value</span>
+                  <span className="font-medium">{fmtMoney(ttNetLiq)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Cash Balance</span>
+                  <span className="font-medium">{fmtMoney(ttBalance?.cashBalance ?? 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Unrealized P&L</span>
+                  <PnlText value={ttTotalUnrealizedPnl} className="font-medium" />
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Equity Positions</span>
+                  <span className="font-medium">{ttEquityPositions.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Options Positions</span>
+                  <span className="font-medium">{ttOptionPositions.length}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-base">Sandbox</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Net Liq Value</span>
+                  <span className="font-medium">{sandboxBalance ? fmtMoney(sbNetLiq) : "--"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Cash Balance</span>
+                  <span className="font-medium">{sandboxBalance ? fmtMoney(sandboxBalance.cashBalance) : "--"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Positions</span>
+                  <span className="font-medium">{sandboxBalance ? sandboxPositions.length : "--"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  <Badge variant={sandboxError ? "secondary" : "default"}>
+                    {sandboxError ? "Not configured" : "Active"}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* ==================== WATCHLIST ==================== */}

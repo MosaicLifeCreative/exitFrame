@@ -19,7 +19,6 @@ import {
   Minus,
   Bot,
   BarChart3,
-  FlaskConical,
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -142,6 +141,46 @@ interface TastyBalance {
   longDerivativeValue: number;
   shortDerivativeValue: number;
   pendingCash: number;
+}
+
+interface AiPosition {
+  id: string;
+  ticker: string;
+  companyName: string;
+  shares: string;
+  avgCostBasis: string;
+  currentPrice: number;
+  dailyChange: number | null;
+  dailyChangePct: number | null;
+  marketValue: number;
+  pnl: number;
+  pnlPct: number;
+}
+
+interface AiTrade {
+  id: string;
+  ticker: string;
+  companyName: string;
+  side: string;
+  shares: string;
+  price: string;
+  total: string;
+  reasoning: string;
+  executedAt: string;
+}
+
+interface AiPortfolioData {
+  id: string;
+  name: string;
+  cashBalance: number;
+  startingCapital: number;
+  inceptionDate: string;
+  totalValue: number;
+  holdingsValue: number;
+  totalReturn: number;
+  totalTrades: number;
+  positions: AiPosition[];
+  trades: AiTrade[];
 }
 
 interface SnapshotData {
@@ -497,11 +536,9 @@ export default function InvestingPage() {
   const [loadingTt, setLoadingTt] = useState(true);
   const [ttError, setTtError] = useState<string | null>(null);
 
-  // Sandbox (tastytrade sandbox — Ayden paper trading)
-  const [sandboxPositions, setSandboxPositions] = useState<TastyPosition[]>([]);
-  const [sandboxBalance, setSandboxBalance] = useState<TastyBalance | null>(null);
-  const [loadingSandbox, setLoadingSandbox] = useState(true);
-  const [sandboxError, setSandboxError] = useState<string | null>(null);
+  // Ayden's Portfolio (DB-simulated paper trading)
+  const [aiPortfolio, setAiPortfolio] = useState<AiPortfolioData | null>(null);
+  const [loadingAiPortfolio, setLoadingAiPortfolio] = useState(true);
 
   // Watchlist & News
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
@@ -561,27 +598,19 @@ export default function InvestingPage() {
     }
   }, []);
 
-  const fetchSandbox = useCallback(async () => {
+  const fetchAiPortfolio = useCallback(async () => {
     try {
-      const [posRes, balRes] = await Promise.all([
-        fetch("/api/investing/tastytrade/sandbox/positions"),
-        fetch("/api/investing/tastytrade/sandbox/balance"),
-      ]);
-      const posJson = await posRes.json();
-      const balJson = await balRes.json();
-      if (posRes.ok && posJson.data) {
-        setSandboxPositions(posJson.data.positions || []);
-        setSandboxError(null);
+      const res = await fetch("/api/investing/ai-portfolio?tradeLimit=20");
+      const json = await res.json();
+      if (res.ok && json.data) {
+        setAiPortfolio(json.data);
       } else {
-        setSandboxError(posJson.error || "Sandbox not configured");
-      }
-      if (balRes.ok && balJson.data) {
-        setSandboxBalance(balJson.data);
+        setAiPortfolio(null);
       }
     } catch {
-      setSandboxError("Sandbox not configured");
+      setAiPortfolio(null);
     } finally {
-      setLoadingSandbox(false);
+      setLoadingAiPortfolio(false);
     }
   }, []);
 
@@ -631,11 +660,11 @@ export default function InvestingPage() {
     fetchHoldings();
     fetchQuotes();
     fetchTastytrade();
-    fetchSandbox();
+    fetchAiPortfolio();
     fetchWatchlist();
     fetchNews();
     fetchSnapshots();
-  }, [fetchHoldings, fetchQuotes, fetchTastytrade, fetchSandbox, fetchWatchlist, fetchNews, fetchSnapshots]);
+  }, [fetchHoldings, fetchQuotes, fetchTastytrade, fetchAiPortfolio, fetchWatchlist, fetchNews, fetchSnapshots]);
 
   // ── Computed values ──────────────────────────────────
 
@@ -663,8 +692,10 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
   const ttEquityPositions = ttPositions.filter((p) => p.instrumentType === "Equity");
   const ttOptionPositions = ttPositions.filter((p) => p.instrumentType === "Equity Option");
 
-  // sandbox computed
-  const sbNetLiq = sandboxBalance?.netLiquidatingValue ?? 0;
+  // Ayden's portfolio computed
+  const aiTotalValue = aiPortfolio?.totalValue ?? 0;
+  const aiTotalReturn = aiPortfolio?.totalReturn ?? 0;
+  const aiPositionCount = aiPortfolio?.positions.length ?? 0;
 
   // News filtering
   const filteredNews = newsFilter === "all"
@@ -707,9 +738,9 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
     ttPositions.length > 0 ? ttPositions.map((p) =>
       `  ${p.symbol}: ${p.quantity} ${p.direction}, ${fmtMoney(p.marketValue)} (${fmtPct(p.unrealizedPnlPct)})`
     ).join("\n") : "",
-    sandboxBalance ? `\nSandbox: Net Liq ${fmtMoney(sbNetLiq)}, Cash ${fmtMoney(sandboxBalance.cashBalance)}` : "",
-    sandboxPositions.length > 0 ? sandboxPositions.map((p) =>
-      `  ${p.symbol}: ${p.quantity} ${p.direction}, ${fmtMoney(p.marketValue)} (${fmtPct(p.unrealizedPnlPct)})`
+    aiPortfolio ? `\nAyden's Portfolio: ${fmtMoney(aiPortfolio.totalValue)} (${fmtPct(aiPortfolio.totalReturn)} return), Cash ${fmtMoney(aiPortfolio.cashBalance)}` : "",
+    aiPortfolio && aiPortfolio.positions.length > 0 ? aiPortfolio.positions.map((p) =>
+      `  ${p.ticker}: ${parseFloat(p.shares)} shares, ${fmtMoney(p.marketValue)} (${fmtPct(p.pnlPct)})`
     ).join("\n") : "",
     watchlist.length > 0 ? `\nWatchlist: ${watchlist.map((w) => w.value).join(", ")}` : "",
     news.length > 0 ? `\nRecent news: ${news.slice(0, 5).map((n) => n.headline + (n.aiSentiment ? " [" + n.aiSentiment + "]" : "")).join("; ")}` : "",
@@ -777,12 +808,17 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Sandbox</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Ayden&apos;s Portfolio</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{sandboxBalance ? fmtMoney(sbNetLiq) : "--"}</div>
-            <p className="text-xs text-muted-foreground">
-              {sandboxBalance ? `${sandboxPositions.length} positions` : "Not configured"}
-            </p>
+            <div className="text-2xl font-bold">{aiPortfolio ? fmtMoney(aiTotalValue) : "--"}</div>
+            {aiPortfolio ? (
+              <>
+                <PctText value={aiTotalReturn} className="text-sm" />
+                <span className="text-xs text-muted-foreground ml-1">return</span>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">Paper trading</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -799,7 +835,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
         <TabsList>
           <TabsTrigger value="portfolio" className="gap-1.5"><TrendingUp className="h-4 w-4" />My Portfolio</TabsTrigger>
           <TabsTrigger value="our-portfolio" className="gap-1.5"><Wallet className="h-4 w-4" />Our Portfolio</TabsTrigger>
-          <TabsTrigger value="sandbox" className="gap-1.5"><FlaskConical className="h-4 w-4" />Sandbox</TabsTrigger>
+          <TabsTrigger value="sandbox" className="gap-1.5"><Bot className="h-4 w-4" />Ayden&apos;s Portfolio</TabsTrigger>
           <TabsTrigger value="performance" className="gap-1.5"><BarChart3 className="h-4 w-4" />Performance</TabsTrigger>
           <TabsTrigger value="watchlist" className="gap-1.5"><Eye className="h-4 w-4" />Watchlist</TabsTrigger>
           <TabsTrigger value="news" className="gap-1.5">
@@ -1056,123 +1092,166 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
           )}
         </TabsContent>
 
-        {/* ==================== SANDBOX ==================== */}
+        {/* ==================== AYDEN'S PORTFOLIO ==================== */}
         <TabsContent value="sandbox" className="space-y-4">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-semibold">Sandbox</h2>
-              <p className="text-sm text-muted-foreground">tastytrade paper trading — Ayden&apos;s practice arena</p>
+              <h2 className="text-lg font-semibold">Ayden&apos;s Portfolio</h2>
+              <p className="text-sm text-muted-foreground">Autonomous paper trading — AI-managed positions</p>
             </div>
-            {!sandboxError && (
-              <Button size="sm" variant="outline" onClick={() => { setLoadingSandbox(true); fetchSandbox(); }}>
-                <RefreshCw className="h-4 w-4 mr-1" />Refresh
-              </Button>
-            )}
+            <Button size="sm" variant="outline" onClick={() => { setLoadingAiPortfolio(true); fetchAiPortfolio(); }}>
+              <RefreshCw className="h-4 w-4 mr-1" />Refresh
+            </Button>
           </div>
 
-          {loadingSandbox ? (
-            <p className="text-muted-foreground text-sm">Loading sandbox data...</p>
-          ) : sandboxError ? (
+          {loadingAiPortfolio ? (
+            <p className="text-muted-foreground text-sm">Loading portfolio data...</p>
+          ) : !aiPortfolio ? (
             <Card>
               <CardContent className="py-12 text-center">
-                <FlaskConical className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-                <h3 className="text-lg font-medium mb-1">Sandbox Not Configured</h3>
-                <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-                  Create a tastytrade sandbox account and add the credentials to your environment variables to enable Ayden&apos;s paper trading.
+                <Bot className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                <h3 className="text-lg font-medium mb-1">No portfolio yet</h3>
+                <p className="text-sm text-muted-foreground">
+                  Ayden&apos;s autonomous trading portfolio will be created on the next scheduled run during market hours.
                 </p>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>Required env vars:</p>
-                  <code className="block bg-muted px-3 py-2 rounded text-left max-w-sm mx-auto">
-                    TASTYTRADE_SANDBOX_CLIENT_SECRET<br />
-                    TASTYTRADE_SANDBOX_REFRESH_TOKEN
-                  </code>
-                </div>
               </CardContent>
             </Card>
           ) : (
             <>
-              {/* Sandbox balance */}
-              {sandboxBalance && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Net Liquidating Value</CardTitle></CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{fmtMoney(sandboxBalance.netLiquidatingValue)}</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Cash Balance</CardTitle></CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{fmtMoney(sandboxBalance.cashBalance)}</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Buying Power</CardTitle></CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{fmtMoney(sandboxBalance.equityBuyingPower)}</div>
-                      <p className="text-xs text-muted-foreground">Options: {fmtMoney(sandboxBalance.derivativeBuyingPower)}</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Positions</CardTitle></CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{sandboxPositions.length}</div>
-                      <p className="text-xs text-muted-foreground">Paper trades</p>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+              {/* Portfolio summary cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{fmtMoney(aiPortfolio.totalValue)}</div>
+                    <PctText value={aiPortfolio.totalReturn} className="text-sm" />
+                    <span className="text-xs text-muted-foreground ml-1">total return</span>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Cash</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{fmtMoney(aiPortfolio.cashBalance)}</div>
+                    <p className="text-xs text-muted-foreground">
+                      {aiPortfolio.totalValue > 0 ? ((aiPortfolio.cashBalance / aiPortfolio.totalValue) * 100).toFixed(1) : "0"}% of portfolio
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Holdings</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{fmtMoney(aiPortfolio.holdingsValue)}</div>
+                    <p className="text-xs text-muted-foreground">{aiPositionCount} position{aiPositionCount !== 1 ? "s" : ""}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Starting Capital</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{fmtMoney(aiPortfolio.startingCapital)}</div>
+                    <p className="text-xs text-muted-foreground">{aiPortfolio.totalTrades} total trades</p>
+                  </CardContent>
+                </Card>
+              </div>
 
-              {/* Sandbox positions */}
-              {sandboxPositions.length === 0 ? (
+              {/* Positions table */}
+              {aiPortfolio.positions.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
-                    <FlaskConical className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-                    <h3 className="text-lg font-medium mb-1">No sandbox positions</h3>
+                    <Bot className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                    <h3 className="text-lg font-medium mb-1">No open positions</h3>
                     <p className="text-sm text-muted-foreground">
-                      Ayden will use the sandbox to practice trading strategies with fake money before going live.
+                      Ayden is fully in cash. She&apos;ll open positions when she identifies compelling opportunities.
                     </p>
                   </CardContent>
                 </Card>
               ) : (
                 <Card>
-                  <CardHeader><CardTitle className="text-base">Sandbox Positions</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="text-base">Open Positions</CardTitle></CardHeader>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Symbol</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Qty</TableHead>
-                        <TableHead>Direction</TableHead>
-                        <TableHead>Avg Open</TableHead>
-                        <TableHead>Current</TableHead>
+                        <TableHead>Ticker</TableHead>
+                        <TableHead>Company</TableHead>
+                        <TableHead>Shares</TableHead>
+                        <TableHead>Avg Cost</TableHead>
+                        <TableHead>Price</TableHead>
                         <TableHead>Market Value</TableHead>
-                        <TableHead>Unrealized P&L</TableHead>
+                        <TableHead>Today</TableHead>
+                        <TableHead>Total P&L</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sandboxPositions.map((pos, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="font-mono font-semibold">
-                            {pos.instrumentType === "Equity Option" ? formatOptionSymbol(pos) : pos.symbol}
+                      {aiPortfolio.positions.map((pos) => {
+                        const shares = parseFloat(pos.shares);
+                        const todayGain = pos.dailyChange ? shares * pos.dailyChange : 0;
+                        const todayGainPct = pos.dailyChangePct ?? 0;
+                        return (
+                          <TableRow key={pos.id}>
+                            <TableCell className="font-mono font-semibold">{pos.ticker}</TableCell>
+                            <TableCell className="text-muted-foreground">{pos.companyName}</TableCell>
+                            <TableCell>{shares}</TableCell>
+                            <TableCell>{fmtMoney(parseFloat(pos.avgCostBasis))}</TableCell>
+                            <TableCell>{fmtMoney(pos.currentPrice)}</TableCell>
+                            <TableCell>{fmtMoney(pos.marketValue)}</TableCell>
+                            <TableCell>
+                              <PnlText value={todayGain} />
+                              {todayGainPct !== 0 && <div><PctText value={todayGainPct} className="text-xs" /></div>}
+                            </TableCell>
+                            <TableCell>
+                              <PnlText value={pos.pnl} />
+                              <div><PctText value={pos.pnlPct} className="text-xs" /></div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      <TableRow className="font-semibold bg-muted/50">
+                        <TableCell colSpan={5}>Total</TableCell>
+                        <TableCell>{fmtMoney(aiPortfolio.holdingsValue)}</TableCell>
+                        <TableCell>
+                          <PnlText value={aiPortfolio.positions.reduce((sum, p) => sum + (p.dailyChange ? parseFloat(p.shares) * p.dailyChange : 0), 0)} />
+                        </TableCell>
+                        <TableCell>
+                          <PnlText value={aiPortfolio.positions.reduce((sum, p) => sum + p.pnl, 0)} />
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </Card>
+              )}
+
+              {/* Recent trades */}
+              {aiPortfolio.trades.length > 0 && (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Recent Trades</CardTitle></CardHeader>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Side</TableHead>
+                        <TableHead>Ticker</TableHead>
+                        <TableHead>Shares</TableHead>
+                        <TableHead>Price</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Reasoning</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {aiPortfolio.trades.map((trade) => (
+                        <TableRow key={trade.id}>
+                          <TableCell className="text-muted-foreground whitespace-nowrap">
+                            {new Date(trade.executedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-xs">
-                              {pos.instrumentType === "Equity Option" ? "Option" : "Equity"}
+                            <Badge variant={trade.side === "BUY" ? "default" : "destructive"}>
+                              {trade.side}
                             </Badge>
                           </TableCell>
-                          <TableCell>{pos.quantity}</TableCell>
-                          <TableCell>
-                            <Badge variant={pos.direction === "Long" ? "default" : "destructive"}>
-                              {pos.direction}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{fmtMoney(pos.averageOpenPrice)}</TableCell>
-                          <TableCell>{fmtMoney(pos.currentPrice)}</TableCell>
-                          <TableCell>{fmtMoney(pos.marketValue)}</TableCell>
-                          <TableCell>
-                            <PnlText value={pos.unrealizedPnl} />
-                            <div><PctText value={pos.unrealizedPnlPct} className="text-xs" /></div>
+                          <TableCell className="font-mono font-semibold">{trade.ticker}</TableCell>
+                          <TableCell>{parseFloat(trade.shares)}</TableCell>
+                          <TableCell>{fmtMoney(parseFloat(trade.price))}</TableCell>
+                          <TableCell>{fmtMoney(parseFloat(trade.total))}</TableCell>
+                          <TableCell className="max-w-xs truncate text-sm text-muted-foreground" title={trade.reasoning}>
+                            {trade.reasoning}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1282,25 +1361,23 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base">Sandbox</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">Ayden&apos;s Portfolio</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Net Liq Value</span>
-                  <span className="font-medium">{sandboxBalance ? fmtMoney(sbNetLiq) : "--"}</span>
+                  <span className="text-sm text-muted-foreground">Total Value</span>
+                  <span className="font-medium">{aiPortfolio ? fmtMoney(aiTotalValue) : "--"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Cash Balance</span>
-                  <span className="font-medium">{sandboxBalance ? fmtMoney(sandboxBalance.cashBalance) : "--"}</span>
+                  <span className="font-medium">{aiPortfolio ? fmtMoney(aiPortfolio.cashBalance) : "--"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Positions</span>
-                  <span className="font-medium">{sandboxBalance ? sandboxPositions.length : "--"}</span>
+                  <span className="font-medium">{aiPortfolio ? aiPositionCount : "--"}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Status</span>
-                  <Badge variant={sandboxError ? "secondary" : "default"}>
-                    {sandboxError ? "Not configured" : "Active"}
-                  </Badge>
+                  <span className="text-sm text-muted-foreground">Return</span>
+                  {aiPortfolio ? <PctText value={aiTotalReturn} className="font-medium" /> : <span className="font-medium">--</span>}
                 </div>
               </CardContent>
             </Card>

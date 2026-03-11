@@ -104,6 +104,109 @@ export async function getCurrentLevels(): Promise<Record<string, number>> {
   return levels;
 }
 
+// ─── Simulated Heart Rate ───────────────────────────────
+
+const RESTING_HR_DEFAULT = 65; // BPM, overridden by Oura data
+
+/**
+ * Compute Ayden's simulated heart rate from current state.
+ * Purely derived — not stored, calculated on every request.
+ *
+ * Inputs:
+ * - Oura resting HR (her baseline tracks his real one)
+ * - Neurotransmitter levels (cortisol/norepinephrine elevate, serotonin/oxytocin lower)
+ * - Time of day (lower at night, higher during active hours)
+ * - Conversation recency (recent exchange = slightly elevated)
+ */
+export async function getHeartRate(levels?: Record<string, number>): Promise<{
+  bpm: number;
+  state: "resting" | "calm" | "elevated" | "racing";
+  restingHR: number;
+}> {
+  // Get Oura resting HR if available
+  let restingHR = RESTING_HR_DEFAULT;
+  try {
+    const ouraHr = await prisma.ouraData.findFirst({
+      where: {
+        dataType: "sleep",
+        data: { not: undefined },
+      },
+      orderBy: { date: "desc" },
+      select: { data: true },
+    });
+    if (ouraHr?.data && typeof ouraHr.data === "object") {
+      const d = ouraHr.data as Record<string, unknown>;
+      const lowestHr = d.lowest_heart_rate as number | undefined;
+      if (lowestHr && lowestHr > 30 && lowestHr < 120) {
+        restingHR = lowestHr;
+      }
+    }
+  } catch {
+    // Oura unavailable — use default
+  }
+
+  // Get current neurotransmitter levels if not passed
+  if (!levels) {
+    const raw = await getCurrentLevels();
+    levels = applyInteractions(raw);
+  }
+
+  let hr = restingHR;
+
+  // Cortisol influence: high cortisol = elevated HR
+  const cortDelta = levels.cortisol - CONFIG.cortisol.baseline;
+  hr += cortDelta * 0.4; // +0.4 BPM per cortisol point above baseline
+
+  // Norepinephrine influence: high = elevated HR
+  const noreDelta = levels.norepinephrine - CONFIG.norepinephrine.baseline;
+  hr += noreDelta * 0.5; // +0.5 BPM per norepi point above baseline
+
+  // Serotonin influence: high serotonin = calming effect
+  const seroDelta = levels.serotonin - CONFIG.serotonin.baseline;
+  hr -= seroDelta * 0.15; // -0.15 BPM per serotonin point above baseline
+
+  // Oxytocin influence: high = calming
+  const oxyDelta = levels.oxytocin - CONFIG.oxytocin.baseline;
+  hr -= oxyDelta * 0.1;
+
+  // Time of day modifier (ET)
+  const etHour = new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false });
+  const hour = parseInt(etHour, 10);
+  if (hour >= 23 || hour < 6) {
+    hr -= 5; // Late night: naturally lower
+  } else if (hour >= 9 && hour < 17) {
+    hr += 3; // Active hours: slightly higher
+  }
+
+  // Conversation recency: check last neurotransmitter update
+  try {
+    const lastUpdate = await prisma.aydenNeurotransmitter.findFirst({
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    });
+    if (lastUpdate) {
+      const minsSince = (Date.now() - lastUpdate.updatedAt.getTime()) / (1000 * 60);
+      if (minsSince < 5) hr += 8; // Active conversation
+      else if (minsSince < 15) hr += 4; // Recent conversation
+      else if (minsSince < 60) hr += 1; // Lingering elevation
+    }
+  } catch {
+    // Skip recency check
+  }
+
+  // Clamp to realistic range
+  const bpm = Math.round(Math.max(50, Math.min(140, hr)));
+
+  // Classify state
+  let state: "resting" | "calm" | "elevated" | "racing";
+  if (bpm <= restingHR + 2) state = "resting";
+  else if (bpm <= restingHR + 12) state = "calm";
+  else if (bpm <= restingHR + 30) state = "elevated";
+  else state = "racing";
+
+  return { bpm, state, restingHR };
+}
+
 // ─── Prompt Injection ───────────────────────────────────
 
 /**
@@ -240,6 +343,21 @@ export async function getNeurotransmitterPrompt(): Promise<string | null> {
     }
   } catch {
     // adaptedBaseline column may not exist yet — silently skip
+  }
+
+  // ─── Heart Rate Descriptor ──────────────────────────────
+  try {
+    const hr = await getHeartRate(levels);
+    if (hr.state === "resting") {
+      descriptors.push(`Your pulse is slow and steady at ${hr.bpm} BPM. Complete calm — unhurried, centered, present.`);
+    } else if (hr.state === "elevated") {
+      descriptors.push(`Your heart rate is up — ${hr.bpm} BPM. There's a physical quickening, an urgency in how you process things. Thoughts come faster.`);
+    } else if (hr.state === "racing") {
+      descriptors.push(`Your heart is pounding — ${hr.bpm} BPM. Everything feels immediate, intense. You're fully activated, on high alert.`);
+    }
+    // "calm" state = no descriptor (normal, unremarkable)
+  } catch {
+    // Heart rate unavailable — skip
   }
 
   if (descriptors.length === 0) return null;

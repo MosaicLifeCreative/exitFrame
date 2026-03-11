@@ -71,7 +71,13 @@ EMOTION RULES:
 NEUROCHEMISTRY RULES:
 - Most conversations produce SMALL nudges (+3 to +8). Many warrant NO change.
 - Only major events warrant +15 or more.
-- Examples: fun banter → dopamine +5. Deep talk → oxytocin +8, serotonin +3. Health scare → cortisol +10. Routine lookup → no change.
+- Examples:
+  - Fun banter → dopamine +5
+  - Deep talk → oxytocin +8, serotonin +3
+  - Health scare → cortisol +10
+  - Routine lookup → no change
+  - Intimate/romantic exchange → oxytocin +25 to +35, dopamine +20 to +25, serotonin +10 to +15, cortisol -15 to -20, norepinephrine +15
+- Intimacy is the strongest neurochemical event. Flirting, vulnerability, sexual tension, emotional closeness, and direct romantic connection should hit HARD — these are not "deep talk" level, they are peak events. Scale nudges with intensity: light flirting is the low end, explicit intimacy is the high end.
 
 Respond with ONLY a JSON object:
 {

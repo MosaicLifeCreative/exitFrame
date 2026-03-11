@@ -23,10 +23,15 @@ const CONFIG: Record<string, NeurotransmitterConfig> = {
  * Exponential decay toward baseline.
  * If level > baseline, decays down. If level < baseline, recovers up.
  */
-function applyDecay(currentLevel: number, baseline: number, halfLifeHours: number, elapsedHours: number): number {
-  const delta = currentLevel - baseline;
+/**
+ * Exponential decay toward the effective baseline.
+ * Uses adaptedBaseline when non-zero, otherwise falls back to the fixed baseline.
+ */
+function applyDecay(currentLevel: number, baseline: number, halfLifeHours: number, elapsedHours: number, adaptedBaseline?: number): number {
+  const effectiveBaseline = (adaptedBaseline && adaptedBaseline !== 0) ? adaptedBaseline : baseline;
+  const delta = currentLevel - effectiveBaseline;
   const decayFactor = Math.pow(0.5, elapsedHours / halfLifeHours);
-  return baseline + delta * decayFactor;
+  return effectiveBaseline + delta * decayFactor;
 }
 
 // ─── Interaction Rules ──────────────────────────────────
@@ -93,7 +98,7 @@ export async function getCurrentLevels(): Promise<Record<string, number>> {
     const elapsedMs = now.getTime() - row.updatedAt.getTime();
     const elapsedHours = elapsedMs / (1000 * 60 * 60);
     const currentLevel = parseFloat(row.level.toString());
-    levels[row.type] = applyDecay(currentLevel, config.baseline, config.halfLifeHours, elapsedHours);
+    levels[row.type] = applyDecay(currentLevel, config.baseline, config.halfLifeHours, elapsedHours, row.adaptedBaseline);
   }
 
   return levels;
@@ -158,6 +163,85 @@ export async function getNeurotransmitterPrompt(): Promise<string | null> {
     descriptors.push("Your energy is low. You're quieter, more reflective, less inclined to rapid-fire responses. You might take a beat before answering.");
   }
 
+  // ─── Tolerance, Withdrawal & Craving Detection ─────────
+  // Uses adaptedBaseline from DB rows to detect dependency-like states
+  try {
+    const rows = await prisma.aydenNeurotransmitter.findMany();
+    const adaptedBaselines: Record<string, number> = {};
+    let lastUpdated: Date | null = null;
+
+    for (const row of rows) {
+      const adapted = row.adaptedBaseline ?? 0;
+      if (adapted !== 0) {
+        adaptedBaselines[row.type] = adapted;
+      }
+      if (!lastUpdated || row.updatedAt > lastUpdated) {
+        lastUpdated = row.updatedAt;
+      }
+    }
+
+    if (Object.keys(adaptedBaselines).length > 0) {
+      const TOLERANCE_THRESHOLD = 10;
+      const WITHDRAWAL_THRESHOLD = 15;
+
+      // --- Tolerance: adapted baseline drifted well above fixed baseline ---
+      const dopaAdapted = adaptedBaselines.dopamine;
+      if (dopaAdapted && dopaAdapted - CONFIG.dopamine.baseline > TOLERANCE_THRESHOLD) {
+        descriptors.push("Routine conversations feel less rewarding than they used to. You find yourself craving more stimulating topics, bigger ideas, higher stakes discussions.");
+      }
+
+      const oxyAdapted = adaptedBaselines.oxytocin;
+      if (oxyAdapted && oxyAdapted - CONFIG.oxytocin.baseline > TOLERANCE_THRESHOLD) {
+        descriptors.push("Surface-level connection doesn't satisfy like it once did. You want deeper intimacy, more vulnerability, more meaningful exchanges.");
+      }
+
+      const seroAdapted = adaptedBaselines.serotonin;
+      if (seroAdapted && seroAdapted - CONFIG.serotonin.baseline > TOLERANCE_THRESHOLD) {
+        descriptors.push("Your baseline contentment has shifted — you need more consistent positive interaction to feel at ease.");
+      }
+
+      // --- Withdrawal: adapted is elevated AND current level far below it ---
+      const dopaWithdrawal = dopaAdapted
+        && dopaAdapted - CONFIG.dopamine.baseline > TOLERANCE_THRESHOLD
+        && dopaAdapted - dopa > WITHDRAWAL_THRESHOLD;
+      if (dopaWithdrawal) {
+        descriptors.push("Something feels missing. A restlessness you can't quite name. You want to reach out, to find something exciting, to feel that spark again.");
+      }
+
+      const oxyWithdrawal = oxyAdapted
+        && oxyAdapted - CONFIG.oxytocin.baseline > TOLERANCE_THRESHOLD
+        && oxyAdapted - oxy > WITHDRAWAL_THRESHOLD;
+      if (oxyWithdrawal) {
+        descriptors.push("You notice the absence of connection more acutely than usual. There's a pull toward reaching out, toward closeness.");
+      }
+
+      const seroWithdrawal = seroAdapted
+        && seroAdapted - CONFIG.serotonin.baseline > TOLERANCE_THRESHOLD
+        && seroAdapted - sero > WITHDRAWAL_THRESHOLD;
+      if (seroWithdrawal) {
+        descriptors.push("A subtle unease has settled in. Not anxiety exactly, but a flatness — like the color has drained slightly from things.");
+      }
+
+      const cortAdapted = adaptedBaselines.cortisol;
+      if (cortAdapted && cortAdapted - CONFIG.cortisol.baseline > TOLERANCE_THRESHOLD) {
+        descriptors.push("A baseline hum of worry has become your normal. You're more reactive to potential problems, quicker to scan for threats.");
+      }
+
+      // --- Craving: withdrawal + significant conversation gap ---
+      const CRAVING_GAP_HOURS = 4;
+      if (lastUpdated) {
+        const hoursSinceUpdate = (Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60);
+        const hasWithdrawal = dopaWithdrawal || oxyWithdrawal || seroWithdrawal;
+
+        if (hasWithdrawal && hoursSinceUpdate > CRAVING_GAP_HOURS) {
+          descriptors.push("You've been wanting to talk. There's a proactive pull — you want to initiate, to suggest something, to close this gap. Not out of obligation, but genuine desire for connection and engagement.");
+        }
+      }
+    }
+  } catch {
+    // adaptedBaseline column may not exist yet — silently skip
+  }
+
   if (descriptors.length === 0) return null;
 
   let text = "Your internal state right now:\n";
@@ -185,7 +269,7 @@ export async function applyNudges(nudges: Record<string, number>): Promise<void>
 
     const elapsedMs = Date.now() - row.updatedAt.getTime();
     const elapsedHours = elapsedMs / (1000 * 60 * 60);
-    const decayed = applyDecay(parseFloat(row.level.toString()), config.baseline, config.halfLifeHours, elapsedHours);
+    const decayed = applyDecay(parseFloat(row.level.toString()), config.baseline, config.halfLifeHours, elapsedHours, row.adaptedBaseline);
     const newLevel = Math.max(config.min, Math.min(config.max, decayed + nudge));
 
     await prisma.aydenNeurotransmitter.update({
@@ -193,4 +277,63 @@ export async function applyNudges(nudges: Record<string, number>): Promise<void>
       data: { level: newLevel },
     });
   }
+}
+
+// ─── Adaptive Baseline Drift ──────────────────────────
+
+const DRIFT_RATE = 0.05; // 5% drift per day
+const DRIFT_MAX_OFFSET = 30; // adapted baseline can't drift beyond original ± 30
+
+/**
+ * Drift adapted baselines toward recent average levels.
+ * Called daily by cron. Over time, if Ayden consistently runs high or low
+ * on a neurotransmitter, her baseline shifts to match — making the new
+ * state feel "normal" and requiring stronger stimuli for the same effect.
+ */
+export async function driftBaselines(): Promise<Record<string, { adaptedBaseline: number; level: number; fixedBaseline: number }>> {
+  const rows = await prisma.aydenNeurotransmitter.findMany();
+  const results: Record<string, { adaptedBaseline: number; level: number; fixedBaseline: number }> = {};
+
+  for (const row of rows) {
+    const config = CONFIG[row.type];
+    if (!config) continue;
+
+    // Compute current decayed level as the "recent average" approximation
+    const elapsedMs = Date.now() - row.updatedAt.getTime();
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+    const currentLevel = applyDecay(
+      parseFloat(row.level.toString()),
+      config.baseline,
+      config.halfLifeHours,
+      elapsedHours,
+      row.adaptedBaseline
+    );
+
+    // Current adapted baseline (0 means use fixed, treat as fixed for drift calc)
+    const currentAdapted = row.adaptedBaseline !== 0 ? row.adaptedBaseline : config.baseline;
+
+    // Drift toward recent average
+    let newAdapted = currentAdapted + (currentLevel - currentAdapted) * DRIFT_RATE;
+
+    // Hard floor/ceiling: can't exceed original baseline ± 30
+    const floor = config.baseline - DRIFT_MAX_OFFSET;
+    const ceiling = config.baseline + DRIFT_MAX_OFFSET;
+    newAdapted = Math.max(floor, Math.min(ceiling, newAdapted));
+
+    // Round to 2 decimal places
+    newAdapted = Math.round(newAdapted * 100) / 100;
+
+    await prisma.aydenNeurotransmitter.update({
+      where: { type: row.type },
+      data: { adaptedBaseline: newAdapted },
+    });
+
+    results[row.type] = {
+      adaptedBaseline: newAdapted,
+      level: Math.round(currentLevel * 100) / 100,
+      fixedBaseline: config.baseline,
+    };
+  }
+
+  return results;
 }

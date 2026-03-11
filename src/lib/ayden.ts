@@ -315,7 +315,7 @@ export async function runAyden(
   const allTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...memoryTools, ...emotionTools, ...googleTools, ...webTools, ...weatherTools];
   // Sonnet gets only ACTION tools — no memory/emotion (Haiku handles those in Phase 1)
   // This prevents Sonnet from burning all its rounds saving memories instead of responding
-  const sonnetTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...googleTools, ...webTools];
+  const sonnetTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...googleTools, ...webTools, ...weatherTools];
 
   // Add cache_control to last tool in each set so Anthropic caches tool definitions
   if (allTools.length > 0) {
@@ -402,6 +402,22 @@ export async function runAyden(
     const imgBlocks = lastMsg.content.filter((b) => b.type === "image");
     if (imgBlocks.length > 0) {
       console.log(`Ayden (${channel}): sending ${imgBlocks.length} image block(s) to API, ${messages.length} total messages`);
+    }
+  }
+
+  // Safety: ensure no messages have empty content (Anthropic rejects these)
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (typeof msg.content === "string" && !msg.content.trim()) {
+      messages.splice(i, 1);
+    } else if (Array.isArray(msg.content) && msg.content.length === 0) {
+      messages.splice(i, 1);
+    }
+  }
+  // Fix consecutive same-role messages after cleanup
+  for (let i = messages.length - 1; i > 0; i--) {
+    if (messages[i].role === messages[i - 1].role) {
+      messages.splice(i, 1);
     }
   }
 

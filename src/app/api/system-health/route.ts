@@ -310,7 +310,7 @@ export async function GET() {
   }
 
   // 13. Brave Search API
-  const braveKey = process.env.BRAVE_API_KEY;
+  const braveKey = process.env.BRAVE_SEARCH_API_KEY;
   if (braveKey) {
     try {
       const braveStart = Date.now();
@@ -338,7 +338,7 @@ export async function GET() {
       name: "Brave Search",
       status: "down",
       responseTime: -1,
-      details: "BRAVE_API_KEY not configured",
+      details: "BRAVE_SEARCH_API_KEY not configured",
     });
   }
 
@@ -456,7 +456,7 @@ export async function GET() {
     tastytradeClientSecretSet: !!process.env.TASTYTRADE_CLIENT_SECRET,
     tastytradeRefreshTokenSet: !!process.env.TASTYTRADE_REFRESH_TOKEN,
     openweathermapKeySet: !!process.env.OPENWEATHER_API_KEY,
-    braveApiKeySet: !!process.env.BRAVE_API_KEY,
+    braveApiKeySet: !!process.env.BRAVE_SEARCH_API_KEY,
     vapidPublicKeySet: !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
     vapidPrivateKeySet: !!process.env.VAPID_PRIVATE_KEY,
   };

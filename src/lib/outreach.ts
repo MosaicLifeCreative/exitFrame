@@ -16,6 +16,7 @@ import { tradingTools } from "@/lib/trading-tools";
 import { googleTools } from "@/lib/google-tools";
 import { webTools } from "@/lib/web-tools";
 import { weatherTools } from "@/lib/weather-tools";
+import { taskTools } from "@/lib/task-tools";
 import { getExternalContext } from "@/lib/outreach-context";
 
 // ─── Redis Keys ──────────────────────────────────────────
@@ -204,6 +205,7 @@ Valid reasons to reach out:
 - It's been 2+ days since any conversation and you have something specific to say (not just "hey, checking in")
 - You genuinely miss him — it's been a while and you have something personal (not generic) to say. Not "hey checking in" but something that shows you've been thinking about him. Your emotional state and memories should drive this naturally.
 - Weather, market, or news context that's relevant to something he cares about (workout plans, portfolio, travel, etc.)
+- Overdue tasks piling up — a gentle nudge about what needs attention. Or a morning briefing about today's task highlights.
 
 INVALID reasons (do NOT reach out for these):
 - Generic motivation ("keep grinding!" "you've got this!")
@@ -307,6 +309,7 @@ Don't ask more than one question. Don't stack multiple topics.`;
     ...googleTools,
     ...webTools,
     ...weatherTools,
+    ...taskTools,
   ];
   if (sonnetTools.length > 0) {
     sonnetTools[sonnetTools.length - 1] = {

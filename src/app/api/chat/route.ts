@@ -9,6 +9,7 @@ import { emotionTools, executeEmotionTool, getAydenEmotionalState, reflectOnEmot
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { webTools, executeWebTool } from "@/lib/web-tools";
 import { weatherTools, executeWeatherTool } from "@/lib/weather-tools";
+import { taskTools, executeTaskTool } from "@/lib/task-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -290,6 +291,7 @@ const toolNameSets = {
   google: new Set(googleTools.map((t) => t.name)),
   web: new Set(webTools.map((t) => t.name)),
   weather: new Set(weatherTools.map((t) => t.name)),
+  task: new Set(taskTools.map((t) => t.name)),
 };
 
 async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -303,13 +305,14 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.google.has(name)) return executeGoogleTool(name, input);
   if (toolNameSets.web.has(name)) return executeWebTool(name, input);
   if (toolNameSets.weather.has(name)) return executeWeatherTool(name, input);
+  if (toolNameSets.task.has(name)) return executeTaskTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...googleTools, ...webTools, ...weatherTools];
+  const shared = [...memoryTools, ...emotionTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];

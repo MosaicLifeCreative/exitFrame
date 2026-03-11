@@ -184,22 +184,131 @@ model Task {
   id              String    @id @default(uuid()) @db.Uuid
   projectId       String?   @map("project_id") @db.Uuid
   phaseId         String?   @map("phase_id") @db.Uuid
+  noteId          String?   @map("note_id") @db.Uuid
+  groupId         String?   @map("group_id") @db.Uuid
   title           String
   description     String?   @db.Text
-  status          String    @default("todo")
-  priority        String    @default("medium")
+  status          String    @default("todo") // todo, in_progress, done, cancelled, waiting
+  priority        String    @default("medium") // none, low, medium, high, urgent
   dueDate         DateTime? @map("due_date")
+  startDate       DateTime? @map("start_date")
+  completedAt     DateTime? @map("completed_at")
   sortOrder       Int       @default(0) @map("sort_order")
   dependsOnTaskId String?   @map("depends_on_task_id") @db.Uuid
+
+  // Recurring
+  isRecurring           Boolean  @default(false) @map("is_recurring")
+  recurringConfigId     String?  @map("recurring_config_id") @db.Uuid
+  parentRecurringTaskId String?  @map("parent_recurring_task_id") @db.Uuid
+
+  // Amplenote-style scoring
+  importanceScore Int    @default(3) @map("importance_score") // 1-5
+  urgencyScore    Int    @default(3) @map("urgency_score") // 1-5
+  effortScore     Int    @default(3) @map("effort_score") // 1-5
+  computedScore   Float? @map("computed_score") // (importance * urgency) / effort
+
+  // Daily highlights
+  isDailyHighlight Boolean   @default(false) @map("is_daily_highlight")
+  highlightDate    DateTime? @map("highlight_date") @db.Date
+
+  // Reminders
+  reminderEnabled  Boolean   @default(false) @map("reminder_enabled")
+  reminderInterval String?   @map("reminder_interval") // daily, hourly, custom
+  lastRemindedAt   DateTime? @map("last_reminded_at")
+  snoozedUntil     DateTime? @map("snoozed_until")
+
+  source    String   @default("manual") // manual, ayden, recurring, note_action
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project         Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  phase           ProjectPhase?    @relation(fields: [phaseId], references: [id])
+  note            Note?            @relation(fields: [noteId], references: [id])
+  group           TaskGroup?       @relation(fields: [groupId], references: [id])
+  recurringConfig RecurringConfig? @relation(fields: [recurringConfigId], references: [id])
+  dependsOn       Task?            @relation("TaskDependency", fields: [dependsOnTaskId], references: [id])
+  dependedOnBy    Task[]           @relation("TaskDependency")
+  parentRecurring Task?            @relation("RecurringInstances", fields: [parentRecurringTaskId], references: [id])
+  recurringInstances Task[]        @relation("RecurringInstances")
+  tags            TaskTagAssignment[]
+  reminders       TaskReminder[]
+
+  @@map("tasks")
+}
+
+model TaskGroup {
+  id            String      @id @default(uuid()) @db.Uuid
+  name          String
+  parentGroupId String?     @map("parent_group_id") @db.Uuid
+  color         String?     // hex color for UI badge
+  icon          String?     // lucide icon name
+  sortOrder     Int         @default(0) @map("sort_order")
+  isActive      Boolean     @default(true) @map("is_active")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  parent   TaskGroup?  @relation("TaskGroupHierarchy", fields: [parentGroupId], references: [id])
+  children TaskGroup[] @relation("TaskGroupHierarchy")
+  tasks    Task[]
+
+  @@map("task_groups")
+}
+
+model TaskTag {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  color     String?  // hex color
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  assignments TaskTagAssignment[]
+
+  @@map("task_tags")
+}
+
+model TaskTagAssignment {
+  id     String @id @default(uuid()) @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  tagId  String @map("tag_id") @db.Uuid
+
+  task Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag  TaskTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, tagId])
+  @@map("task_tag_assignments")
+}
+
+model RecurringConfig {
+  id              String    @id @default(uuid()) @db.Uuid
+  frequency       String    // daily, weekly, biweekly, monthly, quarterly, yearly, custom
+  intervalDays    Int?      @map("interval_days") // for custom frequency
+  daysOfWeek      Int[]     @map("days_of_week") // [0-6] for weekly
+  dayOfMonth      Int?      @map("day_of_month") // 1-28 for monthly
+  monthOfYear     Int?      @map("month_of_year") // 1-12 for yearly
+  startDate       DateTime  @map("start_date") @db.Date
+  endDate         DateTime? @map("end_date") @db.Date
+  maxOccurrences  Int?      @map("max_occurrences")
+  occurrenceCount Int       @default(0) @map("occurrence_count")
+  nextDueDate     DateTime? @map("next_due_date") @db.Date
+  isActive        Boolean   @default(true) @map("is_active")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  project      Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  phase        ProjectPhase? @relation(fields: [phaseId], references: [id])
-  dependsOn    Task?         @relation("TaskDependency", fields: [dependsOnTaskId], references: [id])
-  dependedOnBy Task[]        @relation("TaskDependency")
+  tasks Task[]
 
-  @@map("tasks")
+  @@map("recurring_configs")
+}
+
+model TaskReminder {
+  id             String    @id @default(uuid()) @db.Uuid
+  taskId         String    @map("task_id") @db.Uuid
+  channel        String    // push, sms, both
+  sentAt         DateTime  @default(now()) @map("sent_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_reminders")
 }
 
 
@@ -222,6 +331,7 @@ model Note {
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   actions NoteAction[]
+  tasks   Task[]
 
   // Polymorphic: domainRefId points to Client (domain="mlc") or Product (domain="product")
   // No FK constraint — resolved at the application layer based on domain field

@@ -323,18 +323,69 @@ export async function getGoalDeadlineContext(): Promise<string | null> {
   }
 }
 
+// ─── Task Context ───────────────────────────────────────
+
+export async function getTaskContext(): Promise<string | null> {
+  try {
+    const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+
+    const [overdueTasks, dueTodayTasks, highlights, totalActive] = await Promise.all([
+      prisma.task.count({
+        where: {
+          status: { notIn: ["done", "cancelled"] },
+          isRecurring: false,
+          dueDate: { lt: now },
+        },
+      }),
+      prisma.task.count({
+        where: {
+          status: { notIn: ["done", "cancelled"] },
+          isRecurring: false,
+          dueDate: { gte: today, lt: new Date(today.getTime() + 86400000) },
+        },
+      }),
+      prisma.task.findMany({
+        where: { isDailyHighlight: true, highlightDate: today, status: { notIn: ["done", "cancelled"] } },
+        select: { title: true, status: true },
+        take: 5,
+      }),
+      prisma.task.count({
+        where: { status: { notIn: ["done", "cancelled"] }, isRecurring: false },
+      }),
+    ]);
+
+    if (totalActive === 0) return null;
+
+    const parts: string[] = [];
+    parts.push(`Active tasks: ${totalActive}`);
+    if (overdueTasks > 0) parts.push(`Overdue: ${overdueTasks}`);
+    if (dueTodayTasks > 0) parts.push(`Due today: ${dueTodayTasks}`);
+    if (highlights.length > 0) {
+      parts.push(`Today's highlights: ${highlights.map((h) => h.title).join(", ")}`);
+    }
+
+    return `Tasks:\n${parts.join("\n")}`;
+  } catch (err) {
+    console.error("Task context error:", err);
+    return null;
+  }
+}
+
 // ─── Combined External Context ──────────────────────────
 
 export async function getExternalContext(): Promise<string | null> {
-  const [weather, market, calendar, fitness, goals] = await Promise.all([
+  const [weather, market, calendar, fitness, goals, tasks] = await Promise.all([
     getWeatherContext(),
     getMarketContext(),
     getCalendarContext(),
     getFitnessFollowUpContext(),
     getGoalDeadlineContext(),
+    getTaskContext(),
   ]);
 
-  const sections = [weather, calendar, fitness, goals, market].filter(Boolean);
+  const sections = [weather, calendar, fitness, tasks, goals, market].filter(Boolean);
   if (sections.length === 0) return null;
 
   return `EXTERNAL CONTEXT (real-time data for outreach decisions):\n${sections.join("\n\n")}`;

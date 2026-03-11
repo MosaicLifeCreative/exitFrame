@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { Sun, Moon, LogOut, Search, MessageSquareText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useChatStore } from "@/lib/chat-store";
+import AydenHeartbeat from "./AydenHeartbeat";
 
 // Map pathnames to display titles
 function getPageTitle(pathname: string): string {
@@ -63,6 +64,9 @@ export default function Header({
       <h1 className="text-lg font-semibold text-foreground">
         {getPageTitle(pathname)}
       </h1>
+
+      {/* Center: Ayden's heartbeat */}
+      <AydenHeartbeat />
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">

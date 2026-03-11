@@ -62,7 +62,8 @@ export async function getProdAccountNumber(): Promise<string> {
   }
   const accountList = Array.isArray(accounts) ? accounts : [accounts];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  cachedProdAccountNumber = (accountList[0] as any)["account-number"] ?? (accountList[0] as any).accountNumber;
+  const first = accountList[0] as any;
+  cachedProdAccountNumber = first?.account?.["account-number"] ?? first?.["account-number"] ?? first?.account?.accountNumber ?? first?.accountNumber;
   if (!cachedProdAccountNumber) {
     throw new Error("Could not determine account number from tastytrade response");
   }
@@ -78,7 +79,8 @@ export async function getSandboxAccountNumber(): Promise<string> {
   }
   const accountList = Array.isArray(accounts) ? accounts : [accounts];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  cachedSandboxAccountNumber = (accountList[0] as any)["account-number"] ?? (accountList[0] as any).accountNumber;
+  const first = accountList[0] as any;
+  cachedSandboxAccountNumber = first?.account?.["account-number"] ?? first?.["account-number"] ?? first?.account?.accountNumber ?? first?.accountNumber;
   if (!cachedSandboxAccountNumber) {
     throw new Error("Could not determine sandbox account number from tastytrade response");
   }

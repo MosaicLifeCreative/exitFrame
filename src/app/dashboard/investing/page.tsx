@@ -20,6 +20,9 @@ import {
   Bot,
   BarChart3,
   Wallet,
+  Brain,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -181,6 +184,30 @@ interface AiPortfolioData {
   totalTrades: number;
   positions: AiPosition[];
   trades: AiTrade[];
+}
+
+interface TradingInsights {
+  performance: {
+    totalTrades: number;
+    wins: number;
+    losses: number;
+    breakeven: number;
+    winRate: number;
+    totalPnl: number;
+    avgWin: number;
+    avgLoss: number;
+    profitFactor: number;
+  };
+  tickerPerformance: Array<{ ticker: string; trades: number; wins: number; losses: number; winRate: number; pnl: number }>;
+  strategyPerformance: Array<{ strategy: string; trades: number; winRate: number; pnl: number }>;
+  bestTrades: Array<{ ticker: string; pnl: number; pnlPct: number; reasoning: string; date: string }>;
+  worstTrades: Array<{ ticker: string; pnl: number; pnlPct: number; reasoning: string; date: string }>;
+  lessons: Array<{ ticker: string; lessons: string; outcome: string; pnl: number | null; date: string }>;
+  observations: Array<{ text: string; date: string }>;
+  rules: {
+    active: Array<{ id: string; category: string; rule: string; source: string; performance: string | null }>;
+    pending: Array<{ id: string; category: string; rule: string; rationale: string | null }>;
+  };
 }
 
 interface SnapshotData {
@@ -539,6 +566,8 @@ export default function InvestingPage() {
   // Ayden's Portfolio (DB-simulated paper trading)
   const [aiPortfolio, setAiPortfolio] = useState<AiPortfolioData | null>(null);
   const [loadingAiPortfolio, setLoadingAiPortfolio] = useState(true);
+  const [insights, setInsights] = useState<TradingInsights | null>(null);
+  const [loadingInsights, setLoadingInsights] = useState(true);
 
   // Watchlist & News
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
@@ -614,6 +643,15 @@ export default function InvestingPage() {
     }
   }, []);
 
+  const fetchInsights = useCallback(async () => {
+    try {
+      const res = await fetch("/api/investing/ai-portfolio/insights");
+      const json = await res.json();
+      if (res.ok && json.data) setInsights(json.data);
+    } catch { /* supplemental */ }
+    finally { setLoadingInsights(false); }
+  }, []);
+
   const fetchWatchlist = useCallback(async () => {
     try {
       const res = await fetch("/api/investing/watchlist");
@@ -661,10 +699,11 @@ export default function InvestingPage() {
     fetchQuotes();
     fetchTastytrade();
     fetchAiPortfolio();
+    fetchInsights();
     fetchWatchlist();
     fetchNews();
     fetchSnapshots();
-  }, [fetchHoldings, fetchQuotes, fetchTastytrade, fetchAiPortfolio, fetchWatchlist, fetchNews, fetchSnapshots]);
+  }, [fetchHoldings, fetchQuotes, fetchTastytrade, fetchAiPortfolio, fetchInsights, fetchWatchlist, fetchNews, fetchSnapshots]);
 
   // ── Computed values ──────────────────────────────────
 
@@ -1259,6 +1298,268 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                   </Table>
                 </Card>
               )}
+
+              {/* ==================== TRADING INSIGHTS ==================== */}
+              <div className="pt-6 border-t">
+                <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+                  <Brain className="h-5 w-5" />
+                  Trading Insights
+                </h2>
+
+                {loadingInsights ? (
+                  <p className="text-muted-foreground text-sm">Loading insights...</p>
+                ) : !insights ? (
+                  <Card>
+                    <CardContent className="py-8 text-center">
+                      <Brain className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+                      <p className="text-sm text-muted-foreground">No trading data yet. Insights will appear as Ayden makes trades.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Performance Stats */}
+                    {insights.performance.totalTrades > 0 && (
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <Card>
+                          <CardContent className="pt-4 pb-3 px-4">
+                            <p className="text-xs text-muted-foreground">Total Trades</p>
+                            <p className="text-xl font-bold">{insights.performance.totalTrades}</p>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4 pb-3 px-4">
+                            <p className="text-xs text-muted-foreground">Win Rate</p>
+                            <p className="text-xl font-bold">{insights.performance.winRate}%</p>
+                            <p className="text-xs text-muted-foreground">{insights.performance.wins}W / {insights.performance.losses}L / {insights.performance.breakeven}BE</p>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4 pb-3 px-4">
+                            <p className="text-xs text-muted-foreground">Total P&L</p>
+                            <p className={`text-xl font-bold ${insights.performance.totalPnl >= 0 ? "text-green-600" : "text-red-500"}`}>
+                              {fmtMoney(insights.performance.totalPnl)}
+                            </p>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4 pb-3 px-4">
+                            <p className="text-xs text-muted-foreground">Avg Win / Loss</p>
+                            <p className="text-sm font-semibold text-green-600">{fmtMoney(insights.performance.avgWin)}</p>
+                            <p className="text-sm font-semibold text-red-500">{fmtMoney(insights.performance.avgLoss)}</p>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4 pb-3 px-4">
+                            <p className="text-xs text-muted-foreground">Profit Factor</p>
+                            <p className="text-xl font-bold">{insights.performance.profitFactor}x</p>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+                    {/* Pending Rules — needs Trey's approval */}
+                    {insights.rules.pending.length > 0 && (
+                      <Card className="border-amber-500/30">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-amber-500" />
+                            Pending Rules ({insights.rules.pending.length})
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground">Ayden proposed these. Approve to add to her trading rules.</p>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          {insights.rules.pending.map((rule) => (
+                            <div key={rule.id} className="flex items-start justify-between gap-3 p-3 rounded-md bg-muted/50">
+                              <div className="flex-1 min-w-0">
+                                <Badge variant="outline" className="text-xs mb-1">{rule.category}</Badge>
+                                <p className="text-sm">{rule.rule}</p>
+                                {rule.rationale && <p className="text-xs text-muted-foreground mt-1">{rule.rationale}</p>}
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950"
+                                  onClick={async () => {
+                                    try {
+                                      await fetch("/api/investing/ai-portfolio/rules", {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ id: rule.id, action: "approve" }),
+                                      });
+                                      toast.success("Rule approved");
+                                      fetchInsights();
+                                    } catch { toast.error("Failed to approve rule"); }
+                                  }}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                                  onClick={async () => {
+                                    try {
+                                      await fetch("/api/investing/ai-portfolio/rules", {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ id: rule.id, action: "reject" }),
+                                      });
+                                      toast.success("Rule rejected");
+                                      fetchInsights();
+                                    } catch { toast.error("Failed to reject rule"); }
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Active Trading Rules */}
+                    {insights.rules.active.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            Active Rules ({insights.rules.active.length})
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {insights.rules.active.map((rule) => (
+                              <div key={rule.id} className="flex items-start gap-2 text-sm">
+                                <Badge variant="outline" className="text-xs shrink-0 mt-0.5">{rule.category}</Badge>
+                                <span>{rule.rule}</span>
+                                <Badge variant="secondary" className="text-xs shrink-0 ml-auto">{rule.source}</Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Lessons Learned */}
+                    {insights.lessons.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Lessons Learned</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {insights.lessons.map((lesson, i) => (
+                              <div key={i} className="text-sm border-l-2 border-muted-foreground/20 pl-3">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-mono font-semibold">{lesson.ticker}</span>
+                                  <Badge variant={lesson.outcome === "win" ? "default" : lesson.outcome === "loss" ? "destructive" : "secondary"} className="text-xs">
+                                    {lesson.outcome}
+                                  </Badge>
+                                  {lesson.pnl !== null && <PnlText value={lesson.pnl} className="text-xs" />}
+                                  <span className="text-xs text-muted-foreground ml-auto">{lesson.date}</span>
+                                </div>
+                                <p className="text-muted-foreground">{lesson.lessons}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Market Observations */}
+                    {insights.observations.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Market Observations</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {insights.observations.map((obs, i) => (
+                              <div key={i} className="flex items-start gap-2 text-sm">
+                                <span className="text-xs text-muted-foreground shrink-0 mt-0.5">{obs.date}</span>
+                                <p>{obs.text}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Ticker Performance */}
+                    {insights.tickerPerformance.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Performance by Ticker</CardTitle>
+                        </CardHeader>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Ticker</TableHead>
+                              <TableHead>Trades</TableHead>
+                              <TableHead>Win Rate</TableHead>
+                              <TableHead>P&L</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {insights.tickerPerformance.map((tp) => (
+                              <TableRow key={tp.ticker}>
+                                <TableCell className="font-mono font-semibold">{tp.ticker}</TableCell>
+                                <TableCell>{tp.trades} ({tp.wins}W/{tp.losses}L)</TableCell>
+                                <TableCell>{tp.winRate}%</TableCell>
+                                <TableCell><PnlText value={tp.pnl} /></TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </Card>
+                    )}
+
+                    {/* Best & Worst Trades */}
+                    {(insights.bestTrades.length > 0 || insights.worstTrades.length > 0) && (
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {insights.bestTrades.length > 0 && (
+                          <Card>
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-base text-green-600">Best Trades</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                              {insights.bestTrades.map((t, i) => (
+                                <div key={i} className="flex items-center justify-between text-sm">
+                                  <div>
+                                    <span className="font-mono font-semibold">{t.ticker}</span>
+                                    <span className="text-muted-foreground text-xs ml-2">{t.date}</span>
+                                  </div>
+                                  <PnlText value={t.pnl} />
+                                </div>
+                              ))}
+                            </CardContent>
+                          </Card>
+                        )}
+                        {insights.worstTrades.length > 0 && (
+                          <Card>
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-base text-red-500">Worst Trades</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                              {insights.worstTrades.map((t, i) => (
+                                <div key={i} className="flex items-center justify-between text-sm">
+                                  <div>
+                                    <span className="font-mono font-semibold">{t.ticker}</span>
+                                    <span className="text-muted-foreground text-xs ml-2">{t.date}</span>
+                                  </div>
+                                  <PnlText value={t.pnl} />
+                                </div>
+                              ))}
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </TabsContent>

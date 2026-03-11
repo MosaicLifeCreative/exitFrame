@@ -13,6 +13,7 @@ import { taskTools, executeTaskTool } from "@/lib/task-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getWebContextForMessaging, getCrossChannelContext } from "@/lib/channelContext";
+import { getNeurotransmitterPrompt, updateNeurotransmitters } from "@/lib/neurotransmitters";
 import { prisma } from "@/lib/prisma";
 
 /** Supported messaging channels */
@@ -108,13 +109,14 @@ TOOL TRANSITIONS: When you need to use a tool, either call it without narration 
 
   let dynamicPrompt = `RIGHT NOW it is ${today}, ${time} ET. This is the ABSOLUTE current date and time — trust this over anything in the conversation history. Previous messages may be from earlier today or previous days. Do not get confused by them.`;
 
-  const [userContext, crossDomainCtx, memories, emotionalState, webCtx, crossChannelCtx] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, webCtx, crossChannelCtx, neuroState] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
     getAydenMemories(),
     getAydenEmotionalState(),
     getWebContextForMessaging(),
     getCrossChannelContext(channel),
+    getNeurotransmitterPrompt(),
   ]);
   if (userContext) {
     dynamicPrompt += `\n\nUser context:\n${userContext}`;
@@ -127,6 +129,9 @@ TOOL TRANSITIONS: When you need to use a tool, either call it without narration 
   }
   if (emotionalState) {
     dynamicPrompt += `\n\n${emotionalState}`;
+  }
+  if (neuroState) {
+    dynamicPrompt += `\n\n${neuroState}`;
   }
   if (webCtx) {
     dynamicPrompt += `\n\n${webCtx}`;
@@ -213,6 +218,11 @@ export async function saveChannelExchange(
   // Background emotional reflection — process how the exchange felt
   reflectOnEmotions(userMessage, assistantResponse, channel).catch((err) =>
     console.error(`${channel} emotion reflection error:`, err)
+  );
+
+  // Background neurochemical update — adjust internal chemistry
+  updateNeurotransmitters(userMessage, assistantResponse, channel).catch((err) =>
+    console.error(`${channel} neurotransmitter update error:`, err)
   );
 }
 

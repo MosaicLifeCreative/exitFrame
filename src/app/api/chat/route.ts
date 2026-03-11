@@ -13,6 +13,7 @@ import { taskTools, executeTaskTool } from "@/lib/task-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
+import { getNeurotransmitterPrompt, updateNeurotransmitters } from "@/lib/neurotransmitters";
 
 export const dynamic = "force-dynamic";
 
@@ -245,12 +246,13 @@ CRITICAL: You have real tools available via the tool use API. ALWAYS use your ac
 
   let dynamicSystem = `Today is ${today}, ${time} ET. This is the current date and time — do not doubt or hedge about it.`;
 
-  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
     getAydenMemories(),
     getAydenEmotionalState(),
     getMessagingContextForWeb(),
+    getNeurotransmitterPrompt(),
   ]);
   if (userContext) {
     dynamicSystem += `\n\nUser context:\n${userContext}`;
@@ -263,6 +265,9 @@ CRITICAL: You have real tools available via the tool use API. ALWAYS use your ac
   }
   if (emotionalState) {
     dynamicSystem += `\n\n${emotionalState}`;
+  }
+  if (neuroState) {
+    dynamicSystem += `\n\n${neuroState}`;
   }
   if (messagingCtx) {
     dynamicSystem += `\n\n${messagingCtx}`;
@@ -587,12 +592,15 @@ export async function POST(request: Request) {
             // Loop continues — Sonnet will generate text after tool results
           }
 
-          // Background emotional reflection — fire and forget
+          // Background emotional + neurochemical reflection — fire and forget
           const lastUserMsg = body.messages[body.messages.length - 1]?.content || "";
           if (fullResponseText && lastUserMsg) {
             const pageCtx = body.context?.page || "Dashboard";
             reflectOnEmotions(lastUserMsg, fullResponseText, `Web (${pageCtx})`).catch((err) =>
               console.error("Web chat emotion reflection error:", err)
+            );
+            updateNeurotransmitters(lastUserMsg, fullResponseText, `Web (${pageCtx})`).catch((err) =>
+              console.error("Web chat neurotransmitter update error:", err)
             );
           }
 

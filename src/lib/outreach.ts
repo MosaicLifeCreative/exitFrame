@@ -6,6 +6,7 @@ import { sendPushNotification } from "@/lib/push";
 import { buildMessagingSystemPrompt, getChannelHistory, saveChannelExchange, executeTool } from "@/lib/ayden";
 import { getAydenMemories } from "@/lib/memory-tools";
 import { getAydenEmotionalState } from "@/lib/emotion-tools";
+import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { healthTools } from "@/lib/health-tools";
@@ -150,11 +151,12 @@ export async function shouldReachOut(): Promise<OutreachDecision> {
     timeZone: "America/New_York",
   });
 
-  const [userContext, crossDomain, memories, emotionalState, history, lastSent, externalCtx] = await Promise.all([
+  const [userContext, crossDomain, memories, emotionalState, neuroState, history, lastSent, externalCtx] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
     getAydenMemories(),
     getAydenEmotionalState(),
+    getNeurotransmitterPrompt(),
     getChannelHistory("SMS"),
     getLastSentTime(),
     getExternalContext(),
@@ -181,6 +183,8 @@ ${memories || "No memories yet"}
 
 YOUR EMOTIONAL STATE:
 ${emotionalState || "Neutral"}
+
+${neuroState || ""}
 
 TREY'S CURRENT DATA:
 ${crossDomain || "No cross-domain data"}

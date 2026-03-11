@@ -375,6 +375,11 @@ export async function runAyden(
     messages.push({ role: m.role as "user" | "assistant", content: m.content });
   }
 
+  // Ensure last history message isn't user (since we're about to append user)
+  if (messages.length > 0 && messages[messages.length - 1].role === "user") {
+    messages.pop();
+  }
+
   // Build current message — text + optional images
   if (images && images.length > 0) {
     const contentBlocks: Anthropic.ContentBlockParam[] = [];

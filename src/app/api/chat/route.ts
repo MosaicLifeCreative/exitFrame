@@ -5,7 +5,7 @@ import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { tradingTools, executeTradingTool } from "@/lib/trading-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
-import { emotionTools, executeEmotionTool, getAydenEmotionalState, reflectOnEmotions } from "@/lib/emotion-tools";
+import { emotionTools, executeEmotionTool, getAydenEmotionalState } from "@/lib/emotion-tools";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { webTools, executeWebTool } from "@/lib/web-tools";
 import { weatherTools, executeWeatherTool } from "@/lib/weather-tools";
@@ -13,7 +13,8 @@ import { taskTools, executeTaskTool } from "@/lib/task-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
-import { getNeurotransmitterPrompt, updateNeurotransmitters } from "@/lib/neurotransmitters";
+import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
+import { reflect } from "@/lib/reflection";
 
 export const dynamic = "force-dynamic";
 
@@ -592,15 +593,12 @@ export async function POST(request: Request) {
             // Loop continues — Sonnet will generate text after tool results
           }
 
-          // Background emotional + neurochemical reflection — fire and forget
+          // Background reflection (emotions + neurochemistry in one call) — fire and forget
           const lastUserMsg = body.messages[body.messages.length - 1]?.content || "";
           if (fullResponseText && lastUserMsg) {
             const pageCtx = body.context?.page || "Dashboard";
-            reflectOnEmotions(lastUserMsg, fullResponseText, `Web (${pageCtx})`).catch((err) =>
-              console.error("Web chat emotion reflection error:", err)
-            );
-            updateNeurotransmitters(lastUserMsg, fullResponseText, `Web (${pageCtx})`).catch((err) =>
-              console.error("Web chat neurotransmitter update error:", err)
+            reflect(lastUserMsg, fullResponseText, `Web (${pageCtx})`).catch((err) =>
+              console.error("Web chat reflection error:", err)
             );
           }
 

@@ -5,7 +5,8 @@ import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { tradingTools, executeTradingTool } from "@/lib/trading-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
-import { emotionTools, executeEmotionTool, getAydenEmotionalState, reflectOnEmotions } from "@/lib/emotion-tools";
+import { emotionTools, executeEmotionTool, getAydenEmotionalState } from "@/lib/emotion-tools";
+import { reflect } from "@/lib/reflection";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { webTools, executeWebTool } from "@/lib/web-tools";
 import { weatherTools, executeWeatherTool } from "@/lib/weather-tools";
@@ -13,7 +14,7 @@ import { taskTools, executeTaskTool } from "@/lib/task-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getWebContextForMessaging, getCrossChannelContext } from "@/lib/channelContext";
-import { getNeurotransmitterPrompt, updateNeurotransmitters } from "@/lib/neurotransmitters";
+import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
 import { prisma } from "@/lib/prisma";
 
 /** Supported messaging channels */
@@ -215,14 +216,9 @@ export async function saveChannelExchange(
     console.error(`${channel} summarization error:`, err)
   );
 
-  // Background emotional reflection — process how the exchange felt
-  reflectOnEmotions(userMessage, assistantResponse, channel).catch((err) =>
-    console.error(`${channel} emotion reflection error:`, err)
-  );
-
-  // Background neurochemical update — adjust internal chemistry
-  updateNeurotransmitters(userMessage, assistantResponse, channel).catch((err) =>
-    console.error(`${channel} neurotransmitter update error:`, err)
+  // Background reflection (emotions + neurochemistry in one call)
+  reflect(userMessage, assistantResponse, channel).catch((err) =>
+    console.error(`${channel} reflection error:`, err)
   );
 }
 

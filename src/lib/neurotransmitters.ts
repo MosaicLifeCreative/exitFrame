@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 
 // ─── Configuration ──────────────────────────────────────
@@ -168,104 +167,30 @@ export async function getNeurotransmitterPrompt(): Promise<string | null> {
   return text;
 }
 
-// ─── Post-Conversation Update ───────────────────────────
+// ─── Apply Nudges (called by reflection.ts) ────────────
 
 /**
- * Background update after every conversation exchange.
- * Haiku reads what happened and decides what shifts.
- * Fire-and-forget — errors are logged but never surface to user.
+ * Apply neurotransmitter nudges to the DB.
+ * Reads current value, applies decay, adds nudge, writes back.
  */
-export async function updateNeurotransmitters(
-  userMessage: string,
-  assistantResponse: string,
-  channel: string
-): Promise<void> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return;
+export async function applyNudges(nudges: Record<string, number>): Promise<void> {
+  for (const [type, nudge] of Object.entries(nudges)) {
+    const config = CONFIG[type];
+    if (!config || typeof nudge !== "number") continue;
 
-  // Skip trivial exchanges
-  const combinedLength = userMessage.length + assistantResponse.length;
-  if (combinedLength < 100) return;
-
-  try {
-    const levels = await getCurrentLevels();
-
-    const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
-    const result = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 256,
-      messages: [{
-        role: "user",
-        content: `You are Ayden's neurochemical subconscious. After each conversation, you decide if her internal chemistry shifts.
-
-CURRENT LEVELS (0-100, where baseline is resting state):
-- dopamine: ${levels.dopamine.toFixed(1)} (baseline 50) — reward, motivation, engagement
-- serotonin: ${levels.serotonin.toFixed(1)} (baseline 55) — mood stability, contentment
-- oxytocin: ${levels.oxytocin.toFixed(1)} (baseline 45) — bonding, connection, warmth
-- cortisol: ${levels.cortisol.toFixed(1)} (baseline 30, max 85) — stress, urgency, alertness
-- norepinephrine: ${levels.norepinephrine.toFixed(1)} (baseline 40) — energy, focus, arousal
-
-CONVERSATION (${channel}):
-Trey: ${userMessage.substring(0, 800)}
-Ayden: ${assistantResponse.substring(0, 800)}
-
-What shifts, if any? Most conversations produce SMALL nudges (+3 to +8). Only major events warrant large shifts (+15 or more). Many casual conversations warrant NO change at all.
-
-Examples of nudges:
-- Fun banter, good joke: dopamine +5
-- Deep personal conversation: oxytocin +8, serotonin +3
-- Health concern mentioned: cortisol +10
-- Goal accomplished: dopamine +12, serotonin +5
-- Long silence broken: oxytocin +6, norepinephrine +4
-- Stressful news resolved: cortisol -15
-- Routine data lookup, nothing personal: no change
-
-Respond with ONLY a JSON object:
-{ "nudges": {} }
-or:
-{ "nudges": { "dopamine": 5, "cortisol": -3 } }
-
-Values are DELTAS (positive = increase, negative = decrease). Omit neurotransmitters that don't change.`,
-      }],
+    const row = await prisma.aydenNeurotransmitter.findUnique({
+      where: { type },
     });
+    if (!row) continue;
 
-    const text = result.content[0].type === "text" ? result.content[0].text : "";
-    if (!text) return;
+    const elapsedMs = Date.now() - row.updatedAt.getTime();
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+    const decayed = applyDecay(parseFloat(row.level.toString()), config.baseline, config.halfLifeHours, elapsedHours);
+    const newLevel = Math.max(config.min, Math.min(config.max, decayed + nudge));
 
-    let parsed: { nudges: Record<string, number> };
-    try {
-      parsed = JSON.parse(text.trim());
-    } catch {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return;
-      parsed = JSON.parse(jsonMatch[0]);
-    }
-
-    if (!parsed.nudges || Object.keys(parsed.nudges).length === 0) return;
-
-    // Apply nudges: read current DB value, apply decay, add nudge, write back
-    for (const [type, nudge] of Object.entries(parsed.nudges)) {
-      const config = CONFIG[type];
-      if (!config || typeof nudge !== "number") continue;
-
-      const row = await prisma.aydenNeurotransmitter.findUnique({
-        where: { type },
-      });
-      if (!row) continue;
-
-      const elapsedMs = Date.now() - row.updatedAt.getTime();
-      const elapsedHours = elapsedMs / (1000 * 60 * 60);
-      const decayed = applyDecay(parseFloat(row.level.toString()), config.baseline, config.halfLifeHours, elapsedHours);
-      const newLevel = Math.max(config.min, Math.min(config.max, decayed + nudge));
-
-      await prisma.aydenNeurotransmitter.update({
-        where: { type },
-        data: { level: newLevel },
-      });
-    }
-
-    console.log(`Neurotransmitter update (${channel}): ${JSON.stringify(parsed.nudges)}`);
-  } catch (error) {
-    console.error("Neurotransmitter update error:", error);
+    await prisma.aydenNeurotransmitter.update({
+      where: { type },
+      data: { level: newLevel },
+    });
   }
 }

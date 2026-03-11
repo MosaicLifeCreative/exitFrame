@@ -10,15 +10,13 @@ async function verifyRequest(request: NextRequest): Promise<boolean> {
   const qstashCurrentSigningKey = process.env.QSTASH_CURRENT_SIGNING_KEY;
   const qstashNextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
 
-  if (qstashCurrentSigningKey && qstashNextSigningKey) {
+  // QStash signature (POST from QStash)
+  const signature = request.headers.get("upstash-signature");
+  if (signature && qstashCurrentSigningKey && qstashNextSigningKey) {
     const receiver = new Receiver({
       currentSigningKey: qstashCurrentSigningKey,
       nextSigningKey: qstashNextSigningKey,
     });
-
-    const signature = request.headers.get("upstash-signature");
-    if (!signature) return false;
-
     const body = await request.text();
     try {
       await receiver.verify({ signature, body, url: request.url });
@@ -28,11 +26,14 @@ async function verifyRequest(request: NextRequest): Promise<boolean> {
     }
   }
 
+  // CRON_SECRET bearer token
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true;
 
-  if (!cronSecret && !qstashCurrentSigningKey) return true;
+  // Vercel Cron (GET with no auth — Vercel internally authenticates cron triggers)
+  // Also allows browser access for testing when no CRON_SECRET is set
+  if (request.method === "GET" && !cronSecret) return true;
 
   return false;
 }

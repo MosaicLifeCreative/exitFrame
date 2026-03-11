@@ -43,11 +43,6 @@ async function runCron() {
     return NextResponse.json({ data: { message: "Market closed, skipping sandbox trading" } });
   }
 
-  // Check sandbox is configured
-  if (!process.env.TASTYTRADE_SANDBOX_REFRESH_TOKEN || !process.env.TASTYTRADE_SANDBOX_CLIENT_SECRET) {
-    return NextResponse.json({ data: { message: "Sandbox not configured" } });
-  }
-
   try {
     const result = await runAutonomousSandboxTrading();
 

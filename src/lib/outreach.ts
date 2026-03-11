@@ -74,14 +74,19 @@ async function getDailyCount(): Promise<number> {
 }
 
 async function hasRecentActivity(): Promise<boolean> {
-  const conversation = await prisma.chatConversation.findFirst({
-    where: { context: "SMS" },
+  // Check across all channels — SMS, Slack, and web chat (any context)
+  const recentConversations = await prisma.chatConversation.findMany({
+    where: { isActive: true },
     orderBy: { updatedAt: "desc" },
+    take: 5,
   });
-  if (!conversation) return false;
+  if (recentConversations.length === 0) return false;
 
   const lastMessage = await prisma.chatMessage.findFirst({
-    where: { conversationId: conversation.id, role: "user" },
+    where: {
+      conversationId: { in: recentConversations.map((c) => c.id) },
+      role: "user",
+    },
     orderBy: { createdAt: "desc" },
   });
   if (!lastMessage) return false;

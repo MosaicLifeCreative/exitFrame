@@ -315,8 +315,8 @@ function getToolsForPage(page?: string): Anthropic.Tool[] {
   if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools, ...investingTools, ...shared];
   if (page === "Investing") return [...investingTools, ...goalTools, ...fitnessTools, ...healthTools, ...shared];
 
-  // All other pages get goal + investing + shared tools
-  return [...goalTools, ...investingTools, ...shared];
+  // General / PWA / all other pages get ALL tools
+  return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...shared];
 }
 
 type AnthropicMessage = Anthropic.MessageParam;

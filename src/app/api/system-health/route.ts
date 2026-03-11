@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { testConnection } from "@/lib/tastytrade";
 
 export const dynamic = "force-dynamic";
 
@@ -242,50 +243,181 @@ export async function GET() {
         ].filter(Boolean).join(", "),
   });
 
-  // 11. Table row counts (only if DB is up)
+  // 11. tastytrade API
+  try {
+    const ttStart = Date.now();
+    const ttResult = await testConnection();
+    const ttTime = Date.now() - ttStart;
+    services.push({
+      name: "tastytrade API",
+      status: ttResult.connected ? (ttTime < 3000 ? "healthy" : "degraded") : "down",
+      responseTime: ttTime,
+      details: ttResult.connected
+        ? `Connected — Account ${ttResult.accountNumber}`
+        : ttResult.error || "Connection failed",
+    });
+  } catch (error) {
+    services.push({
+      name: "tastytrade API",
+      status: "down",
+      responseTime: -1,
+      details: error instanceof Error ? error.message : "Connection failed",
+    });
+  }
+
+  // 12. OpenWeatherMap API
+  const owmKey = process.env.OPENWEATHER_API_KEY;
+  if (owmKey) {
+    try {
+      const owmStart = Date.now();
+      const res = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?lat=39.96&lon=-82.99&appid=${owmKey}&units=imperial`
+      );
+      const owmTime = Date.now() - owmStart;
+      if (res.ok) {
+        const data = await res.json();
+        const desc = data.weather?.[0]?.description ?? "unknown";
+        const temp = Math.round(data.main?.temp ?? 0);
+        services.push({
+          name: "OpenWeatherMap",
+          status: owmTime < 2000 ? "healthy" : "degraded",
+          responseTime: owmTime,
+          details: `Columbus OH: ${temp}°F, ${desc}`,
+        });
+      } else {
+        services.push({
+          name: "OpenWeatherMap",
+          status: "down",
+          responseTime: owmTime,
+          details: `HTTP ${res.status}`,
+        });
+      }
+    } catch (error) {
+      services.push({
+        name: "OpenWeatherMap",
+        status: "down",
+        responseTime: -1,
+        details: error instanceof Error ? error.message : "Unreachable",
+      });
+    }
+  } else {
+    services.push({
+      name: "OpenWeatherMap",
+      status: "down",
+      responseTime: -1,
+      details: "OPENWEATHER_API_KEY not configured",
+    });
+  }
+
+  // 13. Brave Search API
+  const braveKey = process.env.BRAVE_API_KEY;
+  if (braveKey) {
+    try {
+      const braveStart = Date.now();
+      const res = await fetch(
+        "https://api.search.brave.com/res/v1/web/search?q=test&count=1",
+        { headers: { "X-Subscription-Token": braveKey } }
+      );
+      const braveTime = Date.now() - braveStart;
+      services.push({
+        name: "Brave Search",
+        status: res.ok ? (braveTime < 2000 ? "healthy" : "degraded") : "down",
+        responseTime: braveTime,
+        details: res.ok ? "Search API reachable" : `HTTP ${res.status}`,
+      });
+    } catch (error) {
+      services.push({
+        name: "Brave Search",
+        status: "down",
+        responseTime: -1,
+        details: error instanceof Error ? error.message : "Unreachable",
+      });
+    }
+  } else {
+    services.push({
+      name: "Brave Search",
+      status: "down",
+      responseTime: -1,
+      details: "BRAVE_API_KEY not configured",
+    });
+  }
+
+  // 14. Web Push (VAPID) — config check only
+  const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+  services.push({
+    name: "Web Push (VAPID)",
+    status: vapidPublic && vapidPrivate ? "healthy" : "degraded",
+    responseTime: 0,
+    details: vapidPublic && vapidPrivate
+      ? "VAPID keys configured"
+      : [
+          !vapidPublic && "Public key missing",
+          !vapidPrivate && "Private key missing",
+        ].filter(Boolean).join(", "),
+  });
+
+  // 15. Table row counts (only if DB is up)
   const dbUp = services.find((s) => s.name === "Supabase Database")?.status !== "down";
   if (dbUp) {
     const tables = [
       // Core
+      { name: "user_profiles", fn: () => prisma.userProfile.count() },
+      { name: "integrations", fn: () => prisma.integration.count() },
+      { name: "audit_logs", fn: () => prisma.auditLog.count() },
       { name: "clients", fn: () => prisma.client.count() },
+      { name: "client_services", fn: () => prisma.clientService.count() },
+      { name: "products", fn: () => prisma.product.count() },
+      { name: "product_modules", fn: () => prisma.productModule.count() },
       { name: "projects", fn: () => prisma.project.count() },
+      { name: "project_phases", fn: () => prisma.projectPhase.count() },
       { name: "tasks", fn: () => prisma.task.count() },
       { name: "notes", fn: () => prisma.note.count() },
-      { name: "products", fn: () => prisma.product.count() },
+      { name: "note_actions", fn: () => prisma.noteAction.count() },
       { name: "time_entries", fn: () => prisma.timeEntry.count() },
       { name: "activity_entries", fn: () => prisma.activityEntry.count() },
       { name: "onboarding_templates", fn: () => prisma.onboardingTemplate.count() },
       { name: "onboarding_runs", fn: () => prisma.onboardingRun.count() },
-      { name: "client_services", fn: () => prisma.clientService.count() },
-      { name: "product_modules", fn: () => prisma.productModule.count() },
-      { name: "project_phases", fn: () => prisma.projectPhase.count() },
-      { name: "note_actions", fn: () => prisma.noteAction.count() },
       // Investing
       { name: "portfolio_holdings", fn: () => prisma.portfolioHolding.count() },
       { name: "watchlist_items", fn: () => prisma.watchlistItem.count() },
       { name: "market_news", fn: () => prisma.marketNews.count() },
+      { name: "investing_insights", fn: () => prisma.investingInsight.count() },
       { name: "stock_quotes", fn: () => prisma.stockQuote.count() },
       { name: "ai_portfolios", fn: () => prisma.aiPortfolio.count() },
       { name: "ai_positions", fn: () => prisma.aiPosition.count() },
       { name: "ai_trades", fn: () => prisma.aiTrade.count() },
+      { name: "trade_journal", fn: () => prisma.tradeJournal.count() },
+      { name: "trading_rules", fn: () => prisma.tradingRule.count() },
       { name: "portfolio_snapshots", fn: () => prisma.portfolioSnapshot.count() },
       // Health
       { name: "oura_data", fn: () => prisma.ouraData.count() },
       { name: "supplements", fn: () => prisma.supplement.count() },
+      { name: "supplement_logs", fn: () => prisma.supplementLog.count() },
       { name: "symptom_logs", fn: () => prisma.symptomLog.count() },
       { name: "bloodwork_panels", fn: () => prisma.bloodworkPanel.count() },
+      { name: "bloodwork_markers", fn: () => prisma.bloodworkMarker.count() },
       { name: "family_members", fn: () => prisma.familyMember.count() },
+      { name: "family_conditions", fn: () => prisma.familyCondition.count() },
       // Fitness
       { name: "exercises", fn: () => prisma.exercise.count() },
+      { name: "workout_templates", fn: () => prisma.workoutTemplate.count() },
+      { name: "template_exercises", fn: () => prisma.templateExercise.count() },
       { name: "workout_sessions", fn: () => prisma.workoutSession.count() },
+      { name: "session_exercises", fn: () => prisma.sessionExercise.count() },
+      { name: "exercise_sets", fn: () => prisma.exerciseSet.count() },
       { name: "cardio_sessions", fn: () => prisma.cardioSession.count() },
       // Goals
       { name: "goals", fn: () => prisma.goal.count() },
+      { name: "goal_milestones", fn: () => prisma.goalMilestone.count() },
+      { name: "goal_progress", fn: () => prisma.goalProgress.count() },
       // Chat
       { name: "chat_conversations", fn: () => prisma.chatConversation.count() },
       { name: "chat_messages", fn: () => prisma.chatMessage.count() },
       // Ayden
       { name: "ayden_memories", fn: () => prisma.aydenMemory.count() },
+      { name: "ayden_emotional_states", fn: () => prisma.aydenEmotionalState.count() },
+      { name: "push_subscriptions", fn: () => prisma.pushSubscription.count() },
     ];
 
     for (const table of tables) {
@@ -298,7 +430,7 @@ export async function GET() {
     }
   }
 
-  // 8. Environment info
+  // 16. Environment info
   const envInfo = {
     nodeVersion: process.version,
     nextjsEnv: process.env.NODE_ENV || "unknown",
@@ -321,6 +453,12 @@ export async function GET() {
     slackSigningSecretSet: !!process.env.SLACK_SIGNING_SECRET,
     googleClientIdSet: !!process.env.GOOGLE_CLIENT_ID,
     googleClientSecretSet: !!process.env.GOOGLE_CLIENT_SECRET,
+    tastytradeClientSecretSet: !!process.env.TASTYTRADE_CLIENT_SECRET,
+    tastytradeRefreshTokenSet: !!process.env.TASTYTRADE_REFRESH_TOKEN,
+    openweathermapKeySet: !!process.env.OPENWEATHER_API_KEY,
+    braveApiKeySet: !!process.env.BRAVE_API_KEY,
+    vapidPublicKeySet: !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    vapidPrivateKeySet: !!process.env.VAPID_PRIVATE_KEY,
   };
 
   const overallStatus = services.every((s) => s.status === "healthy")

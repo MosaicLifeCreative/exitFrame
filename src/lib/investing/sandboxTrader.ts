@@ -426,6 +426,15 @@ No markdown, no code blocks, just the JSON array.`,
     }
   }
 
+  // Post-trade reflection: have Ayden analyze what she learned
+  if (executed > 0) {
+    try {
+      await generateTradeReflection(anthropic, executedTrades, parsedDecisions, totalReturn);
+    } catch (err) {
+      console.error("Reflection failed (non-critical):", err instanceof Error ? err.message : err);
+    }
+  }
+
   // Notify Trey via SMS if trades were executed
   let notified = false;
   if (executedTrades.length > 0) {
@@ -441,4 +450,167 @@ No markdown, no code blocks, just the JSON array.`,
   }
 
   return { decisions: parsedDecisions, executed, errors, notified };
+}
+
+// ─── Post-Trade Reflection ─────────────────────────────
+
+async function generateTradeReflection(
+  anthropic: Anthropic,
+  executedTrades: string[],
+  decisions: SandboxTradeDecision[],
+  totalReturn: string,
+): Promise<void> {
+  // Get recent closed trades with outcomes for pattern analysis
+  const recentClosed = await prisma.tradeJournal.findMany({
+    where: { source: "sandbox", outcome: { in: ["win", "loss", "breakeven"] } },
+    orderBy: { executedAt: "desc" },
+    take: 30,
+  });
+
+  const existingRules = await prisma.tradingRule.findMany({
+    where: { isActive: true },
+  });
+
+  const closedSummary = recentClosed.map((t) => {
+    const pnl = t.realizedPnl ? Number(t.realizedPnl) : 0;
+    const pnlPct = t.realizedPnlPct ? Number(t.realizedPnlPct) : 0;
+    return `${t.executedAt.toISOString().slice(0, 10)}: ${t.side} ${Number(t.quantity)} ${t.ticker} [${t.outcome}] P&L: $${pnl.toFixed(2)} (${pnlPct.toFixed(1)}%) — ${t.reasoning?.slice(0, 60)}${t.lessons ? ` | Lesson: ${t.lessons.slice(0, 60)}` : ""}`;
+  }).join("\n");
+
+  const wins = recentClosed.filter((t) => t.outcome === "win").length;
+  const losses = recentClosed.filter((t) => t.outcome === "loss").length;
+  const totalPnl = recentClosed.reduce((sum, t) => sum + Number(t.realizedPnl || 0), 0);
+  const avgWin = recentClosed.filter((t) => t.outcome === "win" && t.realizedPnl).length > 0
+    ? recentClosed.filter((t) => t.outcome === "win").reduce((s, t) => s + Number(t.realizedPnl || 0), 0) / wins
+    : 0;
+  const avgLoss = losses > 0
+    ? recentClosed.filter((t) => t.outcome === "loss").reduce((s, t) => s + Number(t.realizedPnl || 0), 0) / losses
+    : 0;
+
+  const rulesContext = existingRules.length > 0
+    ? existingRules.map((r) => `[${r.category}] ${r.rule}`).join("\n")
+    : "None yet";
+
+  const response = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1500,
+    messages: [{
+      role: "user",
+      content: `You are Ayden, reflecting on your autonomous trading session. Analyze your performance and extract durable lessons.
+
+TODAY'S TRADES:
+${executedTrades.join("\n")}
+
+PORTFOLIO RETURN: ${totalReturn}%
+
+RECENT CLOSED TRADE HISTORY (last 30):
+${closedSummary || "No closed trades yet"}
+
+PERFORMANCE STATS:
+- Win/Loss: ${wins}/${losses} (${recentClosed.length > 0 ? Math.round((wins / recentClosed.length) * 100) : 0}% win rate)
+- Total P&L: $${totalPnl.toFixed(2)}
+- Avg Win: $${avgWin.toFixed(2)} | Avg Loss: $${avgLoss.toFixed(2)}
+
+CURRENT TRADING RULES:
+${rulesContext}
+
+Respond with ONLY a JSON object:
+{
+  "lessons": [
+    {
+      "ticker": "SYMBOL or GENERAL",
+      "lesson": "One concrete, actionable lesson (1-2 sentences)",
+      "category": "entry" | "exit" | "risk" | "position_sizing" | "strategy"
+    }
+  ],
+  "proposed_rules": [
+    {
+      "category": "entry" | "exit" | "risk" | "position_sizing" | "strategy",
+      "rule": "Clear, specific rule text",
+      "rationale": "Why this rule based on evidence"
+    }
+  ],
+  "market_observation": "1-2 sentence observation about current market conditions or patterns you're noticing"
+}
+
+Guidelines:
+- Only include lessons you're confident about from repeated patterns, not one-off observations
+- Propose rules only if you have evidence from multiple trades
+- If it's too early to draw conclusions, return empty arrays and say so in market_observation
+- Be honest about mistakes. Losses teach more than wins.
+No markdown, no code blocks, just the JSON object.`,
+    }],
+  });
+
+  const text = response.content[0].type === "text" ? response.content[0].text : "{}";
+
+  let reflection: {
+    lessons?: Array<{ ticker: string; lesson: string; category: string }>;
+    proposed_rules?: Array<{ category: string; rule: string; rationale: string }>;
+    market_observation?: string;
+  };
+
+  try {
+    const cleaned = text.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+    reflection = JSON.parse(cleaned);
+  } catch {
+    console.error("Failed to parse reflection:", text.slice(0, 300));
+    return;
+  }
+
+  // Store lessons on the most recent SELL journal entries from this session
+  if (reflection.lessons && reflection.lessons.length > 0) {
+    const lessonText = reflection.lessons.map((l) => `[${l.category}] ${l.ticker}: ${l.lesson}`).join("\n");
+
+    // Update recent sell entries from this session (last 5 minutes) that lack lessons
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+    await prisma.tradeJournal.updateMany({
+      where: {
+        source: "sandbox",
+        side: "SELL_TO_CLOSE",
+        executedAt: { gte: fiveMinAgo },
+        lessons: null,
+      },
+      data: { lessons: lessonText },
+    });
+  }
+
+  // Propose new trading rules (created as inactive, need approval)
+  if (reflection.proposed_rules && reflection.proposed_rules.length > 0) {
+    for (const rule of reflection.proposed_rules) {
+      // Check for duplicates
+      const existing = await prisma.tradingRule.findFirst({
+        where: { rule: { contains: rule.rule.slice(0, 50) } },
+      });
+      if (existing) continue;
+
+      await prisma.tradingRule.create({
+        data: {
+          category: rule.category,
+          rule: rule.rule,
+          source: "ayden",
+          isActive: false, // Needs Trey's approval
+          performance: rule.rationale,
+        },
+      });
+    }
+  }
+
+  // Store market observation as a general journal note
+  if (reflection.market_observation) {
+    await prisma.tradeJournal.create({
+      data: {
+        source: "sandbox",
+        ticker: "MARKET",
+        instrumentType: "observation",
+        side: "HOLD",
+        quantity: 0,
+        price: 0,
+        total: 0,
+        reasoning: reflection.market_observation,
+        outcome: "open",
+        tags: ["reflection", "autonomous"],
+      },
+    });
+  }
 }

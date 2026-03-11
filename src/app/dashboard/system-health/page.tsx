@@ -15,6 +15,12 @@ import {
   Clock,
   Bot,
   Watch,
+  Landmark,
+  Cloud,
+  Search,
+  Bell,
+  MessageSquare,
+  Hash,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +52,20 @@ interface EnvInfo {
   cronSecretSet: boolean;
   ouraClientIdSet: boolean;
   ouraClientSecretSet: boolean;
+  twilioSidSet: boolean;
+  twilioTokenSet: boolean;
+  twilioPhoneSet: boolean;
+  twilioMyNumberSet: boolean;
+  slackBotTokenSet: boolean;
+  slackSigningSecretSet: boolean;
+  googleClientIdSet: boolean;
+  googleClientSecretSet: boolean;
+  tastytradeClientSecretSet: boolean;
+  tastytradeRefreshTokenSet: boolean;
+  openweathermapKeySet: boolean;
+  braveApiKeySet: boolean;
+  vapidPublicKeySet: boolean;
+  vapidPrivateKeySet: boolean;
 }
 
 interface HealthData {
@@ -91,6 +111,13 @@ const serviceIcons: Record<string, React.ElementType> = {
   "QStash Cron": Clock,
   "Claude AI": Bot,
   "Oura Ring": Watch,
+  "Twilio SMS": MessageSquare,
+  "Slack": Hash,
+  "Google (Calendar + Gmail)": Shield,
+  "tastytrade API": Landmark,
+  "OpenWeatherMap": Cloud,
+  "Brave Search": Search,
+  "Web Push (VAPID)": Bell,
 };
 
 export default function SystemHealthPage() {
@@ -294,6 +321,20 @@ export default function SystemHealthPage() {
                 { label: "CRON_SECRET", set: data.envInfo.cronSecretSet },
                 { label: "OURA_CLIENT_ID", set: data.envInfo.ouraClientIdSet },
                 { label: "OURA_SECRET", set: data.envInfo.ouraClientSecretSet },
+                { label: "TWILIO_SID", set: data.envInfo.twilioSidSet },
+                { label: "TWILIO_TOKEN", set: data.envInfo.twilioTokenSet },
+                { label: "TWILIO_PHONE", set: data.envInfo.twilioPhoneSet },
+                { label: "TWILIO_MY_NUM", set: data.envInfo.twilioMyNumberSet },
+                { label: "SLACK_BOT", set: data.envInfo.slackBotTokenSet },
+                { label: "SLACK_SIGNING", set: data.envInfo.slackSigningSecretSet },
+                { label: "GOOGLE_ID", set: data.envInfo.googleClientIdSet },
+                { label: "GOOGLE_SECRET", set: data.envInfo.googleClientSecretSet },
+                { label: "TT_SECRET", set: data.envInfo.tastytradeClientSecretSet },
+                { label: "TT_REFRESH", set: data.envInfo.tastytradeRefreshTokenSet },
+                { label: "OWM_KEY", set: data.envInfo.openweathermapKeySet },
+                { label: "BRAVE_KEY", set: data.envInfo.braveApiKeySet },
+                { label: "VAPID_PUBLIC", set: data.envInfo.vapidPublicKeySet },
+                { label: "VAPID_PRIVATE", set: data.envInfo.vapidPrivateKeySet },
               ].map((env) => (
                 <div
                   key={env.label}

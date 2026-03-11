@@ -76,7 +76,7 @@ export default function AydenHeartbeat() {
       {hr.emotion && (
         <>
           <span className="text-muted-foreground/40 mx-0.5">·</span>
-          <span className="text-xs text-muted-foreground/70 italic truncate max-w-[120px]">
+          <span className="text-xs text-muted-foreground/70 italic">
             {hr.emotion}
           </span>
         </>

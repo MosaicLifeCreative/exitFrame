@@ -23,13 +23,16 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
-      data: {
-        production: prodResult,
-        sandbox: sandbox.status === "fulfilled" ? sandbox.value : { connected: false, error: "Failed" },
-        ...(debugAccountShape && { debugAccountShape }),
-      },
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const responseData: Record<string, any> = {
+      production: prodResult,
+      sandbox: sandbox.status === "fulfilled" ? sandbox.value : { connected: false, error: "Failed" },
+    };
+    if (debugAccountShape) {
+      responseData.debugAccountShape = debugAccountShape;
+    }
+
+    return NextResponse.json({ data: responseData });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

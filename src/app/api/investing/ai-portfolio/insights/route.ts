@@ -123,6 +123,109 @@ export async function GET() {
       pnl: Math.round(stats.pnl * 100) / 100,
     }));
 
+    // ── Evolution timeline ──
+    // Build a chronological view of trades + rules + lessons
+    const chronoTrades = [...closedTrades].sort(
+      (a, b) => a.executedAt.getTime() - b.executedAt.getTime()
+    );
+
+    // Cumulative P&L data points (one per trade, chronological)
+    let cumPnl = 0;
+    let cumWins = 0;
+    let cumTotal = 0;
+    const cumulativeData = chronoTrades.map((t) => {
+      cumPnl += Number(t.realizedPnl || 0);
+      cumTotal++;
+      if (t.outcome === "win") cumWins++;
+      return {
+        date: t.executedAt.toISOString(),
+        cumulativePnl: Math.round(cumPnl * 100) / 100,
+        winRate: Math.round((cumWins / cumTotal) * 100),
+        tradeNum: cumTotal,
+        ticker: t.ticker,
+        outcome: t.outcome,
+        pnl: Math.round(Number(t.realizedPnl || 0) * 100) / 100,
+      };
+    });
+
+    // Timeline events: merge trades, rules, and lessons chronologically
+    interface TimelineEvent {
+      date: string;
+      type: "trade" | "rule_proposed" | "rule_approved" | "lesson" | "observation";
+      title: string;
+      detail: string | null;
+      outcome?: string | null;
+      pnl?: number | null;
+    }
+    const timeline: TimelineEvent[] = [];
+
+    // Add closed trades
+    for (const t of chronoTrades) {
+      timeline.push({
+        date: t.executedAt.toISOString(),
+        type: "trade",
+        title: `${t.side.replace("_TO_", " to ").toLowerCase()} ${t.ticker}`,
+        detail: t.reasoning?.slice(0, 120) || null,
+        outcome: t.outcome,
+        pnl: t.realizedPnl ? Math.round(Number(t.realizedPnl) * 100) / 100 : null,
+      });
+    }
+
+    // Add rules (with creation dates)
+    for (const r of rules) {
+      timeline.push({
+        date: r.createdAt.toISOString(),
+        type: r.isActive ? "rule_approved" : "rule_proposed",
+        title: `${r.category} rule: ${r.rule.slice(0, 80)}`,
+        detail: r.performance || null,
+      });
+    }
+
+    // Add lessons
+    for (const l of lessonsEntries) {
+      if (l.lessons) {
+        timeline.push({
+          date: l.executedAt.toISOString(),
+          type: "lesson",
+          title: `Lesson from ${l.ticker} (${l.outcome})`,
+          detail: l.lessons.slice(0, 150),
+          pnl: l.realizedPnl ? Math.round(Number(l.realizedPnl) * 100) / 100 : null,
+        });
+      }
+    }
+
+    // Add observations
+    for (const o of observations) {
+      if (o.reasoning) {
+        timeline.push({
+          date: o.executedAt.toISOString(),
+          type: "observation",
+          title: "Market observation",
+          detail: o.reasoning.slice(0, 150),
+        });
+      }
+    }
+
+    // Sort timeline chronologically (newest first for display)
+    timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Strategy evolution: what strategies were used over time
+    const strategyByMonth: Record<string, Record<string, number>> = {};
+    for (const t of chronoTrades) {
+      const month = t.executedAt.toISOString().slice(0, 7); // "YYYY-MM"
+      const strat = t.strategy || "untagged";
+      if (!strategyByMonth[month]) strategyByMonth[month] = {};
+      strategyByMonth[month][strat] = (strategyByMonth[month][strat] || 0) + 1;
+    }
+
+    const strategyEvolution = Object.entries(strategyByMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, strats]) => ({
+        month,
+        strategies: strats,
+        dominant: Object.entries(strats).sort((a, b) => b[1] - a[1])[0]?.[0] || "none",
+      }));
+
     return NextResponse.json({
       data: {
         performance: {
@@ -165,6 +268,11 @@ export async function GET() {
             rule: r.rule,
             rationale: r.performance,
           })),
+        },
+        evolution: {
+          cumulativeData,
+          timeline: timeline.slice(0, 50),
+          strategyEvolution,
         },
       },
     });

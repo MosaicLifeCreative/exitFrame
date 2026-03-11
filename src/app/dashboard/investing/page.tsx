@@ -23,6 +23,9 @@ import {
   Brain,
   CheckCircle2,
   Clock,
+  Lightbulb,
+  BookOpen,
+  GitBranch,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,12 +59,15 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   LineChart,
   Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Legend,
+  ReferenceLine,
 } from "recharts";
 
 // ============================================
@@ -207,6 +213,30 @@ interface TradingInsights {
   rules: {
     active: Array<{ id: string; category: string; rule: string; source: string; performance: string | null }>;
     pending: Array<{ id: string; category: string; rule: string; rationale: string | null }>;
+  };
+  evolution: {
+    cumulativeData: Array<{
+      date: string;
+      cumulativePnl: number;
+      winRate: number;
+      tradeNum: number;
+      ticker: string;
+      outcome: string | null;
+      pnl: number;
+    }>;
+    timeline: Array<{
+      date: string;
+      type: "trade" | "rule_proposed" | "rule_approved" | "lesson" | "observation";
+      title: string;
+      detail: string | null;
+      outcome?: string | null;
+      pnl?: number | null;
+    }>;
+    strategyEvolution: Array<{
+      month: string;
+      strategies: Record<string, number>;
+      dominant: string;
+    }>;
   };
 }
 
@@ -1356,6 +1386,189 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                           </CardContent>
                         </Card>
                       </div>
+                    )}
+
+                    {/* ── Evolution: Cumulative P&L + Win Rate ── */}
+                    {insights.evolution.cumulativeData.length >= 2 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <GitBranch className="h-4 w-4" />
+                            Trading Evolution
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground">Cumulative P&L and rolling win rate over time</p>
+                        </CardHeader>
+                        <CardContent>
+                          <ResponsiveContainer width="100%" height={280}>
+                            <AreaChart data={insights.evolution.cumulativeData}>
+                              <defs>
+                                <linearGradient id="pnlGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
+                                  <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                              <XAxis
+                                dataKey="date"
+                                tickFormatter={(v) => new Date(v).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                                className="text-xs"
+                              />
+                              <YAxis
+                                yAxisId="pnl"
+                                tickFormatter={(v) => "$" + v.toFixed(0)}
+                                className="text-xs"
+                              />
+                              <YAxis
+                                yAxisId="wr"
+                                orientation="right"
+                                tickFormatter={(v) => v + "%"}
+                                domain={[0, 100]}
+                                className="text-xs"
+                              />
+                              <Tooltip
+                                content={({ active, payload }) => {
+                                  if (!active || !payload?.length) return null;
+                                  const d = payload[0]?.payload as (typeof insights.evolution.cumulativeData)[0] | undefined;
+                                  if (!d) return null;
+                                  return (
+                                    <div className="bg-popover border rounded-lg shadow-lg p-3 text-sm">
+                                      <p className="font-semibold">{d.ticker} — Trade #{d.tradeNum}</p>
+                                      <p className="text-muted-foreground text-xs">{new Date(d.date).toLocaleDateString()}</p>
+                                      <p className={d.pnl >= 0 ? "text-green-600" : "text-red-500"}>
+                                        Trade: {fmtMoney(d.pnl)} ({d.outcome})
+                                      </p>
+                                      <p>Cumulative: {fmtMoney(d.cumulativePnl)}</p>
+                                      <p>Win Rate: {d.winRate}%</p>
+                                    </div>
+                                  );
+                                }}
+                              />
+                              <ReferenceLine yAxisId="pnl" y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                              <Area
+                                yAxisId="pnl"
+                                type="monotone"
+                                dataKey="cumulativePnl"
+                                stroke="hsl(var(--chart-1))"
+                                fill="url(#pnlGradient)"
+                                strokeWidth={2}
+                                name="Cumulative P&L"
+                              />
+                              <Line
+                                yAxisId="wr"
+                                type="monotone"
+                                dataKey="winRate"
+                                stroke="hsl(var(--chart-2))"
+                                strokeWidth={1.5}
+                                strokeDasharray="4 4"
+                                dot={false}
+                                name="Win Rate"
+                              />
+                              <Legend />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* ── Evolution Timeline ── */}
+                    {insights.evolution.timeline.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <BookOpen className="h-4 w-4" />
+                            Growth Timeline
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground">Key moments in Ayden&apos;s trading journey</p>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="relative space-y-0">
+                            {/* Vertical line */}
+                            <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
+                            {insights.evolution.timeline.slice(0, 20).map((event, i) => {
+                              const iconClass = "h-3.5 w-3.5";
+                              let icon;
+                              let dotColor;
+                              switch (event.type) {
+                                case "trade":
+                                  icon = event.outcome === "win"
+                                    ? <ArrowUpRight className={`${iconClass} text-green-600`} />
+                                    : event.outcome === "loss"
+                                      ? <ArrowDownRight className={`${iconClass} text-red-500`} />
+                                      : <Minus className={`${iconClass} text-muted-foreground`} />;
+                                  dotColor = event.outcome === "win" ? "bg-green-600" : event.outcome === "loss" ? "bg-red-500" : "bg-muted-foreground";
+                                  break;
+                                case "rule_approved":
+                                  icon = <CheckCircle2 className={`${iconClass} text-blue-500`} />;
+                                  dotColor = "bg-blue-500";
+                                  break;
+                                case "rule_proposed":
+                                  icon = <Clock className={`${iconClass} text-amber-500`} />;
+                                  dotColor = "bg-amber-500";
+                                  break;
+                                case "lesson":
+                                  icon = <Lightbulb className={`${iconClass} text-yellow-500`} />;
+                                  dotColor = "bg-yellow-500";
+                                  break;
+                                case "observation":
+                                  icon = <Eye className={`${iconClass} text-purple-500`} />;
+                                  dotColor = "bg-purple-500";
+                                  break;
+                              }
+
+                              return (
+                                <div key={i} className="relative flex gap-3 py-2 pl-1">
+                                  <div className={`relative z-10 flex items-center justify-center h-6 w-6 rounded-full ${dotColor}/10 shrink-0`}>
+                                    {icon}
+                                  </div>
+                                  <div className="flex-1 min-w-0 pt-0.5">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs text-muted-foreground">
+                                        {new Date(event.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                                      </span>
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                        {event.type.replace("_", " ")}
+                                      </Badge>
+                                      {event.pnl != null && (
+                                        <span className={`text-xs font-medium ${event.pnl >= 0 ? "text-green-600" : "text-red-500"}`}>
+                                          {fmtMoney(event.pnl)}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm mt-0.5">{event.title}</p>
+                                    {event.detail && (
+                                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{event.detail}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* ── Strategy Evolution ── */}
+                    {insights.evolution.strategyEvolution.length >= 2 && (
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Strategy Focus Over Time</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex gap-2 flex-wrap">
+                            {insights.evolution.strategyEvolution.map((month) => (
+                              <div key={month.month} className="text-center">
+                                <p className="text-[10px] text-muted-foreground mb-1">{month.month}</p>
+                                <Badge variant="secondary" className="text-xs">
+                                  {month.dominant}
+                                </Badge>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  {Object.values(month.strategies).reduce((a, b) => a + b, 0)} trades
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
                     )}
 
                     {/* Pending Rules — needs Trey's approval */}

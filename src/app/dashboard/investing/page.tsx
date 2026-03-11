@@ -1138,7 +1138,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
               <h2 className="text-lg font-semibold">Ayden&apos;s Portfolio</h2>
               <p className="text-sm text-muted-foreground">Autonomous paper trading — AI-managed positions</p>
             </div>
-            <Button size="sm" variant="outline" onClick={() => { setLoadingAiPortfolio(true); fetchAiPortfolio(); }}>
+            <Button size="sm" variant="outline" onClick={() => { setLoadingAiPortfolio(true); fetchAiPortfolio(); fetchInsights(); }}>
               <RefreshCw className="h-4 w-4 mr-1" />Refresh
             </Button>
           </div>

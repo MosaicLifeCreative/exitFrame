@@ -18,7 +18,6 @@ import {
   Minus,
   ChevronDown,
   CheckCircle2,
-  AlertTriangle,
   AlertCircle,
   XCircle,
   Brain,
@@ -127,7 +126,7 @@ function getHrvStatus(hrv: number | null): SystemStatus {
 
 const statusConfig: Record<SystemStatus, { label: string; color: string; bg: string; icon: React.ElementType; barColor: string }> = {
   optimal: { label: "Optimal", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500", icon: CheckCircle2, barColor: "#10b981" },
-  good: { label: "Good", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500", icon: AlertTriangle, barColor: "#f59e0b" },
+  good: { label: "Good", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500", icon: CheckCircle2, barColor: "#22c55e" },
   attention: { label: "Pay Attention", color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500", icon: AlertCircle, barColor: "#f97316" },
   critical: { label: "Critical", color: "text-red-600 dark:text-red-400", bg: "bg-red-500", icon: XCircle, barColor: "#ef4444" },
 };
@@ -732,8 +731,7 @@ function SleepPage() {
         <>
           {/* Overall Status Banner */}
           <Card className={cn("border-l-4", {
-            "border-l-emerald-500": overall.status === "optimal",
-            "border-l-amber-500": overall.status === "good",
+            "border-l-emerald-500": overall.status === "optimal" || overall.status === "good",
             "border-l-orange-500": overall.status === "attention",
             "border-l-red-500": overall.status === "critical",
           })}>

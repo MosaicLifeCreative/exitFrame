@@ -1278,7 +1278,8 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                       {aiPortfolio.trades.map((trade) => (
                         <TableRow key={trade.id}>
                           <TableCell className="text-muted-foreground whitespace-nowrap">
-                            {new Date(trade.executedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                            <div>{new Date(trade.executedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+                            <div className="text-xs opacity-60">{new Date(trade.executedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</div>
                           </TableCell>
                           <TableCell>
                             <Badge variant={trade.side === "BUY" ? "default" : "destructive"}>

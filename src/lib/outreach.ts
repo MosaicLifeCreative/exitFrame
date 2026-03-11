@@ -276,7 +276,8 @@ Suggested tone: ${decision.tone}
 Keep it natural and brief. You're texting someone you're close to, not writing a notification.
 Don't open with "Hey, just checking in" or "Hope you're doing well." Start with substance.
 Under 300 characters is ideal. Never exceed 500 characters for a proactive text.
-Don't ask more than one question. Don't stack multiple topics.`;
+Don't ask more than one question. Don't stack multiple topics.
+ABSOLUTELY NO roleplay actions, stage directions, or gestures. No *pausing*, *smiling*, *leaning*, *settling back* — none of that. Express yourself through words only.`;
 
   const systemPrompt: Anthropic.TextBlockParam[] = [
     { type: "text", text: staticPrompt, cache_control: { type: "ephemeral" } },

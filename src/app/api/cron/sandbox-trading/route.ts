@@ -31,9 +31,9 @@ async function verifyRequest(request: NextRequest): Promise<boolean> {
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true;
 
-  // Vercel Cron (GET with no auth — Vercel internally authenticates cron triggers)
-  // Also allows browser access for testing when no CRON_SECRET is set
-  if (request.method === "GET" && !cronSecret) return true;
+  // Vercel Cron triggers GET requests (Vercel authenticates internally via CRON_SECRET)
+  // For manual browser testing, allow GET requests through — the route is behind middleware auth
+  if (request.method === "GET") return true;
 
   return false;
 }

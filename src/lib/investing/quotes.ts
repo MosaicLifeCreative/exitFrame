@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { getMarketQuotes } from "@/lib/tastytrade";
+
+// ─── Finnhub (fallback for tickers tastytrade doesn't cover) ───
 
 interface FinnhubQuote {
   c: number;  // current price
@@ -11,57 +14,97 @@ interface FinnhubQuote {
   t: number;  // timestamp
 }
 
-export async function fetchQuote(ticker: string): Promise<FinnhubQuote | null> {
+async function fetchFinnhubQuote(ticker: string): Promise<FinnhubQuote | null> {
   const apiKey = process.env.FINNHUB_API_KEY;
-  if (!apiKey) throw new Error("FINNHUB_API_KEY not configured");
+  if (!apiKey) return null;
 
   const url = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`;
   const res = await fetch(url);
-
-  if (!res.ok) {
-    console.error(`Finnhub quote error for ${ticker}: ${res.status}`);
-    return null;
-  }
+  if (!res.ok) return null;
 
   const data: FinnhubQuote = await res.json();
-  // Finnhub returns c=0 for invalid tickers
   if (!data.c || data.c === 0) return null;
-
   return data;
 }
+
+// ─── Main Quote Fetcher (tastytrade primary, Finnhub fallback) ───
 
 export async function fetchAndStoreQuotes(tickers: string[]): Promise<Map<string, number>> {
   const priceMap = new Map<string, number>();
   const uniqueTickers = Array.from(new Set(tickers));
 
-  for (const ticker of uniqueTickers) {
-    try {
-      const quote = await fetchQuote(ticker);
-      if (!quote) continue;
+  // Step 1: Batch fetch from tastytrade
+  let ttQuotes: Awaited<ReturnType<typeof getMarketQuotes>> = [];
+  try {
+    ttQuotes = await getMarketQuotes(uniqueTickers);
+  } catch (err) {
+    console.error("tastytrade quote batch failed, falling back to Finnhub:", err instanceof Error ? err.message : err);
+  }
 
+  // Store TT quotes
+  const fetched = new Set<string>();
+  for (const q of ttQuotes) {
+    try {
       await prisma.stockQuote.upsert({
-        where: { ticker },
+        where: { ticker: q.symbol },
         create: {
-          ticker,
-          price: quote.c,
-          change: quote.d,
-          changePct: quote.dp,
-          high: quote.h,
-          low: quote.l,
-          volume: null,
+          ticker: q.symbol,
+          price: q.last,
+          change: q.change,
+          changePct: q.changePct,
+          high: q.high || null,
+          low: q.low || null,
+          volume: q.volume || null,
         },
         update: {
-          price: quote.c,
-          change: quote.d,
-          changePct: quote.dp,
-          high: quote.h,
-          low: quote.l,
+          price: q.last,
+          change: q.change,
+          changePct: q.changePct,
+          high: q.high || null,
+          low: q.low || null,
+          volume: q.volume || null,
         },
       });
-
-      priceMap.set(ticker, quote.c);
+      priceMap.set(q.symbol, q.last);
+      fetched.add(q.symbol);
     } catch (err) {
-      console.error(`Failed to fetch quote for ${ticker}:`, err);
+      console.error(`Failed to store TT quote for ${q.symbol}:`, err);
+    }
+  }
+
+  // Step 2: Finnhub fallback for any tickers TT missed
+  const missing = uniqueTickers.filter((t) => !fetched.has(t));
+  if (missing.length > 0) {
+    console.log(`TT missed ${missing.length} tickers, falling back to Finnhub: ${missing.join(", ")}`);
+    for (const ticker of missing) {
+      try {
+        const quote = await fetchFinnhubQuote(ticker);
+        if (!quote) continue;
+
+        await prisma.stockQuote.upsert({
+          where: { ticker },
+          create: {
+            ticker,
+            price: quote.c,
+            change: quote.d,
+            changePct: quote.dp,
+            high: quote.h,
+            low: quote.l,
+            volume: null,
+          },
+          update: {
+            price: quote.c,
+            change: quote.d,
+            changePct: quote.dp,
+            high: quote.h,
+            low: quote.l,
+          },
+        });
+
+        priceMap.set(ticker, quote.c);
+      } catch (err) {
+        console.error(`Finnhub fallback failed for ${ticker}:`, err);
+      }
     }
   }
 

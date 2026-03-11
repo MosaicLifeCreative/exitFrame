@@ -4,13 +4,8 @@ import {
   getPositions,
   getBalance,
   getOptionChain,
-  getSandboxPositions,
-  getSandboxBalance,
-  placeSandboxOrder,
-  dryRunSandboxOrder,
   getLiveOrders,
 } from "@/lib/tastytrade";
-import type { TastyOrder } from "@/lib/tastytrade";
 
 // ─── Tool Definitions ───────────────────────────────────
 
@@ -48,75 +43,6 @@ export const tradingTools: Anthropic.Tool[] = [
         },
       },
       required: ["symbol"],
-    },
-  },
-  {
-    name: "get_sandbox_portfolio",
-    description:
-      "Get Ayden's sandbox paper trading portfolio — positions, balance, and buying power. This is where Ayden practices options trading with fake money.",
-    input_schema: {
-      type: "object" as const,
-      properties: {},
-      required: [],
-    },
-  },
-  {
-    name: "place_sandbox_order",
-    description:
-      "Place a paper trade in the tastytrade sandbox. Supports stocks and options. Always do a dry run first to validate. Use for learning and testing strategies.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        orderType: {
-          type: "string",
-          enum: ["Limit", "Market"],
-          description: "Order type — prefer Limit for options",
-        },
-        timeInForce: {
-          type: "string",
-          enum: ["Day", "GTC"],
-          description: "How long the order stays active (default: Day)",
-        },
-        price: {
-          type: "number",
-          description: "Limit price per contract/share (required for Limit orders)",
-        },
-        legs: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              instrumentType: {
-                type: "string",
-                enum: ["Equity", "Equity Option"],
-              },
-              symbol: {
-                type: "string",
-                description: "Ticker for equities, OCC symbol for options (e.g. 'AAPL  260321C00200000')",
-              },
-              action: {
-                type: "string",
-                enum: ["Buy to Open", "Sell to Close", "Sell to Open", "Buy to Close"],
-              },
-              quantity: {
-                type: "number",
-                description: "Number of shares or contracts",
-              },
-            },
-            required: ["instrumentType", "symbol", "action", "quantity"],
-          },
-          description: "Order legs — single leg for simple trades, multiple for spreads",
-        },
-        reasoning: {
-          type: "string",
-          description: "Why this trade is being placed — thesis, catalyst, strategy",
-        },
-        strategy: {
-          type: "string",
-          description: "Trading strategy name (e.g. 'cash_secured_put', 'covered_call', 'iron_condor', 'momentum')",
-        },
-      },
-      required: ["orderType", "legs", "reasoning"],
     },
   },
   {
@@ -295,10 +221,6 @@ export async function executeTradingTool(
       return handleGetAccountBalance();
     case "get_options_chain":
       return handleGetOptionsChain(toolInput as { symbol: string });
-    case "get_sandbox_portfolio":
-      return handleGetSandboxPortfolio();
-    case "place_sandbox_order":
-      return handlePlaceSandboxOrder(toolInput as unknown as PlaceSandboxOrderInput);
     case "get_trade_journal":
       return handleGetTradeJournal(toolInput as unknown as GetTradeJournalInput);
     case "log_trade_journal":
@@ -317,20 +239,6 @@ export async function executeTradingTool(
 }
 
 // ─── Input Types ────────────────────────────────────────
-
-interface PlaceSandboxOrderInput {
-  orderType: string;
-  timeInForce?: string;
-  price?: number;
-  legs: Array<{
-    instrumentType: string;
-    symbol: string;
-    action: string;
-    quantity: number;
-  }>;
-  reasoning: string;
-  strategy?: string;
-}
 
 interface GetTradeJournalInput {
   source?: string;
@@ -456,106 +364,6 @@ async function handleGetOptionsChain(input: { symbol: string }): Promise<string>
     });
   } catch (err) {
     return JSON.stringify({ error: `Failed to fetch options chain: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-async function handleGetSandboxPortfolio(): Promise<string> {
-  try {
-    const [positions, balance] = await Promise.all([
-      getSandboxPositions(),
-      getSandboxBalance(),
-    ]);
-
-    let totalMarketValue = 0;
-    let totalUnrealizedPnl = 0;
-    for (const p of positions) {
-      totalMarketValue += p.marketValue;
-      totalUnrealizedPnl += p.unrealizedPnl;
-    }
-
-    return JSON.stringify({
-      balance: {
-        cash: balance.cashBalance,
-        netLiquidatingValue: balance.netLiquidatingValue,
-        equityBuyingPower: balance.equityBuyingPower,
-        derivativeBuyingPower: balance.derivativeBuyingPower,
-      },
-      positions: positions.map((p) => ({
-        symbol: p.symbol,
-        type: p.instrumentType,
-        underlying: p.underlyingSymbol,
-        quantity: p.quantity,
-        direction: p.direction,
-        avgOpenPrice: p.averageOpenPrice,
-        currentPrice: p.currentPrice,
-        marketValue: p.marketValue,
-        unrealizedPnl: p.unrealizedPnl,
-        unrealizedPnlPct: p.unrealizedPnlPct,
-        ...(p.expirationDate && { expiration: p.expirationDate }),
-        ...(p.strikePrice && { strike: p.strikePrice }),
-        ...(p.optionType && { optionType: p.optionType }),
-      })),
-      summary: {
-        positionCount: positions.length,
-        totalMarketValue: Math.round(totalMarketValue * 100) / 100,
-        totalUnrealizedPnl: Math.round(totalUnrealizedPnl * 100) / 100,
-      },
-    });
-  } catch (err) {
-    return JSON.stringify({ error: `Failed to fetch sandbox portfolio: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-async function handlePlaceSandboxOrder(input: PlaceSandboxOrderInput): Promise<string> {
-  try {
-    // Load trading rules for guardrail checks
-    const rules = await prisma.tradingRule.findMany({ where: { isActive: true, category: "risk" } });
-    const ruleTexts = rules.map((r) => r.rule).join("\n");
-
-    const order: TastyOrder = {
-      orderType: input.orderType,
-      timeInForce: input.timeInForce || "Day",
-      price: input.price,
-      legs: input.legs,
-    };
-
-    // Dry run first
-    const dryRunResult = await dryRunSandboxOrder(order);
-
-    // Place the actual order
-    const result = await placeSandboxOrder(order);
-
-    // Auto-journal the trade
-    const firstLeg = input.legs[0];
-    const isOption = firstLeg.instrumentType === "Equity Option";
-    const total = (input.price || 0) * firstLeg.quantity * (isOption ? 100 : 1);
-
-    await prisma.tradeJournal.create({
-      data: {
-        source: "sandbox",
-        ticker: isOption ? firstLeg.symbol.slice(0, 6).trim() : firstLeg.symbol,
-        instrumentType: isOption ? "equity_option" : "equity",
-        optionDetails: isOption ? { symbol: firstLeg.symbol } : undefined,
-        side: firstLeg.action.toUpperCase().replace(/ /g, "_") as string,
-        quantity: firstLeg.quantity,
-        price: input.price || 0,
-        total,
-        strategy: input.strategy || null,
-        reasoning: input.reasoning,
-        outcome: "open",
-        tags: input.strategy ? [input.strategy] : [],
-      },
-    });
-
-    return JSON.stringify({
-      success: true,
-      order: result,
-      dryRun: dryRunResult,
-      journalEntry: "Trade logged to journal automatically.",
-      activeRules: ruleTexts || "No trading rules configured yet.",
-    });
-  } catch (err) {
-    return JSON.stringify({ error: `Failed to place sandbox order: ${err instanceof Error ? err.message : String(err)}` });
   }
 }
 

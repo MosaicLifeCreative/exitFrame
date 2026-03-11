@@ -4,7 +4,6 @@ import type { ClientConfig } from "@tastytrade/api";
 // ─── Client Singletons ─────────────────────────────────
 
 let prodClient: TastytradeClient | null = null;
-let sandboxClient: TastytradeClient | null = null;
 
 function getProdConfig(): ClientConfig {
   const clientSecret = process.env.TASTYTRADE_CLIENT_SECRET;
@@ -20,20 +19,6 @@ function getProdConfig(): ClientConfig {
   } as ClientConfig;
 }
 
-function getSandboxConfig(): ClientConfig {
-  const clientSecret = process.env.TASTYTRADE_SANDBOX_CLIENT_SECRET;
-  const refreshToken = process.env.TASTYTRADE_SANDBOX_REFRESH_TOKEN;
-  if (!clientSecret || !refreshToken) {
-    throw new Error("TASTYTRADE_SANDBOX_CLIENT_SECRET and TASTYTRADE_SANDBOX_REFRESH_TOKEN are required");
-  }
-  return {
-    ...TastytradeClient.SandboxConfig,
-    clientSecret,
-    refreshToken,
-    oauthScopes: ["read", "trade"],
-  } as ClientConfig;
-}
-
 export function getProdClient(): TastytradeClient {
   if (!prodClient) {
     prodClient = new TastytradeClient(getProdConfig());
@@ -41,17 +26,9 @@ export function getProdClient(): TastytradeClient {
   return prodClient;
 }
 
-export function getSandboxClient(): TastytradeClient {
-  if (!sandboxClient) {
-    sandboxClient = new TastytradeClient(getSandboxConfig());
-  }
-  return sandboxClient;
-}
-
 // ─── Account Discovery ──────────────────────────────────
 
 let cachedProdAccountNumber: string | null = null;
-let cachedSandboxAccountNumber: string | null = null;
 
 export async function getProdAccountNumber(): Promise<string> {
   if (cachedProdAccountNumber) return cachedProdAccountNumber;
@@ -68,23 +45,6 @@ export async function getProdAccountNumber(): Promise<string> {
     throw new Error("Could not determine account number from tastytrade response");
   }
   return cachedProdAccountNumber;
-}
-
-export async function getSandboxAccountNumber(): Promise<string> {
-  if (cachedSandboxAccountNumber) return cachedSandboxAccountNumber;
-  const client = getSandboxClient();
-  const accounts = await client.accountsAndCustomersService.getCustomerAccounts();
-  if (!accounts || (Array.isArray(accounts) && accounts.length === 0)) {
-    throw new Error("No tastytrade sandbox accounts found");
-  }
-  const accountList = Array.isArray(accounts) ? accounts : [accounts];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const first = accountList[0] as any;
-  cachedSandboxAccountNumber = first?.account?.["account-number"] ?? first?.["account-number"] ?? first?.account?.accountNumber ?? first?.accountNumber;
-  if (!cachedSandboxAccountNumber) {
-    throw new Error("Could not determine sandbox account number from tastytrade response");
-  }
-  return cachedSandboxAccountNumber;
 }
 
 // ─── Types ──────────────────────────────────────────────
@@ -140,21 +100,6 @@ export interface OptionContract {
   streamerSymbol?: string;
 }
 
-export interface TastyOrder {
-  timeInForce: string; // "Day", "GTC", "GTD"
-  orderType: string; // "Limit", "Market", "Stop", "Stop Limit"
-  price?: number; // limit price
-  stopTrigger?: number;
-  legs: TastyOrderLeg[];
-}
-
-export interface TastyOrderLeg {
-  instrumentType: string; // "Equity", "Equity Option"
-  symbol: string;
-  action: string; // "Buy to Open", "Sell to Close", "Sell to Open", "Buy to Close"
-  quantity: number;
-}
-
 // ─── Production (Read-Only) ─────────────────────────────
 
 export async function getPositions(): Promise<TastyPosition[]> {
@@ -195,81 +140,6 @@ export async function getLiveOrders(): Promise<unknown[]> {
   const accountNumber = await getProdAccountNumber();
   const raw = await client.orderService.getLiveOrders(accountNumber);
   return Array.isArray(raw) ? raw : [];
-}
-
-// ─── Sandbox (Ayden Paper Trading) ──────────────────────
-
-export async function getSandboxPositions(): Promise<TastyPosition[]> {
-  const client = getSandboxClient();
-  const accountNumber = await getSandboxAccountNumber();
-  const raw = await client.balancesAndPositionsService.getPositionsList(accountNumber);
-  return normalizePositions(raw);
-}
-
-export async function getSandboxBalance(): Promise<TastyBalance> {
-  const client = getSandboxClient();
-  const accountNumber = await getSandboxAccountNumber();
-  const raw = await client.balancesAndPositionsService.getAccountBalanceValues(accountNumber);
-  return normalizeBalance(accountNumber, raw);
-}
-
-export async function placeSandboxOrder(order: TastyOrder): Promise<unknown> {
-  const client = getSandboxClient();
-  const accountNumber = await getSandboxAccountNumber();
-
-  const orderPayload = {
-    "time-in-force": order.timeInForce,
-    "order-type": order.orderType,
-    ...(order.price !== undefined && { price: String(order.price) }),
-    ...(order.stopTrigger !== undefined && { "stop-trigger": String(order.stopTrigger) }),
-    legs: order.legs.map((leg) => ({
-      "instrument-type": leg.instrumentType,
-      symbol: leg.symbol,
-      action: leg.action,
-      quantity: leg.quantity,
-    })),
-  };
-
-  return client.orderService.createOrder(accountNumber, orderPayload);
-}
-
-export async function getSandboxOrders(): Promise<unknown[]> {
-  const client = getSandboxClient();
-  const accountNumber = await getSandboxAccountNumber();
-  const raw = await client.orderService.getOrders(accountNumber);
-  return Array.isArray(raw) ? raw : [];
-}
-
-export async function cancelSandboxOrder(orderId: number): Promise<unknown> {
-  const client = getSandboxClient();
-  const accountNumber = await getSandboxAccountNumber();
-  return client.orderService.cancelOrder(accountNumber, orderId);
-}
-
-export async function dryRunSandboxOrder(order: TastyOrder): Promise<unknown> {
-  const client = getSandboxClient();
-  const accountNumber = await getSandboxAccountNumber();
-
-  const orderPayload = {
-    "time-in-force": order.timeInForce,
-    "order-type": order.orderType,
-    ...(order.price !== undefined && { price: String(order.price) }),
-    ...(order.stopTrigger !== undefined && { "stop-trigger": String(order.stopTrigger) }),
-    legs: order.legs.map((leg) => ({
-      "instrument-type": leg.instrumentType,
-      symbol: leg.symbol,
-      action: leg.action,
-      quantity: leg.quantity,
-    })),
-  };
-
-  return client.orderService.postOrderDryRun(accountNumber, orderPayload);
-}
-
-export async function getSandboxOptionChain(symbol: string): Promise<OptionChainExpiration[]> {
-  const client = getSandboxClient();
-  const raw = await client.instrumentsService.getNestedOptionChain(symbol.toUpperCase());
-  return normalizeOptionChain(raw);
 }
 
 // ─── Normalization Helpers ──────────────────────────────
@@ -374,21 +244,90 @@ function normalizeOptionChain(raw: any): OptionChainExpiration[] {
   });
 }
 
+// ─── Market Data (Quotes) ────────────────────────────────
+
+export interface TastyQuote {
+  symbol: string;
+  last: number;
+  prevClose: number;
+  high: number;
+  low: number;
+  open: number;
+  volume: number;
+  change: number;
+  changePct: number;
+}
+
+export async function getMarketQuotes(symbols: string[]): Promise<TastyQuote[]> {
+  if (symbols.length === 0) return [];
+
+  const client = getProdClient();
+  // Ensure token is fresh
+  if (client.httpClient.needsTokenRefresh) {
+    await client.httpClient.generateAccessToken();
+  }
+
+  const results: TastyQuote[] = [];
+
+  // TT API batches via repeated query params: ?symbols[]=AAPL&symbols[]=MSFT
+  // Process in chunks of 50 to avoid URL length limits
+  const chunkSize = 50;
+  for (let i = 0; i < symbols.length; i += chunkSize) {
+    const chunk = symbols.slice(i, i + chunkSize);
+    try {
+      const response = await client.httpClient.getData(
+        "/market-data",
+        {},
+        { symbols: chunk }
+      );
+
+      const items = response?.data?.data?.items || response?.data?.data || [];
+      const itemList = Array.isArray(items) ? items : [items];
+
+      for (const item of itemList) {
+        const sym = item.symbol || "";
+        const last = Number(item.last ?? item.mark ?? item.close ?? 0);
+        const prevClose = Number(item["prev-close"] ?? item.prevClose ?? item["previous-close"] ?? 0);
+        const high = Number(item["day-high-price"] ?? item.dayHighPrice ?? item.high ?? 0);
+        const low = Number(item["day-low-price"] ?? item.dayLowPrice ?? item.low ?? 0);
+        const open = Number(item.open ?? 0);
+        const volume = Number(item.volume ?? 0);
+
+        if (!sym || last === 0) continue;
+
+        const change = prevClose > 0 ? last - prevClose : 0;
+        const changePct = prevClose > 0 ? (change / prevClose) * 100 : 0;
+
+        results.push({
+          symbol: sym,
+          last,
+          prevClose,
+          high,
+          low,
+          open,
+          volume,
+          change: Math.round(change * 100) / 100,
+          changePct: Math.round(changePct * 100) / 100,
+        });
+      }
+    } catch (err) {
+      console.error(`TT market data error for chunk starting ${chunk[0]}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  return results;
+}
+
 // ─── Connection Test ────────────────────────────────────
 
-export async function testConnection(env: "production" | "sandbox"): Promise<{
+export async function testConnection(): Promise<{
   connected: boolean;
   accountNumber?: string;
   error?: string;
 }> {
   try {
-    if (env === "production") {
-      const accountNumber = await getProdAccountNumber();
-      return { connected: true, accountNumber };
-    } else {
-      const accountNumber = await getSandboxAccountNumber();
-      return { connected: true, accountNumber };
-    }
+    const accountNumber = await getProdAccountNumber();
+    return { connected: true, accountNumber };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { connected: false, error: msg };

@@ -429,17 +429,20 @@ export async function executeOutreach(): Promise<OutreachResult> {
     return { sent: false, reason: "Sonnet failed to generate message", decision };
   }
 
-  // Step 4: Send via Twilio + push notification
+  // Step 4: Send via push notification (+ SMS if enabled)
   try {
-    await Promise.all([
-      sendSms(message),
+    const sends: Promise<unknown>[] = [
       sendPushNotification({ body: message, tag: "ayden-outreach" }).catch((err) =>
         console.error("Outreach push notification error:", err)
       ),
-    ]);
+    ];
+    if (process.env.SMS_AYDEN_ENABLED === "true") {
+      sends.push(sendSms(message));
+    }
+    await Promise.all(sends);
   } catch (err) {
-    console.error("Outreach SMS send error:", err);
-    return { sent: false, reason: `SMS send failed: ${err}`, decision, message };
+    console.error("Outreach send error:", err);
+    return { sent: false, reason: `Send failed: ${err}`, decision, message };
   }
 
   // Step 5: Record in conversation history + PWA chat + update Redis counters

@@ -52,6 +52,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SMS-to-Ayden disabled — keep webhook alive for client forwarding
+    if (process.env.SMS_AYDEN_ENABLED !== "true") {
+      console.log("SMS: Ayden disabled, ignoring authorized sender message");
+      return new NextResponse(
+        '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+        { headers: { "Content-Type": "text/xml" } }
+      );
+    }
+
     // Download MMS media if present
     const numMedia = parseInt(params.NumMedia || "0", 10);
     const images: AydenImage[] = [];

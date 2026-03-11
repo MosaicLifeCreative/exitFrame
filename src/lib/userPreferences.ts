@@ -87,6 +87,18 @@ export async function getUserPreferencesContext(): Promise<string> {
     if (f.fitnessGoals) lines.push(`Fitness goals: ${f.fitnessGoals}`);
     if (f.weakPoints) lines.push(`Weak points: ${f.weakPoints}`);
 
+    // Trading
+    const t = prefs.trading || {};
+    const tradingParts: string[] = [];
+    if (t.riskTolerance) tradingParts.push(`Risk: ${t.riskTolerance}`);
+    if (t.maxPositionSizePct) tradingParts.push(`Max position: ${t.maxPositionSizePct}%`);
+    if (t.maxPortfolioRiskPct) tradingParts.push(`Max portfolio risk: ${t.maxPortfolioRiskPct}%`);
+    if (tradingParts.length > 0) lines.push(`Trading: ${tradingParts.join(", ")}`);
+    if (t.preferredStrategies) lines.push(`Preferred strategies: ${t.preferredStrategies}`);
+    if (t.preferredUnderlyings) lines.push(`Preferred underlyings: ${t.preferredUnderlyings}`);
+    if (t.avoidSectors) lines.push(`Avoid: ${t.avoidSectors}`);
+    if (t.tradingNotes) lines.push(`Trading notes: ${t.tradingNotes}`);
+
     // Lifestyle
     if (l.workSchedule) lines.push(`Work: ${l.workSchedule}`);
     if (l.notes) lines.push(`Notes: ${l.notes}`);

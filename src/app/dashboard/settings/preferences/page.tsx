@@ -59,6 +59,16 @@ interface LifestylePrefs {
   notes: string;
 }
 
+interface TradingPrefs {
+  riskTolerance: string;
+  preferredStrategies: string;
+  maxPositionSizePct: string;
+  maxPortfolioRiskPct: string;
+  preferredUnderlyings: string;
+  avoidSectors: string;
+  tradingNotes: string;
+}
+
 interface AydenPrefs {
   quietMode: boolean;
 }
@@ -103,6 +113,16 @@ const defaultLifestyle: LifestylePrefs = {
   notes: "",
 };
 
+const defaultTrading: TradingPrefs = {
+  riskTolerance: "",
+  preferredStrategies: "",
+  maxPositionSizePct: "",
+  maxPortfolioRiskPct: "",
+  preferredUnderlyings: "",
+  avoidSectors: "",
+  tradingNotes: "",
+};
+
 const defaultAyden: AydenPrefs = {
   quietMode: false,
 };
@@ -116,6 +136,7 @@ export default function PreferencesPage() {
   const [health, setHealth] = useState<HealthPrefs>(defaultHealth);
   const [fitness, setFitness] = useState<FitnessPrefs>(defaultFitness);
   const [lifestyle, setLifestyle] = useState<LifestylePrefs>(defaultLifestyle);
+  const [trading, setTrading] = useState<TradingPrefs>(defaultTrading);
   const [ayden, setAyden] = useState<AydenPrefs>(defaultAyden);
 
   useChatContext("Settings", "User preferences and profile settings page");
@@ -131,6 +152,7 @@ export default function PreferencesPage() {
       if (data.health) setHealth({ ...defaultHealth, ...data.health });
       if (data.fitness) setFitness({ ...defaultFitness, ...data.fitness });
       if (data.lifestyle) setLifestyle({ ...defaultLifestyle, ...data.lifestyle });
+      if (data.trading) setTrading({ ...defaultTrading, ...data.trading });
       if (data.ayden) setAyden({ ...defaultAyden, ...data.ayden });
     } catch {
       toast.error("Failed to load preferences");
@@ -143,7 +165,7 @@ export default function PreferencesPage() {
     loadPreferences();
   }, [loadPreferences]);
 
-  const saveCategory = async (category: string, data: ProfilePrefs | HealthPrefs | FitnessPrefs | LifestylePrefs | AydenPrefs) => {
+  const saveCategory = async (category: string, data: ProfilePrefs | HealthPrefs | FitnessPrefs | LifestylePrefs | TradingPrefs | AydenPrefs) => {
     setSaving(category);
     try {
       const res = await fetch("/api/settings/preferences", {
@@ -188,6 +210,7 @@ export default function PreferencesPage() {
           <TabsTrigger value="health">Health</TabsTrigger>
           <TabsTrigger value="fitness">Fitness</TabsTrigger>
           <TabsTrigger value="lifestyle">Lifestyle</TabsTrigger>
+          <TabsTrigger value="trading">Trading</TabsTrigger>
           <TabsTrigger value="ayden">Ayden</TabsTrigger>
         </TabsList>
 
@@ -517,6 +540,111 @@ export default function PreferencesPage() {
               <SaveButton
                 saving={saving === "lifestyle"}
                 onClick={() => saveCategory("lifestyle", lifestyle)}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Trading Tab ── */}
+        <TabsContent value="trading">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Trading Preferences</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <p className="text-sm text-muted-foreground">
+                These preferences guide Ayden&apos;s trading decisions and are injected into her system prompt for every trading evaluation.
+              </p>
+
+              {/* Risk Profile */}
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Risk Profile</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Risk Tolerance</Label>
+                    <Select
+                      value={trading.riskTolerance}
+                      onValueChange={(v) => setTrading({ ...trading, riskTolerance: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select risk level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="conservative">Conservative (capital preservation)</SelectItem>
+                        <SelectItem value="moderate">Moderate (balanced growth)</SelectItem>
+                        <SelectItem value="aggressive">Aggressive (growth-focused)</SelectItem>
+                        <SelectItem value="very_aggressive">Very Aggressive (max returns)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Max Single Position Size (%)</Label>
+                    <Input
+                      type="number"
+                      value={trading.maxPositionSizePct}
+                      onChange={(e) => setTrading({ ...trading, maxPositionSizePct: e.target.value })}
+                      placeholder="10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Max Total Portfolio at Risk (%)</Label>
+                    <Input
+                      type="number"
+                      value={trading.maxPortfolioRiskPct}
+                      onChange={(e) => setTrading({ ...trading, maxPortfolioRiskPct: e.target.value })}
+                      placeholder="25"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Strategy */}
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Strategy</h3>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label>Preferred Strategies</Label>
+                    <Textarea
+                      value={trading.preferredStrategies}
+                      onChange={(e) => setTrading({ ...trading, preferredStrategies: e.target.value })}
+                      placeholder="Cash-secured puts, covered calls, the wheel, iron condors, vertical spreads..."
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Preferred Underlyings</Label>
+                    <Textarea
+                      value={trading.preferredUnderlyings}
+                      onChange={(e) => setTrading({ ...trading, preferredUnderlyings: e.target.value })}
+                      placeholder="SPY, QQQ, AAPL, large-cap tech, high-liquidity options..."
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Sectors / Tickers to Avoid</Label>
+                    <Input
+                      value={trading.avoidSectors}
+                      onChange={(e) => setTrading({ ...trading, avoidSectors: e.target.value })}
+                      placeholder="Penny stocks, biotech, meme stocks..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Additional Notes</h3>
+                <Textarea
+                  value={trading.tradingNotes}
+                  onChange={(e) => setTrading({ ...trading, tradingNotes: e.target.value })}
+                  placeholder="Any other trading preferences, rules, or guidelines for Ayden..."
+                  rows={4}
+                />
+              </div>
+
+              <SaveButton
+                saving={saving === "trading"}
+                onClick={() => saveCategory("trading", trading)}
               />
             </CardContent>
           </Card>

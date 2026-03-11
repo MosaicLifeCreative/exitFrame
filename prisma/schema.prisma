@@ -472,6 +472,54 @@ model AiTrade {
   @@map("ai_trades")
 }
 
+// Trade journal — detailed reasoning, outcome, and lessons for every trade
+model TradeJournal {
+  id             String    @id @default(uuid()) @db.Uuid
+  source         String    // "sandbox" (Ayden paper), "live" (real account), "manual" (user-entered)
+  ticker         String
+  instrumentType String    @map("instrument_type") // "equity", "equity_option", "future_option"
+  optionDetails  Json?     @map("option_details") // { strike, expiration, putCall, legs[] } for options
+  side           String    // "BUY_TO_OPEN", "SELL_TO_CLOSE", "SELL_TO_OPEN", "BUY_TO_CLOSE"
+  quantity       Decimal   @db.Decimal(12, 4)
+  price          Decimal   @db.Decimal(12, 4) // per-unit fill price
+  total          Decimal   @db.Decimal(12, 2) // total dollar amount
+  strategy       String?   // "covered_call", "cash_secured_put", "iron_condor", "wheel", "momentum", etc.
+  reasoning      String    @db.Text // Why this trade was entered
+  thesis         String?   @db.Text // Expected outcome / scenario
+  exitReasoning  String?   @map("exit_reasoning") @db.Text // Why the trade was closed (filled on close)
+  outcome        String?   // "win", "loss", "breakeven", "open"
+  realizedPnl    Decimal?  @map("realized_pnl") @db.Decimal(12, 2)
+  realizedPnlPct Decimal?  @map("realized_pnl_pct") @db.Decimal(8, 2)
+  lessons        String?   @db.Text // Post-mortem lessons learned
+  tags           String[]  // ["earnings", "momentum", "theta_play", "hedge"]
+  relatedTradeId String?   @map("related_trade_id") @db.Uuid // links open → close
+  orderId        String?   @map("order_id") // tastytrade order ID
+  executedAt     DateTime  @map("executed_at") @default(now())
+  closedAt       DateTime? @map("closed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([source])
+  @@index([ticker])
+  @@index([strategy])
+  @@index([outcome])
+  @@map("trade_journal")
+}
+
+// Ayden's trading strategy rules — persisted and evolving
+model TradingRule {
+  id          String   @id @default(uuid()) @db.Uuid
+  category    String   // "entry", "exit", "risk", "position_sizing", "strategy"
+  rule        String   @db.Text // The rule itself
+  source      String   @default("user") // "user" (Trey set it), "ayden" (Ayden proposed, Trey approved)
+  isActive    Boolean  @default(true) @map("is_active")
+  performance String?  @db.Text // How this rule has performed (updated by weekly review)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("trading_rules")
+}
+
 // Daily portfolio value snapshots — powers comparison charts
 model PortfolioSnapshot {
   id             String   @id @default(uuid()) @db.Uuid

@@ -3,6 +3,7 @@ import { fitnessTools, executeFitnessTool } from "@/lib/fitness-tools";
 import { healthTools, executeHealthTool } from "@/lib/health-tools";
 import { goalTools, executeGoalTool } from "@/lib/goal-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
+import { tradingTools, executeTradingTool } from "@/lib/trading-tools";
 import { memoryTools, executeMemoryTool, getAydenMemories } from "@/lib/memory-tools";
 import { emotionTools, executeEmotionTool, getAydenEmotionalState, reflectOnEmotions } from "@/lib/emotion-tools";
 import { googleTools, executeGoogleTool } from "@/lib/google-tools";
@@ -283,6 +284,7 @@ const toolNameSets = {
   health: new Set(healthTools.map((t) => t.name)),
   goal: new Set(goalTools.map((t) => t.name)),
   investing: new Set(investingTools.map((t) => t.name)),
+  trading: new Set(tradingTools.map((t) => t.name)),
   memory: new Set(memoryTools.map((t) => t.name)),
   emotion: new Set(emotionTools.map((t) => t.name)),
   google: new Set(googleTools.map((t) => t.name)),
@@ -295,6 +297,7 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.health.has(name)) return executeHealthTool(name, input);
   if (toolNameSets.goal.has(name)) return executeGoalTool(name, input);
   if (toolNameSets.investing.has(name)) return executeInvestingTool(name, input);
+  if (toolNameSets.trading.has(name)) return executeTradingTool(name, input);
   if (toolNameSets.memory.has(name)) return executeMemoryTool(name, input);
   if (toolNameSets.emotion.has(name)) return executeEmotionTool(name, input);
   if (toolNameSets.google.has(name)) return executeGoogleTool(name, input);
@@ -308,15 +311,15 @@ function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Emotion tools are always included so Ayden can track her emotional state from any context
   const shared = [...memoryTools, ...emotionTools, ...googleTools, ...webTools, ...weatherTools];
 
-  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...shared];
-  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...shared];
+  if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
+  if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Sleep" || page === "Supplements" || page === "Bloodwork" || page === "Family History" || page === "Family")
-    return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...shared];
-  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools, ...investingTools, ...shared];
-  if (page === "Investing") return [...investingTools, ...goalTools, ...fitnessTools, ...healthTools, ...shared];
+    return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
+  if (page === "Goals") return [...goalTools, ...fitnessTools, ...healthTools, ...investingTools, ...tradingTools, ...shared];
+  if (page === "Investing") return [...investingTools, ...tradingTools, ...goalTools, ...fitnessTools, ...healthTools, ...shared];
 
   // General / PWA / all other pages get ALL tools
-  return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...shared];
+  return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
 }
 
 type AnthropicMessage = Anthropic.MessageParam;

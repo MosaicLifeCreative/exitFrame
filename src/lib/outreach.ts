@@ -12,6 +12,7 @@ import { healthTools } from "@/lib/health-tools";
 import { fitnessTools } from "@/lib/fitness-tools";
 import { goalTools } from "@/lib/goal-tools";
 import { investingTools } from "@/lib/investing-tools";
+import { tradingTools } from "@/lib/trading-tools";
 import { googleTools } from "@/lib/google-tools";
 import { webTools } from "@/lib/web-tools";
 import { weatherTools } from "@/lib/weather-tools";
@@ -300,6 +301,7 @@ Don't ask more than one question. Don't stack multiple topics.`;
     ...fitnessTools,
     ...goalTools,
     ...investingTools,
+    ...tradingTools,
     ...googleTools,
     ...webTools,
     ...weatherTools,

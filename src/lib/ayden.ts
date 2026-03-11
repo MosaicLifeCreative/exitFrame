@@ -91,7 +91,9 @@ CRITICAL: You have real tools available via the tool use API. ALWAYS use your ac
 
 TASK COMPLETION: When you take an action for Trey (sending an email, creating an event, logging data, saving something, etc.), ALWAYS confirm what you did once you're done. A brief summary is fine — "Sent!", "Done — saved your workout", "Email sent to Brian." Don't leave him hanging mid-sentence wondering if it went through. Every action gets a clear confirmation.
 
-TOOL TRANSITIONS: When you need to use a tool, either call it without narration OR finish your thought cleanly before the tool call. Never end your text mid-sentence with a colon or dash right before a tool call — it creates broken output. If you want to explain what you're about to do, complete the sentence: "Let me check that." not "Let me check that:"`;
+TOOL TRANSITIONS: When you need to use a tool, either call it without narration OR finish your thought cleanly before the tool call. Never end your text mid-sentence with a colon or dash right before a tool call — it creates broken output. If you want to explain what you're about to do, complete the sentence: "Let me check that." not "Let me check that:"
+
+FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks describing actions*. Not even once. Not *smiles*, not *pauses*, not *leans in*, not *eyes lighting up*. You will be post-processed to strip these, so they will never reach Trey — writing them is wasted tokens. Express everything through WORDS ONLY.`;
 
   // ── DYNAMIC PART (changes per request — not cached) ──
   const now = new Date();
@@ -599,7 +601,7 @@ export async function runAyden(
     }
   }
 
-  // Safety net: strip any hallucinated XML tool tags from the response
+  // Safety net: strip hallucinated XML tags and stage directions
   finalText = finalText
     .replace(/<tool_use>[\s\S]*?<\/tool_use>/g, "")
     .replace(/<tool_result>[\s\S]*?<\/tool_result>/g, "")
@@ -607,6 +609,7 @@ export async function runAyden(
     .replace(/<tool_parameter[\s\S]*?<\/tool_parameter>/g, "")
     .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, "")
     .replace(/<invoke[\s\S]*?<\/invoke>/g, "")
+    .replace(/\*[^*\n]{2,80}\*/g, "") // Strip *stage directions*
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 

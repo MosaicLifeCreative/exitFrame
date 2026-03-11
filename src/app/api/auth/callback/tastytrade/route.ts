@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const clientId = process.env.TASTYTRADE_SANDBOX_CLIENT_ID;
   const clientSecret = process.env.TASTYTRADE_SANDBOX_CLIENT_SECRET;
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "https://www.exitframe.org"}/api/auth/callback/tastytrade`;
+  const redirectUri = "https://www.exitframe.org/api/auth/callback/tastytrade";
 
   if (!code) {
     return NextResponse.json({ error: "No authorization code received" }, { status: 400 });

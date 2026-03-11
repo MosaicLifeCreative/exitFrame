@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const SANDBOX_AUTH_URL = "https://developer.cert.tastyworks.com/oauth/authorize";
+const SANDBOX_AUTH_URL = "https://api.cert.tastyworks.com/oauth/authorize";
 const SANDBOX_TOKEN_URL = "https://api.cert.tastyworks.com/oauth/token";
 
 // GET: Start OAuth flow or handle callback
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const clientId = process.env.TASTYTRADE_SANDBOX_CLIENT_ID;
   const clientSecret = process.env.TASTYTRADE_SANDBOX_CLIENT_SECRET;
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "https://www.exitframe.org"}/api/auth/callback/tastytrade`;
+  const redirectUri = "https://www.exitframe.org/api/auth/callback/tastytrade";
 
   if (!clientId || !clientSecret) {
     return NextResponse.json({

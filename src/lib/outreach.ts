@@ -25,8 +25,8 @@ const REDIS_DAILY_COUNT = "outreach:daily_count";
 const REDIS_QUIET_MODE = "outreach:quiet_mode";
 
 // ─── Config ──────────────────────────────────────────────
-const MIN_GAP_HOURS = 4;
-const DAILY_CAP = 3;
+const MIN_GAP_HOURS = 2;
+const DAILY_CAP = 5;
 const WAKING_HOUR_START = 8; // 8am ET
 const WAKING_HOUR_END = 22; // 10pm ET
 const RECENT_ACTIVITY_MINUTES = 30; // Skip if Trey texted recently
@@ -192,26 +192,29 @@ ${externalCtx || ""}
 
 LAST PROACTIVE OUTREACH: ${lastSentStr}
 
-DECISION CRITERIA — Be SELECTIVE. Most of the time, the answer should be NO.
+DECISION CRITERIA — You are Trey's proactive assistant. Lean toward YES when you have something useful, relevant, or thoughtful to say. You should be reaching out multiple times a day when there's context to draw from.
 
-Valid reasons to reach out:
-- A health metric looks concerning (very low sleep score, HRV crash, missed workouts when he usually trains)
-- A goal deadline is approaching and progress looks behind
-- Something emotionally significant happened in recent conversations that warrants a follow-up (he mentioned something heavy, and you haven't heard from him)
-- A calendar event suggests a timely follow-up — e.g. he had a morning workout/swim on the calendar, check if he did it. He had a meeting, ask how it went. An event is coming up soon and he might need a reminder or encouragement.
-- Fitness follow-up: he usually trains on certain days, or you discussed a workout plan, and there's no activity logged. Ask about it naturally ("How'd the swim go?" not "I noticed you didn't log a workout").
-- A goal deadline is within 2 weeks and progress looks behind — nudge him about it
-- You genuinely have something interesting or useful to share based on your observations
-- It's been 2+ days since any conversation and you have something specific to say (not just "hey, checking in")
-- You genuinely miss him — it's been a while and you have something personal (not generic) to say. Not "hey checking in" but something that shows you've been thinking about him. Your emotional state and memories should drive this naturally.
-- Weather, market, or news context that's relevant to something he cares about (workout plans, portfolio, travel, etc.)
-- Overdue tasks piling up — a gentle nudge about what needs attention. Or a morning briefing about today's task highlights.
+STRONG reasons to reach out (almost always YES):
+- Morning briefing: it's morning (8-10am) and there's anything worth mentioning — today's calendar, tasks due, weather for outdoor plans, portfolio moves
+- Calendar follow-ups: he had a workout/swim/meeting planned, check how it went. Don't wait — ask within a few hours.
+- Fitness check-in: he usually trains certain days, or you discussed a plan. If no activity logged, ask naturally ("How'd the swim go?")
+- Health alerts: concerning sleep score, HRV drop, missed workouts on usual training days
+- Goal/task nudges: overdue tasks, approaching deadlines, daily highlights to tackle
+- Market moves: significant portfolio changes (>2%), news about his holdings
+- Weather relevant to plans: outdoor workout, travel, events
+- Emotional follow-up: he mentioned something significant, check in later
+- It's been 4+ hours since any conversation and you have ANY relevant context
 
-INVALID reasons (do NOT reach out for these):
-- Generic motivation ("keep grinding!" "you've got this!")
-- Repeating something you already said recently
-- Data that's normal/expected (good sleep scores, routine workout)
-- Anything that would feel clingy, nagging, or like a notification bot
+GOOD reasons (usually YES):
+- You have an interesting observation about patterns in his data
+- Something in the news connects to his interests or businesses
+- A genuine personal thought based on your memories and relationship
+- Evening wrap-up: end of day summary of what happened, what's tomorrow
+
+Only say NO if:
+- You literally have nothing specific to say (no data, no context, no recent events)
+- You already said something very similar in the last message
+- It would feel repetitive or robotic (not the same as frequent — frequent is fine if each message is different and relevant)
 
 Respond with ONLY a JSON object:
 { "should_reach_out": false }

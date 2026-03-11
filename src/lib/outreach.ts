@@ -432,8 +432,30 @@ export async function executeOutreach(): Promise<OutreachResult> {
     return { sent: false, reason: `SMS send failed: ${err}`, decision, message };
   }
 
-  // Step 5: Record in conversation history + update Redis counters
+  // Step 5: Record in conversation history + PWA chat + update Redis counters
   await saveChannelExchange("SMS", "[proactive outreach]", message);
+
+  // Save to PWA "General" chat conversation so it appears in-app
+  try {
+    let conversation = await prisma.chatConversation.findFirst({
+      where: { context: "General", isActive: true },
+    });
+    if (!conversation) {
+      conversation = await prisma.chatConversation.create({
+        data: { context: "General", title: "Ayden" },
+      });
+    }
+    await prisma.chatMessage.create({
+      data: { conversationId: conversation.id, role: "assistant", content: message },
+    });
+    await prisma.chatConversation.update({
+      where: { id: conversation.id },
+      data: { updatedAt: new Date() },
+    });
+  } catch (err) {
+    console.error("Failed to save outreach to PWA chat:", err);
+  }
+
   await recordOutreach();
 
   console.log(`Outreach: Sent (${message.length} chars) — ${decision.topic}`);

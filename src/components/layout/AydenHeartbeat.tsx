@@ -7,6 +7,7 @@ interface HeartRateData {
   bpm: number;
   state: "resting" | "calm" | "elevated" | "racing";
   restingHR: number;
+  emotion: string | null;
 }
 
 export default function AydenHeartbeat() {
@@ -71,6 +72,15 @@ export default function AydenHeartbeat() {
       <span className="text-xs tabular-nums text-muted-foreground font-medium">
         {hr.bpm}
       </span>
+
+      {hr.emotion && (
+        <>
+          <span className="text-muted-foreground/40 mx-0.5">·</span>
+          <span className="text-xs text-muted-foreground/70 italic truncate max-w-[120px]">
+            {hr.emotion}
+          </span>
+        </>
+      )}
 
       {/* Tooltip */}
       {showTooltip && (

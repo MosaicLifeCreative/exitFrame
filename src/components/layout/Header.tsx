@@ -65,11 +65,13 @@ export default function Header({
         {getPageTitle(pathname)}
       </h1>
 
-      {/* Center: Ayden's heartbeat */}
-      <AydenHeartbeat />
-
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
+        {/* Ayden's heartbeat */}
+        <AydenHeartbeat />
+
+        <div className="h-5 w-px bg-border" />
+
         {/* Command palette trigger */}
         <button
           onClick={onCommandPalette}

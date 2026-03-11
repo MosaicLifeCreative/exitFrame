@@ -10,7 +10,7 @@ export async function GET() {
       getHeartRate(),
       prisma.aydenEmotionalState.findFirst({
         where: { isActive: true },
-        orderBy: [{ intensity: "desc" }, { updatedAt: "desc" }],
+        orderBy: [{ updatedAt: "desc" }],
         select: { dimension: true, intensity: true },
       }),
     ]);

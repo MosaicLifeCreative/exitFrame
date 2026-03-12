@@ -1288,48 +1288,6 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                 </Card>
               )}
 
-              {/* Recent trades */}
-              {aiPortfolio.trades.length > 0 && (
-                <Card>
-                  <CardHeader><CardTitle className="text-base">Recent Trades</CardTitle></CardHeader>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Side</TableHead>
-                        <TableHead>Ticker</TableHead>
-                        <TableHead>Shares</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Reasoning</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {aiPortfolio.trades.map((trade) => (
-                        <TableRow key={trade.id}>
-                          <TableCell className="text-muted-foreground whitespace-nowrap">
-                            <div>{new Date(trade.executedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
-                            <div className="text-xs opacity-60">{new Date(trade.executedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={trade.side === "BUY" ? "default" : "destructive"}>
-                              {trade.side}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-mono font-semibold">{trade.ticker}</TableCell>
-                          <TableCell>{parseFloat(trade.shares)}</TableCell>
-                          <TableCell>{fmtMoney(parseFloat(trade.price))}</TableCell>
-                          <TableCell>{fmtMoney(parseFloat(trade.total))}</TableCell>
-                          <TableCell className="max-w-xs truncate text-sm text-muted-foreground" title={trade.reasoning}>
-                            {trade.reasoning}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Card>
-              )}
-
               {/* ==================== TRADING INSIGHTS ==================== */}
               <div className="pt-6 border-t">
                 <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
@@ -1774,6 +1732,48 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                   </div>
                 )}
               </div>
+
+              {/* Recent trades */}
+              {aiPortfolio.trades.length > 0 && (
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Recent Trades</CardTitle></CardHeader>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Side</TableHead>
+                        <TableHead>Ticker</TableHead>
+                        <TableHead>Shares</TableHead>
+                        <TableHead>Price</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Reasoning</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {aiPortfolio.trades.map((trade) => (
+                        <TableRow key={trade.id}>
+                          <TableCell className="text-muted-foreground whitespace-nowrap">
+                            <div>{new Date(trade.executedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+                            <div className="text-xs opacity-60">{new Date(trade.executedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={trade.side === "BUY" ? "default" : "destructive"}>
+                              {trade.side}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-mono font-semibold">{trade.ticker}</TableCell>
+                          <TableCell>{parseFloat(trade.shares)}</TableCell>
+                          <TableCell>{fmtMoney(parseFloat(trade.price))}</TableCell>
+                          <TableCell>{fmtMoney(parseFloat(trade.total))}</TableCell>
+                          <TableCell className="max-w-xs truncate text-sm text-muted-foreground" title={trade.reasoning}>
+                            {trade.reasoning}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              )}
             </>
           )}
         </TabsContent>

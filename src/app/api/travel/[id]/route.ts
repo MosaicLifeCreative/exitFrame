@@ -26,6 +26,27 @@ const tripInclude = {
   destinations: {
     orderBy: { sortOrder: "asc" as const },
   },
+  flights: {
+    orderBy: { sortOrder: "asc" as const },
+  },
+  lodgings: {
+    orderBy: { checkIn: "asc" as const },
+  },
+  transports: {
+    orderBy: { pickupTime: "asc" as const },
+  },
+  itinerary: {
+    orderBy: [{ date: "asc" as const }, { sortOrder: "asc" as const }],
+  },
+  expenses: {
+    orderBy: { date: "asc" as const },
+  },
+  packingItems: {
+    orderBy: [{ category: "asc" as const }, { sortOrder: "asc" as const }],
+  },
+  journal: {
+    orderBy: { date: "desc" as const },
+  },
 };
 
 export async function GET(

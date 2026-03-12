@@ -131,7 +131,11 @@ export async function getCrossDomainContext(currentPage?: string): Promise<strin
               { endDate: { gte: new Date() } },
             ],
           },
-          include: { destinations: { orderBy: { sortOrder: "asc" }, take: 3 } },
+          include: {
+            destinations: { orderBy: { sortOrder: "asc" }, take: 3 },
+            flights: { orderBy: { sortOrder: "asc" }, take: 4 },
+            lodgings: { orderBy: { checkIn: "asc" }, take: 2 },
+          },
           orderBy: { startDate: "asc" },
           take: 3,
         }),
@@ -205,11 +209,30 @@ export async function getCrossDomainContext(currentPage?: string): Promise<strin
 
   // Travel
   if (Array.isArray(upcomingTrips) && upcomingTrips.length > 0) {
-    const tripLines = upcomingTrips.map((t: { name: string; startDate: Date; endDate: Date | null; destinations: Array<{ city: string; state: string | null; country: string }> }) => {
-      const dests = t.destinations.map((d) => d.state ? `${d.city}, ${d.state}` : `${d.city}, ${d.country}`).join("; ");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tripLines = upcomingTrips.map((t: any) => {
+      const dests = t.destinations.map((d: { city: string; state: string | null; country: string }) => d.state ? `${d.city}, ${d.state}` : `${d.city}, ${d.country}`).join("; ");
       const start = formatDate(t.startDate);
       const end = t.endDate ? `-${formatDate(t.endDate)}` : "";
-      return `${t.name}: ${dests} (${start}${end})`;
+      let line = `${t.name}: ${dests} (${start}${end})`;
+
+      // Include flight info if available
+      if (t.flights?.length > 0) {
+        const flightStrs = t.flights.map((f: { airline: string; flightNumber: string; departureAirport: string; arrivalAirport: string; departureTime: Date }) => {
+          return `${f.airline} ${f.flightNumber} ${f.departureAirport}→${f.arrivalAirport} ${formatDate(f.departureTime)}`;
+        });
+        line += ` | Flights: ${flightStrs.join(", ")}`;
+      }
+
+      // Include lodging if available
+      if (t.lodgings?.length > 0) {
+        const lodgingStrs = t.lodgings.map((l: { name: string; type: string; checkIn: Date; checkOut: Date }) => {
+          return `${l.name} [${l.type}] ${formatDate(l.checkIn)}-${formatDate(l.checkOut)}`;
+        });
+        line += ` | Lodging: ${lodgingStrs.join(", ")}`;
+      }
+
+      return line;
     });
     sections.push(`Upcoming trips: ${tripLines.join("; ")}`);
   }

@@ -301,6 +301,27 @@ export const healthTools: Anthropic.Tool[] = [
       required: [],
     },
   },
+  // ─── Oura Ring Tools ──────────────────────────────────
+  {
+    name: "get_oura_data",
+    description:
+      "Get Oura Ring data: sleep scores, readiness, activity, HRV, heart rate, SpO2, stress, and resilience. Use this to check how Trey slept, his recovery status, activity levels, or any biometric data from his ring. The cross-domain context only shows last night's summary — use this tool for detailed data or historical trends.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        dataType: {
+          type: "string",
+          enum: ["sleep", "readiness", "activity", "heartrate", "spo2", "stress", "resilience", "all"],
+          description: "Type of Oura data to retrieve. Use 'all' for a full overview (default: all)",
+        },
+        days: {
+          type: "number",
+          description: "Number of days to look back (default: 7, max: 90)",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ─── Tool Execution ─────────────────────────────────────
@@ -332,6 +353,8 @@ export async function executeHealthTool(
       return addFamilyMember(toolInput as unknown as AddFamilyMemberInput);
     case "get_family_history":
       return getFamilyHistory();
+    case "get_oura_data":
+      return getOuraData(toolInput as unknown as GetOuraDataInput);
     default:
       return JSON.stringify({ error: `Unknown health tool: ${toolName}` });
   }
@@ -400,6 +423,11 @@ interface GetBloodworkPanelsInput {
 
 interface GetBloodworkTrendsInput {
   markerName: string;
+}
+
+interface GetOuraDataInput {
+  dataType?: string;
+  days?: number;
 }
 
 interface FamilyConditionInput {
@@ -786,5 +814,66 @@ async function getFamilyHistory(): Promise<string> {
   }));
 
   return JSON.stringify({ familyMembers: result, count: result.length });
+}
+
+// ─── Oura Ring Implementation ───────────────────────────
+
+async function getOuraData(input: GetOuraDataInput): Promise<string> {
+  const days = Math.min(input.days || 7, 90);
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const requestedType = input.dataType || "all";
+  const types =
+    requestedType === "all"
+      ? ["sleep", "readiness", "activity", "heartrate", "spo2", "stress", "resilience"]
+      : [requestedType];
+
+  const rows = await prisma.ouraData.findMany({
+    where: {
+      dataType: { in: types },
+      date: { gte: startDate },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  if (rows.length === 0) {
+    return JSON.stringify({
+      message: `No Oura data found for the last ${days} days. Oura data may not have synced yet today — check if the ring has synced recently.`,
+      dataTypes: types,
+      days,
+    });
+  }
+
+  // Group by type for cleaner output
+  const grouped: Record<string, unknown[]> = {};
+  for (const row of rows) {
+    const type = row.dataType;
+    if (!grouped[type]) grouped[type] = [];
+
+    const entry: Record<string, unknown> = {
+      date: row.date.toISOString().slice(0, 10),
+    };
+
+    // Include scalar fields
+    if (row.sleepScore != null) entry.sleepScore = row.sleepScore;
+    if (row.readinessScore != null) entry.readinessScore = row.readinessScore;
+    if (row.activityScore != null) entry.activityScore = row.activityScore;
+    if (row.hrvAverage != null) entry.hrvAverage = parseFloat(String(row.hrvAverage));
+
+    // Include detailed data from JSON column
+    if (row.data && typeof row.data === "object") {
+      entry.details = row.data;
+    }
+
+    grouped[type].push(entry);
+  }
+
+  return JSON.stringify({
+    ouraData: grouped,
+    days,
+    dataTypes: Object.keys(grouped),
+    totalEntries: rows.length,
+  });
 }
 

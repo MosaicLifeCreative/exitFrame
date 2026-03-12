@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Plus,
@@ -66,6 +67,7 @@ interface DestinationInput {
 // ── Page ──
 
 export default function TravelPage() {
+  const router = useRouter();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("upcoming");
@@ -235,6 +237,7 @@ export default function TravelPage() {
                         ))}
                       </div>
                       <div className="flex gap-2 pt-1">
+                        <Button size="sm" onClick={() => router.push(`/dashboard/travel/${trip.id}`)}>View Details</Button>
                         <Button variant="outline" size="sm" onClick={() => setEditTrip(trip)}>Edit</Button>
                         <Button variant="destructive" size="sm" onClick={() => deleteTrip(trip.id)}>
                           <Trash2 className="h-3 w-3 mr-1" /> Delete

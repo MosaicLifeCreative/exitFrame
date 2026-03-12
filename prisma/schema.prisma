@@ -1086,34 +1086,177 @@ model AydenDream {
 // ── Travel ──────────────────────────────────────────────
 
 model Trip {
-  id           String            @id @default(uuid()) @db.Uuid
+  id           String              @id @default(uuid()) @db.Uuid
   name         String
-  status       String            @default("upcoming") // upcoming, active, completed, cancelled
-  startDate    DateTime          @map("start_date") @db.Date
-  endDate      DateTime?         @map("end_date") @db.Date
-  notes        String?           @db.Text
+  status       String              @default("upcoming") // upcoming, active, completed, cancelled
+  startDate    DateTime            @map("start_date") @db.Date
+  endDate      DateTime?           @map("end_date") @db.Date
+  notes        String?             @db.Text
   destinations TripDestination[]
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime          @updatedAt @map("updated_at")
+  flights      TripFlight[]
+  lodgings     TripLodging[]
+  transports   TripTransport[]
+  itinerary    TripItineraryItem[]
+  expenses     TripExpense[]
+  packingItems TripPackingItem[]
+  journal      TripJournalEntry[]
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
 
   @@map("trips")
 }
 
 model TripDestination {
-  id            String    @id @default(uuid()) @db.Uuid
-  tripId        String    @map("trip_id") @db.Uuid
-  trip          Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  id            String              @id @default(uuid()) @db.Uuid
+  tripId        String              @map("trip_id") @db.Uuid
+  trip          Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
   city          String
   state         String?
-  country       String    @default("US")
-  arrivalDate   DateTime? @map("arrival_date") @db.Date
-  departureDate DateTime? @map("departure_date") @db.Date
-  sortOrder     Int       @default(0) @map("sort_order")
-  notes         String?   @db.Text
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  country       String              @default("US")
+  arrivalDate   DateTime?           @map("arrival_date") @db.Date
+  departureDate DateTime?           @map("departure_date") @db.Date
+  sortOrder     Int                 @default(0) @map("sort_order")
+  notes         String?             @db.Text
+  lodgings      TripLodging[]
+  itinerary     TripItineraryItem[]
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
 
   @@map("trip_destinations")
+}
+
+model TripFlight {
+  id                String    @id @default(uuid()) @db.Uuid
+  tripId            String    @map("trip_id") @db.Uuid
+  trip              Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  airline           String
+  flightNumber      String    @map("flight_number")
+  departureAirport  String    @map("departure_airport") // IATA code e.g. CMH
+  arrivalAirport    String    @map("arrival_airport")
+  departureTime     DateTime  @map("departure_time")
+  arrivalTime       DateTime  @map("arrival_time")
+  confirmationCode  String?   @map("confirmation_code")
+  seatAssignment    String?   @map("seat_assignment")
+  terminal          String?
+  gate              String?
+  price             Decimal?  @db.Decimal(10, 2)
+  notes             String?   @db.Text
+  sortOrder         Int       @default(0) @map("sort_order")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("trip_flights")
+}
+
+model TripLodging {
+  id               String           @id @default(uuid()) @db.Uuid
+  tripId           String           @map("trip_id") @db.Uuid
+  trip             Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  destinationId    String?          @map("destination_id") @db.Uuid
+  destination      TripDestination? @relation(fields: [destinationId], references: [id], onDelete: SetNull)
+  type             String           @default("hotel") // hotel, airbnb, vrbo, hostel, camping, other
+  name             String
+  address          String?          @db.Text
+  checkIn          DateTime         @map("check_in")
+  checkOut         DateTime         @map("check_out")
+  confirmationCode String?          @map("confirmation_code")
+  nightlyRate      Decimal?         @map("nightly_rate") @db.Decimal(10, 2)
+  totalPrice       Decimal?         @map("total_price") @db.Decimal(10, 2)
+  url              String?          @db.Text
+  notes            String?          @db.Text
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@map("trip_lodgings")
+}
+
+model TripTransport {
+  id               String    @id @default(uuid()) @db.Uuid
+  tripId           String    @map("trip_id") @db.Uuid
+  trip             Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  type             String    // rental_car, rideshare, train, shuttle, bus, other
+  company          String?
+  confirmationCode String?   @map("confirmation_code")
+  pickupLocation   String?   @map("pickup_location") @db.Text
+  dropoffLocation  String?   @map("dropoff_location") @db.Text
+  pickupTime       DateTime? @map("pickup_time")
+  dropoffTime      DateTime? @map("dropoff_time")
+  vehicleDetails   String?   @map("vehicle_details") // e.g. "Compact SUV", "Tesla Model 3"
+  price            Decimal?  @db.Decimal(10, 2)
+  notes            String?   @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@map("trip_transports")
+}
+
+model TripItineraryItem {
+  id            String           @id @default(uuid()) @db.Uuid
+  tripId        String           @map("trip_id") @db.Uuid
+  trip          Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  destinationId String?          @map("destination_id") @db.Uuid
+  destination   TripDestination? @relation(fields: [destinationId], references: [id], onDelete: SetNull)
+  date          DateTime         @db.Date
+  startTime     String?          @map("start_time") // HH:MM format for flexibility
+  endTime       String?          @map("end_time")
+  title         String
+  description   String?          @db.Text
+  location      String?
+  category      String           @default("activity") // dining, activity, sightseeing, meeting, transit, shopping, nightlife, other
+  isBooked      Boolean          @default(false) @map("is_booked")
+  estimatedCost Decimal?         @map("estimated_cost") @db.Decimal(10, 2)
+  url           String?          @db.Text
+  sortOrder     Int              @default(0) @map("sort_order")
+  notes         String?          @db.Text
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  @@map("trip_itinerary_items")
+}
+
+model TripExpense {
+  id          String   @id @default(uuid()) @db.Uuid
+  tripId      String   @map("trip_id") @db.Uuid
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  category    String   // flights, lodging, food, transport, activities, shopping, other
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  date        DateTime @db.Date
+  isPaid      Boolean  @default(false) @map("is_paid")
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("trip_expenses")
+}
+
+model TripPackingItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  tripId    String   @map("trip_id") @db.Uuid
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  item      String
+  category  String   @default("other") // clothes, toiletries, electronics, documents, medication, gear, other
+  isPacked  Boolean  @default(false) @map("is_packed")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("trip_packing_items")
+}
+
+model TripJournalEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  tripId    String   @map("trip_id") @db.Uuid
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  title     String?
+  content   String   @db.Text
+  mood      String?  // great, good, okay, rough
+  location  String?  // where were you when writing
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("trip_journal_entries")
 }
 
 model PushSubscription {

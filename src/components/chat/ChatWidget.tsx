@@ -74,6 +74,10 @@ const TOOL_LABELS: Record<string, string> = {
   add_expense: "Tracking expense",
   add_journal_entry: "Writing journal entry",
   get_journal_entries: "Reading journal",
+  remember_person: "Remembering someone",
+  recall_person: "Looking up a contact",
+  update_person: "Updating contact info",
+  forget_person: "Removing contact",
 };
 
 function formatToolName(name: string): string {
@@ -183,6 +187,7 @@ export default function ChatWidget() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const prevMessageCountRef = useRef(0);
   const prevUnreadRef = useRef(0);
 
@@ -206,6 +211,8 @@ export default function ChatWidget() {
   useEffect(() => {
     if (!showEmojiPicker) return;
     const handleClick = (e: MouseEvent) => {
+      // Don't close if clicking the emoji toggle button (it handles its own toggle)
+      if (emojiButtonRef.current?.contains(e.target as Node)) return;
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
         setShowEmojiPicker(false);
       }
@@ -373,14 +380,22 @@ export default function ChatWidget() {
         style={{ height: isMaximized ? "calc(100vh - 120px)" : "min(600px, calc(100vh - 120px))" }}
       >
         <div className="h-full flex flex-col bg-background rounded-2xl border border-border shadow-2xl overflow-hidden">
-          {/* Header */}
-          <div className="h-12 border-b border-border flex items-center justify-between px-4 shrink-0 bg-background/80 backdrop-blur-sm">
+          {/* Header — click to minimize (except interactive children) */}
+          <div
+            className="h-12 border-b border-border flex items-center justify-between px-4 shrink-0 bg-background/80 backdrop-blur-sm cursor-pointer"
+            onClick={(e) => {
+              // Only minimize if clicking the header bar itself, not buttons/heart
+              if ((e.target as HTMLElement).closest("button, [data-no-minimize]")) return;
+              closeChat();
+            }}
+          >
             <div className="relative flex items-center gap-2">
               {/* Heart with hover popup */}
               {hr ? (
                 <>
                   <div
                     className="cursor-pointer"
+                    data-no-minimize
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowHeartPopup((s) => !s);
@@ -621,6 +636,7 @@ export default function ChatWidget() {
           <div className="border-t border-border p-3 shrink-0">
             <div className="flex gap-2 items-end">
               <button
+                ref={emojiButtonRef}
                 onClick={() => setShowEmojiPicker((s) => !s)}
                 className={cn(
                   "h-[40px] w-[40px] shrink-0 flex items-center justify-center rounded-md transition-colors",

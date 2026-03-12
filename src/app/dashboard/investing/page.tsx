@@ -59,8 +59,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   LineChart,
   Line,
-  AreaChart,
   Area,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -1358,7 +1358,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                         </CardHeader>
                         <CardContent>
                           <ResponsiveContainer width="100%" height={280}>
-                            <AreaChart data={insights.evolution.cumulativeData}>
+                            <ComposedChart data={insights.evolution.cumulativeData}>
                               <defs>
                                 <linearGradient id="pnlGradient" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
@@ -1422,7 +1422,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                                 name="Win Rate"
                               />
                               <Legend />
-                            </AreaChart>
+                            </ComposedChart>
                           </ResponsiveContainer>
                         </CardContent>
                       </Card>
@@ -1494,7 +1494,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                                     </div>
                                     <p className="text-sm mt-0.5">{event.title}</p>
                                     {event.detail && (
-                                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{event.detail}</p>
+                                      <p className="text-xs text-muted-foreground mt-0.5">{event.detail}</p>
                                     )}
                                   </div>
                                 </div>
@@ -1881,6 +1881,14 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Total Value</span>
                   <span className="font-medium">{aiPortfolio ? fmtMoney(aiTotalValue) : "--"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Cost Basis</span>
+                  <span className="font-medium">{aiPortfolio ? fmtMoney(aiPortfolio.startingCapital) : "--"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Total P&L</span>
+                  {aiPortfolio ? <PnlText value={aiTotalValue - aiPortfolio.startingCapital} className="font-medium" /> : <span className="font-medium">--</span>}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Cash Balance</span>

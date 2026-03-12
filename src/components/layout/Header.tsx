@@ -3,9 +3,8 @@
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "next-themes";
-import { Sun, Moon, LogOut, Search, MessageSquareText } from "lucide-react";
+import { Sun, Moon, LogOut, Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useChatStore } from "@/lib/chat-store";
 import AydenHeartbeat from "./AydenHeartbeat";
 
 // Map pathnames to display titles
@@ -35,8 +34,6 @@ export default function Header({
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const toggleChat = useChatStore((s) => s.toggleChat);
-  const isChatOpen = useChatStore((s) => s.isOpen);
 
   useEffect(() => setMounted(true), []);
 
@@ -83,19 +80,6 @@ export default function Header({
           <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
             <span className="text-xs">⌘</span>K
           </kbd>
-        </button>
-
-        {/* Claude chat toggle */}
-        <button
-          onClick={toggleChat}
-          className={`h-9 w-9 flex items-center justify-center rounded-md border transition-colors ${
-            isChatOpen
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-input hover:bg-accent hover:text-accent-foreground"
-          }`}
-          title="Toggle Claude chat"
-        >
-          <MessageSquareText className="h-4 w-4" />
         </button>
 
         {/* Theme toggle */}

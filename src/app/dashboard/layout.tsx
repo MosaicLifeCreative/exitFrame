@@ -5,7 +5,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import MainContent from "@/components/layout/MainContent";
 import CommandPalette from "@/components/layout/CommandPalette";
-import ChatPanel from "@/components/chat/ChatPanel";
+import ChatWidget from "@/components/chat/ChatWidget";
 import { TimeTrackingProvider } from "@/components/providers/TimeTrackingProvider";
 
 export default function DashboardLayout({
@@ -27,7 +27,7 @@ export default function DashboardLayout({
           open={commandPaletteOpen}
           onClose={() => setCommandPaletteOpen(false)}
         />
-        <ChatPanel />
+        <ChatWidget />
       </div>
     </TimeTrackingProvider>
   );

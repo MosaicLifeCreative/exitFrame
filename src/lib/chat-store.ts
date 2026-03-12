@@ -38,6 +38,42 @@ interface WorkoutDraft {
   exercises: WorkoutDraftExercise[];
 }
 
+// ─── Pathname → Page Context ────────────────────────────
+
+const PAGE_CONTEXT_MAP: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/dashboard/health": "Health",
+  "/dashboard/health/fitness": "Fitness",
+  "/dashboard/health/sleep": "Sleep",
+  "/dashboard/health/supplements": "Supplements",
+  "/dashboard/health/bloodwork": "Bloodwork",
+  "/dashboard/health/family": "Family History",
+  "/dashboard/investing": "Investing",
+  "/dashboard/goals": "Goals",
+  "/dashboard/tasks": "Tasks",
+  "/dashboard/travel": "Travel",
+  "/dashboard/chat": "General",
+  "/dashboard/settings": "Settings",
+  "/dashboard/ayden/journal": "Ayden Journal",
+};
+
+export function getPageFromPathname(pathname: string): string {
+  // Exact match first
+  if (PAGE_CONTEXT_MAP[pathname]) return PAGE_CONTEXT_MAP[pathname];
+
+  // Check parent paths (for detail pages like /dashboard/travel/[id])
+  const segments = pathname.split("/");
+  while (segments.length > 2) {
+    segments.pop();
+    const parent = segments.join("/");
+    if (PAGE_CONTEXT_MAP[parent]) return PAGE_CONTEXT_MAP[parent];
+  }
+
+  return "General";
+}
+
+// ─── Store ──────────────────────────────────────────────
+
 interface ChatStore {
   isOpen: boolean;
   messages: ChatMessage[];
@@ -50,20 +86,38 @@ interface ChatStore {
   conversationSummary: string | null;
   toolExecutedFlag: number;
   workoutDraft: WorkoutDraft | null;
+  unreadCount: number;
+  lastSeenAt: number; // timestamp ms
 
   toggleChat: () => void;
   openChat: () => void;
   closeChat: () => void;
   setPageContext: (ctx: PageContext | null) => void;
+  updatePageFromPathname: (pathname: string) => void;
   sendMessage: (content: string, images?: Array<{ base64: string; mediaType: string }>) => Promise<void>;
   clearMessages: () => void;
   loadConversation: (context: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
   clearWorkoutDraft: () => void;
+  setUnreadCount: (count: number) => void;
+  markAsRead: () => void;
+  checkUnread: () => Promise<void>;
 }
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+// Persist lastSeenAt in localStorage
+function getLastSeenAt(): number {
+  if (typeof window === "undefined") return Date.now();
+  const stored = localStorage.getItem("ayden-last-seen");
+  return stored ? parseInt(stored, 10) : Date.now();
+}
+
+function saveLastSeenAt(ts: number): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("ayden-last-seen", String(ts));
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -78,25 +132,61 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   conversationSummary: null,
   toolExecutedFlag: 0,
   workoutDraft: null,
+  unreadCount: 0,
+  lastSeenAt: getLastSeenAt(),
 
   toggleChat: () => {
-    const { isOpen, pageContext } = get();
-    if (!isOpen && pageContext) {
-      // Load history when opening
-      get().loadConversation(pageContext.page);
+    const { isOpen } = get();
+    if (!isOpen) {
+      // Opening — load conversation history
+      get().loadConversation("General");
+      get().markAsRead();
     }
     set((s) => ({ isOpen: !s.isOpen }));
   },
   openChat: () => {
-    const { pageContext } = get();
-    if (pageContext) {
-      get().loadConversation(pageContext.page);
-    }
+    get().loadConversation("General");
+    get().markAsRead();
     set({ isOpen: true });
   },
   closeChat: () => set({ isOpen: false }),
   setPageContext: (ctx) => set({ pageContext: ctx }),
+
+  updatePageFromPathname: (pathname: string) => {
+    const page = getPageFromPathname(pathname);
+    const current = get().pageContext;
+    // Only update the page name; preserve any page-specific data
+    if (current?.page !== page) {
+      set({ pageContext: { page, data: current?.data } });
+    }
+  },
+
   clearWorkoutDraft: () => set({ workoutDraft: null }),
+
+  setUnreadCount: (count: number) => set({ unreadCount: count }),
+
+  markAsRead: () => {
+    const now = Date.now();
+    saveLastSeenAt(now);
+    set({ unreadCount: 0, lastSeenAt: now });
+  },
+
+  checkUnread: async () => {
+    const { lastSeenAt, isOpen, isStreaming } = get();
+    // Don't check while chat is open (user is reading) or while streaming
+    if (isOpen || isStreaming) return;
+
+    try {
+      const res = await fetch(`/api/chat/unread?since=${lastSeenAt}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.data?.count > 0) {
+        set({ unreadCount: json.data.count });
+      }
+    } catch {
+      // Silent fail
+    }
+  },
 
   loadConversation: async (context: string) => {
     set({ isLoadingHistory: true });
@@ -130,14 +220,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   loadMoreMessages: async () => {
-    const { messages, pageContext, conversationId, isLoadingMore } = get();
-    if (!conversationId || !pageContext || isLoadingMore || messages.length === 0) return;
+    const { messages, conversationId, isLoadingMore } = get();
+    if (!conversationId || isLoadingMore || messages.length === 0) return;
 
     const oldestId = messages[0].id;
     set({ isLoadingMore: true });
     try {
       const res = await fetch(
-        `/api/chat/conversations?context=${encodeURIComponent(pageContext.page)}&limit=50&before=${oldestId}`
+        `/api/chat/conversations?context=General&limit=50&before=${oldestId}`
       );
       if (!res.ok) return;
       const json = await res.json();
@@ -165,12 +255,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   clearMessages: async () => {
-    const { pageContext } = get();
-    const context = pageContext?.page || "General";
-
     // Archive in DB
     try {
-      await fetch(`/api/chat/conversations?context=${encodeURIComponent(context)}`, {
+      await fetch(`/api/chat/conversations?context=General`, {
         method: "DELETE",
       });
     } catch {
@@ -182,7 +269,6 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   sendMessage: async (content: string, images?: Array<{ base64: string; mediaType: string }>) => {
     const { messages, pageContext, conversationSummary } = get();
-    const context = pageContext?.page || "General";
 
     const userMsg: ChatMessage = {
       id: generateId(),
@@ -316,7 +402,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              context,
+              context: "General",
               userMessage: content,
               assistantMessage: accumulated,
             }),
@@ -324,6 +410,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         } catch {
           // Best-effort persist
         }
+
+        // Update lastSeenAt since we just had a conversation
+        get().markAsRead();
       }
     } catch {
       set((s) => ({

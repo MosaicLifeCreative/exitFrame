@@ -19,6 +19,7 @@ import {
   Maximize2,
   Minimize2,
   Heart,
+  Smile,
 } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/MarkdownContent";
 import {
@@ -29,6 +30,13 @@ import {
   flashTitle,
   stopFlashTitle,
 } from "@/lib/notifications";
+import dynamic from "next/dynamic";
+import emojiData from "@emoji-mart/data";
+
+const EmojiPicker = dynamic(() => import("@emoji-mart/react").then((mod) => mod.default), {
+  ssr: false,
+  loading: () => <div className="h-[350px] w-full flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>,
+});
 
 const TOOL_LABELS: Record<string, string> = {
   list_exercises: "Searching exercises",
@@ -99,11 +107,13 @@ function formatMessageTime(date: Date): string {
     date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-// Should we show a timestamp between two messages?
-function shouldShowTimestamp(prev: Date | null, current: Date): boolean {
+// Show a timestamp between messages when sender changes or 5+ min gap
+function shouldShowTimestamp(prev: { time: Date; role: string } | null, current: { time: Date; role: string }): boolean {
   if (!prev) return true;
-  // Show timestamp if more than 5 minutes apart
-  return current.getTime() - prev.getTime() > 5 * 60 * 1000;
+  // Always show when role changes (like Messenger)
+  if (prev.role !== current.role) return true;
+  // Show if 5+ minutes between same-sender messages
+  return current.time.getTime() - prev.time.getTime() > 5 * 60 * 1000;
 }
 
 // ─── Heartbeat hook ─────────────────────────────────────
@@ -180,9 +190,12 @@ export default function ChatWidget() {
   const [input, setInput] = useState("");
   const [isMaximized, setIsMaximized] = useState(false);
   const [showHeartPopup, setShowHeartPopup] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [notifRequested, setNotifRequested] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
   const prevUnreadRef = useRef(0);
 
@@ -202,10 +215,20 @@ export default function ChatWidget() {
     };
   }, [showHeartPopup]);
 
-  // Request notification permission on mount
+  // Close emoji picker on outside click
   useEffect(() => {
-    requestNotificationPermission();
-  }, []);
+    if (!showEmojiPicker) return;
+    const handleClick = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    const timer = setTimeout(() => document.addEventListener("mousedown", handleClick), 10);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, [showEmojiPicker]);
 
   // Poll for unread messages every 30 seconds
   useEffect(() => {
@@ -300,6 +323,7 @@ export default function ChatWidget() {
     const trimmed = input.trim();
     if (!trimmed || isStreaming) return;
     setInput("");
+    setShowEmojiPicker(false);
     sendMessage(trimmed);
   }, [input, isStreaming, sendMessage]);
 
@@ -318,7 +342,14 @@ export default function ChatWidget() {
       {/* ─── Floating Bubble ─────────────────────────────── */}
       {!isOpen && (
         <button
-          onClick={toggleChat}
+          onClick={() => {
+            // Request notification permission on first user gesture (Firefox requires this)
+            if (!notifRequested) {
+              requestNotificationPermission();
+              setNotifRequested(true);
+            }
+            toggleChat();
+          }}
           className={cn(
             "fixed bottom-6 right-6 z-50",
             "h-14 w-14 rounded-full",
@@ -486,8 +517,8 @@ export default function ChatWidget() {
             {messages.map((msg, idx) => {
               const prevMsg = idx > 0 ? messages[idx - 1] : null;
               const showTime = shouldShowTimestamp(
-                prevMsg?.timestamp ?? null,
-                msg.timestamp
+                prevMsg ? { time: prevMsg.timestamp, role: prevMsg.role } : null,
+                { time: msg.timestamp, role: msg.role }
               );
 
               return (
@@ -580,9 +611,40 @@ export default function ChatWidget() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Emoji picker */}
+          {showEmojiPicker && (
+            <div ref={emojiPickerRef} className="border-t border-border">
+              <EmojiPicker
+                data={emojiData}
+                theme="dark"
+                skinTonePosition="none"
+                previewPosition="none"
+                maxFrequentRows={1}
+                perLine={8}
+                onEmojiSelect={(emoji: { native: string }) => {
+                  setInput((prev) => prev + emoji.native);
+                  textareaRef.current?.focus();
+                }}
+              />
+            </div>
+          )}
+
           {/* Input */}
           <div className="border-t border-border p-3 shrink-0">
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-end">
+              <button
+                onClick={() => setShowEmojiPicker((s) => !s)}
+                className={cn(
+                  "h-[40px] w-[40px] shrink-0 flex items-center justify-center rounded-md transition-colors",
+                  showEmojiPicker
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Emoji"
+                type="button"
+              >
+                <Smile className="h-5 w-5" />
+              </button>
               <Textarea
                 ref={textareaRef}
                 value={input}

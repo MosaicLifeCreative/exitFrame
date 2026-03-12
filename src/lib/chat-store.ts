@@ -108,6 +108,14 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+/** Strip *stage directions* from Ayden's responses (same regex as ayden.ts) */
+function stripStageDirections(text: string): string {
+  return text
+    .replace(/\*[^*\n]{2,80}\*/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // Persist lastSeenAt in localStorage
 function getLastSeenAt(): number {
   if (typeof window === "undefined") return Date.now();
@@ -392,6 +400,19 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               // Skip malformed SSE lines
             }
           }
+        }
+      }
+
+      // Strip stage directions from final response before display and DB save
+      if (accumulated) {
+        const cleaned = stripStageDirections(accumulated);
+        if (cleaned !== accumulated) {
+          accumulated = cleaned;
+          set((s) => ({
+            messages: s.messages.map((m) =>
+              m.id === assistantMsg.id ? { ...m, content: cleaned } : m
+            ),
+          }));
         }
       }
 

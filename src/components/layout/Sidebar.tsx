@@ -39,6 +39,7 @@ import {
   FlaskConical,
   Users2,
   Settings,
+  BookOpen,
 } from "lucide-react";
 
 interface NavItem {
@@ -118,6 +119,7 @@ const navSections: NavSection[] = [
   {
     title: "System",
     items: [
+      { label: "Ayden's Journal", href: "/dashboard/ayden/journal", icon: BookOpen },
       { label: "System Health", href: "/dashboard/system-health", icon: Activity },
       { label: "Settings", href: "/dashboard/settings/preferences", icon: Settings },
     ],

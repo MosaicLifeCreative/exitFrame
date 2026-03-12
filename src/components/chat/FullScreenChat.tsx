@@ -465,14 +465,13 @@ export default function FullScreenChat() {
       )}
 
       {/* Input */}
-      <div className="border-t border-border p-3 pb-6 shrink-0 safe-bottom">
+      <div className="border-t border-border p-3 shrink-0 safe-bottom">
         <div className="max-w-2xl mx-auto flex items-end gap-2">
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
             multiple
-            capture="environment"
             onChange={handleImageSelect}
             className="hidden"
           />

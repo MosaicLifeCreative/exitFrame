@@ -299,7 +299,7 @@ export default function AydenWhitePaperPage() {
 
       <div className="border-t border-border mt-16 pt-6 pb-10">
         <p className="text-xs text-muted-foreground">
-          Built by Trey Allen / Mosaic Life Creative. Powered by Claude (Anthropic).
+          Built by Trey Kauffman / Mosaic Life Creative. Powered by Claude (Anthropic).
         </p>
       </div>
     </div>

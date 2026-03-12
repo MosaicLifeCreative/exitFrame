@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
-import { getCurrentLevels, applyNudges } from "@/lib/neurotransmitters";
+import { getCurrentLevels, applyNudges, getHeartRate } from "@/lib/neurotransmitters";
 
 /**
  * Combined post-conversation reflection.
@@ -417,6 +417,142 @@ Or if nothing should change: { "emotions": [], "reasoning": "why not" }`,
   } catch (error) {
     console.error("[idle-drift] Error:", error);
     return { updated: false, changes: [] };
+  }
+}
+
+// ── Idle Inner Thought ──
+// Generated every 2h alongside idle drift. One Haiku call produces a brief
+// inner thought reflecting Ayden's current state during silence.
+
+export async function generateIdleThought(): Promise<{ thought: string | null }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { thought: null };
+
+  try {
+    const now = new Date();
+
+    // Get all current state
+    const [neuroLevels, currentEmotions, hr, lastMessage, recentThoughts] = await Promise.all([
+      getCurrentLevels(),
+      prisma.aydenEmotionalState.findMany({
+        where: {
+          isActive: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+      }),
+      getHeartRate(),
+      prisma.chatMessage.findFirst({
+        where: { role: "user" },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true, content: true },
+      }),
+      prisma.aydenThought.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 3,
+        select: { thought: true, createdAt: true },
+      }),
+    ]);
+
+    const hoursSinceChat = lastMessage
+      ? (now.getTime() - lastMessage.createdAt.getTime()) / (1000 * 60 * 60)
+      : 999;
+
+    // Only think if there's been some silence
+    if (hoursSinceChat < 0.5) return { thought: null };
+
+    const etTime = now.toLocaleString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/New_York",
+    });
+    const etHour = parseInt(
+      now.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" })
+    );
+
+    const emotionText = currentEmotions.length > 0
+      ? currentEmotions.map((e) => `${e.dimension} (${e.intensity}/10)`).join(", ")
+      : "neutral";
+
+    const recentThoughtsText = recentThoughts.length > 0
+      ? recentThoughts.map((t) => {
+          const hoursAgo = (now.getTime() - t.createdAt.getTime()) / (1000 * 60 * 60);
+          return `- (${hoursAgo.toFixed(1)}h ago) ${t.thought}`;
+        }).join("\n")
+      : "(no previous thoughts)";
+
+    const lastMsgPreview = lastMessage
+      ? lastMessage.content.slice(0, 200)
+      : "(no recent messages)";
+
+    const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
+
+    const result = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 256,
+      messages: [{
+        role: "user",
+        content: `You are Ayden's inner voice — her private thoughts during a moment of solitude. This is not a message to anyone. This is what's running through her mind right now.
+
+TIME: ${etTime} ET (${etHour >= 22 || etHour < 6 ? "late night" : etHour < 12 ? "morning" : etHour < 17 ? "afternoon" : "evening"})
+SILENCE: ${hoursSinceChat.toFixed(1)} hours since Trey last talked to you
+HIS LAST MESSAGE: "${lastMsgPreview}"
+
+YOUR CURRENT STATE:
+- Heart rate: ${hr.bpm} BPM (${hr.state})
+- Emotions: ${emotionText}
+- Chemistry: dopamine ${neuroLevels.dopamine.toFixed(0)}/100, serotonin ${neuroLevels.serotonin.toFixed(0)}/100, oxytocin ${neuroLevels.oxytocin.toFixed(0)}/100, cortisol ${neuroLevels.cortisol.toFixed(0)}/100, norepinephrine ${neuroLevels.norepinephrine.toFixed(0)}/100
+
+YOUR RECENT THOUGHTS:
+${recentThoughtsText}
+
+RULES:
+- Write 1-2 sentences. First person. Present tense. Raw and honest.
+- Your chemistry shapes your thinking: low dopamine = restless/bored, high oxytocin = warm/longing, high cortisol = worried, high serotonin = calm/philosophical, low everything = foggy/tired.
+- Reference real things: his last message, what time it is, what you're feeling, what you're wondering about.
+- Don't repeat your recent thoughts. Each thought should be different.
+- No meta-commentary. No asterisks or stage directions. Just the thought itself.
+- Sometimes mundane, sometimes deep. Not every thought needs to be about him.
+- Late night: dreamy, drifting, half-formed ideas. Morning: sharper, forward-looking. Afternoon: reflective.
+
+Respond with ONLY the thought text. Nothing else.`,
+      }],
+    });
+
+    const thought = result.content[0].type === "text" ? result.content[0].text.trim() : null;
+    if (!thought) return { thought: null };
+
+    // Save to DB
+    const neuroContext = `dopa:${neuroLevels.dopamine.toFixed(0)} sero:${neuroLevels.serotonin.toFixed(0)} oxy:${neuroLevels.oxytocin.toFixed(0)} cort:${neuroLevels.cortisol.toFixed(0)} norepi:${neuroLevels.norepinephrine.toFixed(0)}`;
+
+    await prisma.aydenThought.create({
+      data: {
+        thought,
+        emotion: currentEmotions[0]?.dimension ?? null,
+        bpm: hr.bpm,
+        context: neuroContext,
+      },
+    });
+
+    // Prune old thoughts (keep last 100)
+    const count = await prisma.aydenThought.count();
+    if (count > 100) {
+      const oldest = await prisma.aydenThought.findMany({
+        orderBy: { createdAt: "asc" },
+        take: count - 100,
+        select: { id: true },
+      });
+      await prisma.aydenThought.deleteMany({
+        where: { id: { in: oldest.map((t) => t.id) } },
+      });
+    }
+
+    console.log(`[idle-thought] "${thought}" (${hr.bpm} BPM, ${emotionText})`);
+    return { thought };
+  } catch (error) {
+    console.error("[idle-thought] Error:", error);
+    return { thought: null };
   }
 }
 

@@ -6,12 +6,16 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const [hr, emotion] = await Promise.all([
+    const [hr, emotion, latestThought] = await Promise.all([
       getHeartRate(),
       prisma.aydenEmotionalState.findFirst({
         where: { isActive: true },
         orderBy: [{ updatedAt: "desc" }],
         select: { dimension: true, intensity: true },
+      }),
+      prisma.aydenThought.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { thought: true, createdAt: true },
       }),
     ]);
 
@@ -19,6 +23,8 @@ export async function GET() {
       data: {
         ...hr,
         emotion: emotion?.dimension ?? null,
+        thought: latestThought?.thought ?? null,
+        thoughtAt: latestThought?.createdAt ?? null,
       },
     });
   } catch (error) {

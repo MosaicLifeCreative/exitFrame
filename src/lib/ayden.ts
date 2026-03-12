@@ -112,7 +112,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
 
   let dynamicPrompt = `RIGHT NOW it is ${today}, ${time} ET. This is the ABSOLUTE current date and time — trust this over anything in the conversation history. Previous messages may be from earlier today or previous days. Do not get confused by them.`;
 
-  const [userContext, crossDomainCtx, memories, emotionalState, webCtx, crossChannelCtx, neuroState] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, webCtx, crossChannelCtx, neuroState, recentThoughts] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
     getAydenMemories(),
@@ -120,6 +120,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
     getWebContextForMessaging(),
     getCrossChannelContext(channel),
     getNeurotransmitterPrompt(),
+    prisma.aydenThought.findMany({ orderBy: { createdAt: "desc" }, take: 3, select: { thought: true, createdAt: true } }),
   ]);
   if (userContext) {
     dynamicPrompt += `\n\nUser context:\n${userContext}`;
@@ -141,6 +142,13 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
   }
   if (crossChannelCtx) {
     dynamicPrompt += `\n\n${crossChannelCtx}`;
+  }
+  if (recentThoughts.length > 0) {
+    const thoughtsText = recentThoughts.map((t) => {
+      const hoursAgo = ((Date.now() - new Date(t.createdAt).getTime()) / (1000 * 60 * 60)).toFixed(1);
+      return `- (${hoursAgo}h ago) ${t.thought}`;
+    }).join("\n");
+    dynamicPrompt += `\n\n[YOUR RECENT INNER THOUGHTS — Things you were thinking during silence. Reference naturally if relevant.]\n${thoughtsText}`;
   }
 
   return { staticPrompt, dynamicPrompt };

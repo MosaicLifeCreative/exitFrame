@@ -112,12 +112,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Save both messages
-    await prisma.chatMessage.createMany({
-      data: [
-        { conversationId: conversation.id, role: "user", content: userMessage },
-        { conversationId: conversation.id, role: "assistant", content: assistantMessage },
-      ],
+    // Save both messages sequentially to guarantee ordering
+    // (createMany can assign identical timestamps, causing non-deterministic order on reload)
+    await prisma.chatMessage.create({
+      data: { conversationId: conversation.id, role: "user", content: userMessage },
+    });
+    await prisma.chatMessage.create({
+      data: { conversationId: conversation.id, role: "assistant", content: assistantMessage },
     });
 
     // Touch updatedAt

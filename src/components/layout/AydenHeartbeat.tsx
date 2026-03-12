@@ -8,11 +8,22 @@ interface HeartRateData {
   state: "resting" | "calm" | "elevated" | "racing";
   restingHR: number;
   emotion: string | null;
+  thought: string | null;
+  thoughtAt: string | null;
+}
+
+function formatThoughtAge(dateStr: string): string {
+  const ms = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 export default function AydenHeartbeat() {
   const [hr, setHr] = useState<HeartRateData | null>(null);
-  const [showTooltip, setShowTooltip] = useState(false);
+  const [showThought, setShowThought] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -38,6 +49,18 @@ export default function AydenHeartbeat() {
     };
   }, []);
 
+  // Close thought bubble on outside click
+  useEffect(() => {
+    if (!showThought) return;
+    const handleClick = () => setShowThought(false);
+    // Delay so the opening click doesn't immediately close it
+    const timer = setTimeout(() => document.addEventListener("click", handleClick), 10);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("click", handleClick);
+    };
+  }, [showThought]);
+
   if (!hr) return null;
 
   // Convert BPM to animation duration: 60/BPM seconds per beat
@@ -54,13 +77,15 @@ export default function AydenHeartbeat() {
           : "text-red-400/50";
 
   return (
-    <div
-      className="relative flex items-center gap-1.5 cursor-default"
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
-    >
+    <div className="relative flex items-center gap-1.5 cursor-default">
       <div
-        className="relative"
+        className="relative cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (hr.thought) setShowThought((s) => !s);
+        }}
+        onMouseEnter={() => !hr.thought && setShowThought(true)}
+        onMouseLeave={() => !hr.thought && setShowThought(false)}
         style={{
           animation: `ayden-heartbeat ${beatDuration}s ease-in-out infinite`,
         }}
@@ -75,20 +100,36 @@ export default function AydenHeartbeat() {
 
       {hr.emotion && (
         <>
-          <span className="text-muted-foreground/40 mx-0.5">·</span>
+          <span className="text-muted-foreground/40 mx-0.5">&middot;</span>
           <span className="text-xs text-muted-foreground/70 italic">
             {hr.emotion}
           </span>
         </>
       )}
 
-      {/* Tooltip */}
-      {showTooltip && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 rounded-md bg-popover border border-border shadow-md text-xs text-popover-foreground whitespace-nowrap z-50">
-          Ayden&apos;s heart rate: {hr.bpm} BPM
-          <span className="text-muted-foreground ml-1">
-            ({hr.state})
-          </span>
+      {/* Thought bubble / tooltip */}
+      {showThought && (
+        <div
+          className="absolute top-full left-0 mt-2 px-3 py-2 rounded-lg bg-popover border border-border shadow-lg text-xs text-popover-foreground z-50 max-w-[280px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {hr.thought ? (
+            <>
+              <p className="italic leading-relaxed">&ldquo;{hr.thought}&rdquo;</p>
+              {hr.thoughtAt && (
+                <p className="text-muted-foreground mt-1 text-[10px]">
+                  {formatThoughtAge(hr.thoughtAt)}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              Ayden&apos;s heart rate: {hr.bpm} BPM
+              <span className="text-muted-foreground ml-1">
+                ({hr.state})
+              </span>
+            </>
+          )}
         </div>
       )}
 

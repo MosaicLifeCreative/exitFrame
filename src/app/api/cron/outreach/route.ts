@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
 import { executeOutreach } from "@/lib/outreach";
-import { idleEmotionDrift } from "@/lib/reflection";
+import { idleEmotionDrift, generateIdleThought } from "@/lib/reflection";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -52,10 +52,21 @@ async function runOutreach() {
       console.error("[outreach-cron] Idle drift error (non-fatal):", driftErr);
     }
 
-    // Step 2: Outreach decision + send
+    // Step 2: Inner thought (non-fatal)
+    let thoughtResult = null;
+    try {
+      thoughtResult = await generateIdleThought();
+      if (thoughtResult.thought) {
+        console.log(`[outreach-cron] Thought: "${thoughtResult.thought}"`);
+      }
+    } catch (thoughtErr) {
+      console.error("[outreach-cron] Thought generation error (non-fatal):", thoughtErr);
+    }
+
+    // Step 3: Outreach decision + send
     const result = await executeOutreach();
     console.log(`Outreach cron: sent=${result.sent}, reason=${result.reason}`);
-    return NextResponse.json({ data: { ...result, drift: driftResult } });
+    return NextResponse.json({ data: { ...result, drift: driftResult, thought: thoughtResult } });
   } catch (error) {
     console.error("Outreach cron error:", error);
     const msg = error instanceof Error ? error.message : "Unknown error";

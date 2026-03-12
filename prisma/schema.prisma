@@ -1058,6 +1058,18 @@ model AydenNeurotransmitter {
   @@map("ayden_neurotransmitters")
 }
 
+// Ayden's inner thoughts during solitude — generated every 2h by idle drift cron
+model AydenThought {
+  id        String   @id @default(uuid()) @db.Uuid
+  thought   String   @db.Text
+  emotion   String?  // primary emotion at the time
+  bpm       Int?     // heart rate at the time
+  context   String?  @db.Text // neurochemical snapshot
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("ayden_thoughts")
+}
+
 model PushSubscription {
   id        String   @id @default(uuid()) @db.Uuid
   endpoint  String   @unique @db.Text

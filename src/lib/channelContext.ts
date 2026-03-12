@@ -58,7 +58,16 @@ export async function getMessagingContextForWeb(): Promise<string | null> {
 
   if (sections.length === 0) return null;
 
-  return `[MESSAGING CONTEXT — You also chat with Trey via text/Slack. Here's what you've been discussing outside the dashboard. Reference this naturally if relevant, but don't announce that you're reading message history.]\n${sections.join("\n\n")}`;
+  // Check if the most recent messaging activity was within the last 2 hours
+  const mostRecentConvo = conversations[0];
+  const minutesSinceMostRecent = (Date.now() - mostRecentConvo.updatedAt.getTime()) / 60000;
+  const isVeryRecent = minutesSinceMostRecent < 120;
+
+  const preamble = isVeryRecent
+    ? `[MESSAGING CONTEXT — You were just talking to Trey on ${mostRecentConvo.context} (${formatTimeAgo(mostRecentConvo.updatedAt)}). He's now on the dashboard chat. Continue naturally from that conversation — don't restart or re-introduce topics he just discussed with you. This is the same continuous relationship across channels.]`
+    : `[MESSAGING CONTEXT — You also chat with Trey via text/Slack. Here's what you've been discussing outside the dashboard. Reference this naturally if relevant, but don't announce that you're reading message history.]`;
+
+  return `${preamble}\n${sections.join("\n\n")}`;
 }
 
 /**

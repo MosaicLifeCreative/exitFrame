@@ -20,6 +20,7 @@ import {
   BellOff,
 } from "lucide-react";
 import Link from "next/link";
+import AydenHeartbeat from "@/components/layout/AydenHeartbeat";
 
 const TOOL_LABELS: Record<string, string> = {
   list_exercises: "Searching exercises",
@@ -90,6 +91,17 @@ export default function FullScreenChat() {
     setPageContext({ page: "General" });
     loadConversation("General");
   }, [setPageContext, loadConversation]);
+
+  // Reload messages when app regains focus (e.g. after tapping push notification)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !isStreaming) {
+        loadConversation("General");
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [loadConversation, isStreaming]);
 
   // Check push notification status
   useEffect(() => {
@@ -282,6 +294,10 @@ export default function FullScreenChat() {
             <Sparkles className="h-5 w-5 text-primary" />
             <span className="font-semibold">Ayden</span>
           </div>
+          <div className="h-4 w-px bg-border mx-1" />
+          <div className="max-w-[140px] overflow-hidden">
+            <AydenHeartbeat />
+          </div>
         </div>
         <div className="flex items-center gap-1">
           {pushState === "prompt" && (
@@ -449,7 +465,7 @@ export default function FullScreenChat() {
       )}
 
       {/* Input */}
-      <div className="border-t border-border p-3 shrink-0 safe-bottom">
+      <div className="border-t border-border p-3 pb-6 shrink-0 safe-bottom">
         <div className="max-w-2xl mx-auto flex items-end gap-2">
           <input
             ref={fileInputRef}

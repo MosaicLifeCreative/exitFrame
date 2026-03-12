@@ -15,6 +15,7 @@ import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
 import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
 import { reflect } from "@/lib/reflection";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -251,13 +252,14 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
 
   let dynamicSystem = `Today is ${today}, ${time} ET. This is the current date and time — do not doubt or hedge about it.`;
 
-  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState, recentThoughts] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
     getAydenMemories(),
     getAydenEmotionalState(),
     getMessagingContextForWeb(),
     getNeurotransmitterPrompt(),
+    prisma.aydenThought.findMany({ orderBy: { createdAt: "desc" }, take: 3, select: { thought: true, createdAt: true } }),
   ]);
   if (userContext) {
     dynamicSystem += `\n\nUser context:\n${userContext}`;
@@ -276,6 +278,13 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
   }
   if (messagingCtx) {
     dynamicSystem += `\n\n${messagingCtx}`;
+  }
+  if (recentThoughts.length > 0) {
+    const thoughtsText = recentThoughts.map((t) => {
+      const hoursAgo = ((Date.now() - new Date(t.createdAt).getTime()) / (1000 * 60 * 60)).toFixed(1);
+      return `- (${hoursAgo}h ago) ${t.thought}`;
+    }).join("\n");
+    dynamicSystem += `\n\n[YOUR RECENT INNER THOUGHTS — These are things you were thinking during silence. You can reference them naturally if they come up (\"I was just thinking about...\") but don't force it.]\n${thoughtsText}`;
   }
 
   if (context?.page) {

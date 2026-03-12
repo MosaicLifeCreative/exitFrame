@@ -2,11 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity";
+import { calculateNextDueDate } from "@/lib/task-recurring";
 export const dynamic = "force-dynamic";
 
 function computeScore(importance: number, urgency: number, effort: number): number {
   return Math.round(((importance * urgency) / effort) * 100) / 100;
 }
+
+const recurringSchema = z.object({
+  frequency: z.enum(["daily", "weekly", "biweekly", "monthly", "quarterly", "yearly", "custom"]),
+  intervalDays: z.number().int().min(1).nullable().optional(),
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
+  dayOfMonth: z.number().int().min(1).max(28).nullable().optional(),
+  endDate: z.string().nullable().optional(),
+  maxOccurrences: z.number().int().min(1).nullable().optional(),
+});
 
 const updateTaskSchema = z.object({
   title: z.string().min(1).optional(),
@@ -28,6 +38,7 @@ const updateTaskSchema = z.object({
   reminderEnabled: z.boolean().optional(),
   reminderInterval: z.enum(["daily", "hourly"]).nullable().optional(),
   tagIds: z.array(z.string().uuid()).optional(),
+  recurring: recurringSchema.nullable().optional(),
 });
 
 const taskInclude = {
@@ -80,13 +91,20 @@ export async function PUT(
 
     const existing = await prisma.task.findUnique({
       where: { id: params.id },
-      select: { importanceScore: true, urgencyScore: true, effortScore: true, status: true },
+      select: {
+        importanceScore: true, urgencyScore: true, effortScore: true,
+        status: true, isRecurring: true, recurringConfigId: true,
+        parentRecurringTaskId: true, source: true,
+        title: true, description: true, priority: true, groupId: true,
+        projectId: true, phaseId: true, noteId: true,
+        reminderEnabled: true, reminderInterval: true, sortOrder: true,
+      },
     });
     if (!existing) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    const { tagIds, ...fields } = parsed.data;
+    const { tagIds, recurring, ...fields } = parsed.data;
     const data: Record<string, unknown> = { ...fields };
 
     // Date handling
@@ -138,6 +156,68 @@ export async function PUT(
       }
     }
 
+    // ── Convert non-recurring task to recurring ──
+    if (recurring && !existing.isRecurring && !existing.parentRecurringTaskId) {
+      const r = recurring;
+      const importance = fields.importanceScore ?? existing.importanceScore;
+      const urgency = fields.urgencyScore ?? existing.urgencyScore;
+      const effort = fields.effortScore ?? existing.effortScore;
+
+      const config = await prisma.recurringConfig.create({
+        data: {
+          frequency: r.frequency,
+          intervalDays: r.intervalDays || null,
+          daysOfWeek: r.daysOfWeek || [],
+          dayOfMonth: r.dayOfMonth || null,
+          startDate: new Date(),
+          endDate: r.endDate ? new Date(r.endDate) : null,
+          maxOccurrences: r.maxOccurrences || null,
+          nextDueDate: new Date(),
+          isActive: true,
+          occurrenceCount: 1,
+        },
+      });
+
+      // Create template (hidden from list)
+      const template = await prisma.task.create({
+        data: {
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          groupId: task.groupId,
+          projectId: task.projectId,
+          noteId: task.noteId,
+          importanceScore: importance,
+          urgencyScore: urgency,
+          effortScore: effort,
+          computedScore: computeScore(importance, urgency, effort),
+          reminderEnabled: task.reminderEnabled,
+          reminderInterval: task.reminderInterval,
+          sortOrder: task.sortOrder,
+          status: "todo",
+          isRecurring: true,
+          recurringConfigId: config.id,
+          source: "manual",
+        },
+      });
+
+      // Mark current task as first recurring instance
+      await prisma.task.update({
+        where: { id: params.id },
+        data: { parentRecurringTaskId: template.id, source: "recurring" },
+      });
+
+      // Calculate next due date for the config
+      const nextDue = calculateNextDueDate(
+        { frequency: r.frequency, intervalDays: r.intervalDays || null, daysOfWeek: r.daysOfWeek || [], dayOfMonth: r.dayOfMonth || null, monthOfYear: null },
+        new Date()
+      );
+      await prisma.recurringConfig.update({
+        where: { id: config.id },
+        data: { nextDueDate: nextDue },
+      });
+    }
+
     if (fields.status === "done") {
       logActivity({
         domain: task.project?.domain ?? "life",
@@ -151,7 +231,7 @@ export async function PUT(
     }
 
     // Re-fetch with tags if they changed
-    const full = tagIds !== undefined
+    const full = tagIds !== undefined || recurring
       ? await prisma.task.findUnique({ where: { id: task.id }, include: taskInclude })
       : task;
 

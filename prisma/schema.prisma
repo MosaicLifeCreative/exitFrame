@@ -1083,6 +1083,39 @@ model AydenDream {
   @@map("ayden_dreams")
 }
 
+// ── Travel ──────────────────────────────────────────────
+
+model Trip {
+  id           String            @id @default(uuid()) @db.Uuid
+  name         String
+  status       String            @default("upcoming") // upcoming, active, completed, cancelled
+  startDate    DateTime          @map("start_date") @db.Date
+  endDate      DateTime?         @map("end_date") @db.Date
+  notes        String?           @db.Text
+  destinations TripDestination[]
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  @@map("trips")
+}
+
+model TripDestination {
+  id            String    @id @default(uuid()) @db.Uuid
+  tripId        String    @map("trip_id") @db.Uuid
+  trip          Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  city          String
+  state         String?
+  country       String    @default("US")
+  arrivalDate   DateTime? @map("arrival_date") @db.Date
+  departureDate DateTime? @map("departure_date") @db.Date
+  sortOrder     Int       @default(0) @map("sort_order")
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("trip_destinations")
+}
+
 model PushSubscription {
   id        String   @id @default(uuid()) @db.Uuid
   endpoint  String   @unique @db.Text

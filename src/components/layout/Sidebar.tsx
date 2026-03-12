@@ -41,6 +41,7 @@ import {
   Settings,
   BookOpen,
   ScrollText,
+  Plane,
 } from "lucide-react";
 
 interface NavItem {
@@ -86,6 +87,7 @@ const navSections: NavSection[] = [
       { label: "Financial", href: "/dashboard/financial", icon: DollarSign },
       { label: "Investing", href: "/dashboard/investing", icon: CandlestickChart },
       { label: "Goals", href: "/dashboard/goals", icon: Target },
+      { label: "Travel", href: "/dashboard/travel", icon: Plane },
       { label: "Trackers", href: "/dashboard/trackers", icon: BarChart3 },
       { label: "Plants", href: "/dashboard/plants", icon: Flower2 },
       { label: "Home", href: "/dashboard/home", icon: Home },

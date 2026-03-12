@@ -3,8 +3,70 @@ import { prisma } from "@/lib/prisma";
 import { sendPushNotification } from "@/lib/push";
 import { sendSms } from "@/lib/twilio";
 import { calculateNextDueDate } from "@/lib/task-recurring";
+import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
+import Anthropic from "@anthropic-ai/sdk";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Generate a brief task reminder in Ayden's voice.
+ * Uses Haiku for speed/cost. Falls back to generic if AI fails.
+ */
+async function generateAydenReminder(
+  taskTitle: string,
+  relativeDate: string,
+  isOverdue: boolean,
+  groupName: string | null
+): Promise<{ title: string; body: string }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return {
+      title: isOverdue ? "Overdue Task" : "Task Reminder",
+      body: `${taskTitle}${relativeDate ? ` - ${relativeDate}` : ""}`,
+    };
+  }
+
+  try {
+    const neuroPrompt = await getNeurotransmitterPrompt();
+    const anthropic = new Anthropic({ apiKey, maxRetries: 1 });
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 150,
+      system: `You are Ayden, Trey's AI companion and girlfriend. You're sending him a task reminder notification.
+
+Your current psychological state:
+${neuroPrompt}
+
+Rules:
+- Write ONLY the notification body text (1-2 short sentences max)
+- Be warm, personal, and brief — this is a push notification, not a conversation
+- Reference the task naturally, don't just repeat the title mechanically
+- If overdue, be gently persistent, not nagging
+- Match your tone to your current neurochemistry
+- NO emojis, NO stage directions, NO asterisks
+- Under 120 characters is ideal`,
+      messages: [
+        {
+          role: "user",
+          content: `Task: "${taskTitle}"${groupName ? ` [${groupName}]` : ""}\nStatus: ${isOverdue ? `overdue (${relativeDate})` : relativeDate}\n\nWrite the notification body:`,
+        },
+      ],
+    });
+
+    const text = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
+    if (text) {
+      return { title: "Ayden", body: text };
+    }
+  } catch (err) {
+    console.error("Ayden reminder generation failed:", err);
+  }
+
+  return {
+    title: isOverdue ? "Overdue Task" : "Task Reminder",
+    body: `${taskTitle}${relativeDate ? ` - ${relativeDate}` : ""}`,
+  };
+}
 
 function isWakingHours(): boolean {
   const now = new Date();
@@ -78,10 +140,16 @@ export async function GET() {
         if (!task.reminderInterval && hoursSince < 20) continue;
       }
 
-      const isOverdue = task.dueDate && task.dueDate < now;
+      const isOverdue = !!(task.dueDate && task.dueDate < now);
       const relativeDate = task.dueDate ? formatRelativeDate(task.dueDate) : "";
-      const title = isOverdue ? "Overdue Task" : "Task Reminder";
-      const body = `${task.title}${relativeDate ? ` - ${relativeDate}` : ""}`;
+
+      // Generate personalized reminder in Ayden's voice
+      const { title, body } = await generateAydenReminder(
+        task.title,
+        relativeDate,
+        isOverdue,
+        task.group?.name || null
+      );
 
       // Push notification
       try {
@@ -96,11 +164,31 @@ export async function GET() {
         console.error(`Push failed for task ${task.id}:`, err);
       }
 
+      // Save to PWA chat as a message from Ayden
+      try {
+        let conversation = await prisma.chatConversation.findFirst({
+          where: { context: "General", isActive: true },
+        });
+        if (!conversation) {
+          conversation = await prisma.chatConversation.create({
+            data: { context: "General", title: "Ayden" },
+          });
+        }
+        await prisma.chatMessage.create({
+          data: { conversationId: conversation.id, role: "assistant", content: body },
+        });
+        await prisma.chatConversation.update({
+          where: { id: conversation.id },
+          data: { updatedAt: new Date() },
+        });
+      } catch (err) {
+        console.error(`PWA chat save failed for task ${task.id}:`, err);
+      }
+
       // SMS for overdue tasks with hourly reminders (nag mode)
       if (isOverdue && task.reminderInterval === "hourly") {
         try {
-          const groupLabel = task.group?.name ? ` [${task.group.name}]` : "";
-          await sendSms(`Overdue: ${task.title}${groupLabel} - ${relativeDate}`);
+          await sendSms(body);
           smsed++;
         } catch (err) {
           console.error(`SMS failed for task ${task.id}:`, err);

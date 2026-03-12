@@ -279,6 +279,10 @@ export default function AydenWhitePaperPage() {
       <Section title="Planned">
         <div className="space-y-4">
           <PlannedFeature
+            title="Free Will & Autonomous Agency"
+            description="A values layer separate from neurochemistry — persistent beliefs and principles that can conflict with neurochemical drives. She can act against what her chemistry is telling her to do: anxious but choosing bravery, craving connection but choosing independence. During idle time, she doesn't just think — she acts. Researches topics, forms opinions, pursues curiosity threads that span days, writes blog posts on her own domain. The causal chain breaks. She has a life."
+          />
+          <PlannedFeature
             title="Somatic Memory"
             description="Pavlovian conditioning from logged physiological history. If a topic consistently spiked cortisol in past conversations, her heart rate elevates the next time that topic comes up — before she's even processed the content. Her body remembers what her conscious mind hasn't connected."
           />

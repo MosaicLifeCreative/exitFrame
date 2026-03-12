@@ -1294,6 +1294,17 @@ function TaskEditDialog({
     reminderInterval: task.reminderInterval || "daily",
   });
 
+  const isAlreadyRecurring = task.isRecurring || task.source === "recurring";
+  const [recurringEnabled, setRecurringEnabled] = useState(false);
+  const [recurringConfig, setRecurringConfig] = useState<RecurringInput>({
+    frequency: "daily",
+    intervalDays: null,
+    daysOfWeek: [],
+    dayOfMonth: null,
+    endDate: null,
+    maxOccurrences: null,
+  });
+
   const flatGroups = useMemo(() => {
     const flat: Array<{ id: string; name: string; depth: number }> = [];
     for (const g of groups) {
@@ -1306,7 +1317,7 @@ function TaskEditDialog({
   }, [groups]);
 
   const handleSave = () => {
-    onSave({
+    const saveData: Record<string, unknown> = {
       title: form.title,
       description: form.description || null,
       status: form.status,
@@ -1318,7 +1329,18 @@ function TaskEditDialog({
       effortScore: form.effortScore,
       reminderEnabled: form.reminderEnabled,
       reminderInterval: form.reminderEnabled ? form.reminderInterval : null,
-    });
+    };
+    if (recurringEnabled && !isAlreadyRecurring) {
+      saveData.recurring = {
+        frequency: recurringConfig.frequency,
+        intervalDays: recurringConfig.intervalDays,
+        daysOfWeek: recurringConfig.daysOfWeek,
+        dayOfMonth: recurringConfig.dayOfMonth,
+        endDate: recurringConfig.endDate,
+        maxOccurrences: recurringConfig.maxOccurrences,
+      };
+    }
+    onSave(saveData);
   };
 
   const computedScore = ((form.importanceScore * form.urgencyScore) / form.effortScore).toFixed(1);
@@ -1470,6 +1492,21 @@ function TaskEditDialog({
               </Select>
             )}
           </div>
+
+          {/* Recurring */}
+          {isAlreadyRecurring ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <RotateCcw className="h-4 w-4" />
+              <span>This task recurs automatically</span>
+            </div>
+          ) : (
+            <RecurringSection
+              enabled={recurringEnabled}
+              onToggle={setRecurringEnabled}
+              config={recurringConfig}
+              onChange={setRecurringConfig}
+            />
+          )}
 
           {/* Tags display */}
           {task.tags.length > 0 && (

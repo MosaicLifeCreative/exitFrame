@@ -28,7 +28,7 @@ async function getRecentOuraData(): Promise<OuraSnapshot> {
   // Get most recent sleep score
   const sleep = await prisma.ouraData.findFirst({
     where: {
-      dataType: "daily_sleep",
+      dataType: "sleep",
       sleepScore: { not: null },
       date: { gte: threeDaysAgo },
     },
@@ -39,7 +39,7 @@ async function getRecentOuraData(): Promise<OuraSnapshot> {
   // Get most recent readiness score
   const readiness = await prisma.ouraData.findFirst({
     where: {
-      dataType: "daily_readiness",
+      dataType: "readiness",
       readinessScore: { not: null },
       date: { gte: threeDaysAgo },
     },
@@ -50,7 +50,7 @@ async function getRecentOuraData(): Promise<OuraSnapshot> {
   // Get most recent activity score
   const activity = await prisma.ouraData.findFirst({
     where: {
-      dataType: "daily_activity",
+      dataType: "activity",
       activityScore: { not: null },
       date: { gte: threeDaysAgo },
     },

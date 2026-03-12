@@ -21,6 +21,7 @@ export async function getCrossDomainContext(currentPage?: string): Promise<strin
     latestBloodwork,
     activeGoals,
     portfolioValue,
+    upcomingTrips,
   ] = await Promise.all([
     // Sleep / Oura — last night's scores
     currentPage === "Sleep"
@@ -118,6 +119,22 @@ export async function getCrossDomainContext(currentPage?: string): Promise<strin
     currentPage === "Investing"
       ? Promise.resolve(0)
       : prisma.portfolioHolding.count({ where: { isActive: true } }),
+
+    // Upcoming trips
+    currentPage === "Travel"
+      ? Promise.resolve([])
+      : prisma.trip.findMany({
+          where: {
+            status: { in: ["upcoming", "active"] },
+            OR: [
+              { startDate: { gte: new Date() } },
+              { endDate: { gte: new Date() } },
+            ],
+          },
+          include: { destinations: { orderBy: { sortOrder: "asc" }, take: 3 } },
+          orderBy: { startDate: "asc" },
+          take: 3,
+        }),
   ]);
 
   // --- Format sections ---
@@ -184,6 +201,17 @@ export async function getCrossDomainContext(currentPage?: string): Promise<strin
   // Investing
   if (typeof portfolioValue === "number" && portfolioValue > 0) {
     sections.push(`Portfolio: ${portfolioValue} active holdings`);
+  }
+
+  // Travel
+  if (Array.isArray(upcomingTrips) && upcomingTrips.length > 0) {
+    const tripLines = upcomingTrips.map((t: { name: string; startDate: Date; endDate: Date | null; destinations: Array<{ city: string; state: string | null; country: string }> }) => {
+      const dests = t.destinations.map((d) => d.state ? `${d.city}, ${d.state}` : `${d.city}, ${d.country}`).join("; ");
+      const start = formatDate(t.startDate);
+      const end = t.endDate ? `-${formatDate(t.endDate)}` : "";
+      return `${t.name}: ${dests} (${start}${end})`;
+    });
+    sections.push(`Upcoming trips: ${tripLines.join("; ")}`);
   }
 
   if (sections.length === 0) return "";

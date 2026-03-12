@@ -11,21 +11,22 @@ async function verifyRequest(request: NextRequest): Promise<boolean> {
   const qstashNextSigningKey = process.env.QSTASH_NEXT_SIGNING_KEY;
 
   if (qstashCurrentSigningKey && qstashNextSigningKey) {
-    const receiver = new Receiver({
-      currentSigningKey: qstashCurrentSigningKey,
-      nextSigningKey: qstashNextSigningKey,
-    });
-
     const signature = request.headers.get("upstash-signature");
-    if (!signature) return false;
-
-    const body = await request.text();
-    try {
-      await receiver.verify({ signature, body, url: request.url });
-      return true;
-    } catch {
-      return false;
+    if (signature) {
+      // QStash request — verify signature
+      const receiver = new Receiver({
+        currentSigningKey: qstashCurrentSigningKey,
+        nextSigningKey: qstashNextSigningKey,
+      });
+      const body = await request.text();
+      try {
+        await receiver.verify({ signature, body, url: request.url });
+        return true;
+      } catch {
+        return false;
+      }
     }
+    // No QStash signature — fall through to CRON_SECRET check
   }
 
   // Fallback: CRON_SECRET bearer token

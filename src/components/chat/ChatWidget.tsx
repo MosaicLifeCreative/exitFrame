@@ -605,10 +605,10 @@ export default function ChatWidget() {
               <EmojiPicker
                 data={emojiData}
                 theme="dark"
-                dynamicWidth={true}
                 skinTonePosition="none"
                 previewPosition="none"
                 maxFrequentRows={1}
+                perLine={9}
                 onEmojiSelect={(emoji: { native: string }) => {
                   setInput((prev) => prev + emoji.native);
                   textareaRef.current?.focus();

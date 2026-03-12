@@ -165,7 +165,7 @@ export async function GET() {
         date: t.executedAt.toISOString(),
         type: "trade",
         title: `${t.side.replace("_TO_", " to ").toLowerCase()} ${t.ticker}`,
-        detail: t.reasoning?.slice(0, 120) || null,
+        detail: t.reasoning || null,
         outcome: t.outcome,
         pnl: t.realizedPnl ? Math.round(Number(t.realizedPnl) * 100) / 100 : null,
       });
@@ -176,7 +176,7 @@ export async function GET() {
       timeline.push({
         date: r.createdAt.toISOString(),
         type: r.isActive ? "rule_approved" : "rule_proposed",
-        title: `${r.category} rule: ${r.rule.slice(0, 80)}`,
+        title: `${r.category} rule: ${r.rule}`,
         detail: r.performance || null,
       });
     }
@@ -188,7 +188,7 @@ export async function GET() {
           date: l.executedAt.toISOString(),
           type: "lesson",
           title: `Lesson from ${l.ticker} (${l.outcome})`,
-          detail: l.lessons.slice(0, 150),
+          detail: l.lessons,
           pnl: l.realizedPnl ? Math.round(Number(l.realizedPnl) * 100) / 100 : null,
         });
       }
@@ -201,7 +201,7 @@ export async function GET() {
           date: o.executedAt.toISOString(),
           type: "observation",
           title: "Market observation",
-          detail: o.reasoning.slice(0, 150),
+          detail: o.reasoning,
         });
       }
     }

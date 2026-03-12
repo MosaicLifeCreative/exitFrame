@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { Decimal } from "@prisma/client/runtime/library";
-import { sendSms } from "@/lib/twilio";
+import { sendPushNotification } from "@/lib/push";
 import { getOrCreatePortfolio } from "@/lib/investing/aiTrader";
 
 // ─── Types ──────────────────────────────────────────────
@@ -435,17 +435,40 @@ No markdown, no code blocks, just the JSON array.`,
     }
   }
 
-  // Notify Trey via SMS if trades were executed
+  // Notify Trey via web chat + push notification if trades were executed
   let notified = false;
   if (executedTrades.length > 0) {
     try {
       const tradeList = executedTrades.join("\n");
       const holdReason = parsedDecisions.find((d) => d.action === "HOLD")?.reasoning || "";
-      const smsBody = `Ayden sandbox trades:\n${tradeList}${errors.length > 0 ? `\n\nErrors: ${errors.join(", ")}` : ""}${holdReason ? `\n\nMarket view: ${holdReason.slice(0, 100)}` : ""}`;
-      await sendSms(smsBody.slice(0, 1500));
+      const chatMessage = `**Trading update** \u{1F4C8}\n${tradeList}${errors.length > 0 ? `\n\nErrors: ${errors.join(", ")}` : ""}${holdReason ? `\n\nMarket view: ${holdReason.slice(0, 200)}` : ""}`;
+
+      // Save to web chat conversation
+      let conversation = await prisma.chatConversation.findFirst({
+        where: { context: "General", isActive: true },
+      });
+      if (!conversation) {
+        conversation = await prisma.chatConversation.create({
+          data: { context: "General", title: "Ayden" },
+        });
+      }
+      await prisma.chatMessage.create({
+        data: { conversationId: conversation.id, role: "assistant", content: chatMessage },
+      });
+      await prisma.chatConversation.update({
+        where: { id: conversation.id },
+        data: { updatedAt: new Date() },
+      });
+
+      // Push notification
+      const pushTitle = executedTrades.length === 1
+        ? executedTrades[0]
+        : `${executedTrades.length} trades executed`;
+      await sendPushNotification({ title: "Ayden", body: pushTitle });
+
       notified = true;
     } catch {
-      // SMS failure is not critical
+      // Notification failure is not critical
     }
   }
 

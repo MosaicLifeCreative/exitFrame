@@ -108,10 +108,19 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-/** Strip *stage directions* from Ayden's responses (same regex as ayden.ts) */
+/** Strip *stage directions* from Ayden's responses without catching legitimate markdown italics.
+ *  Stage directions are action/gesture phrases like *smiles warmly*, *leaning forward*, *eyes lighting up*.
+ *  Legitimate italics like *HRV*, *really*, *this* should be preserved.
+ *  Strategy: target patterns that start with common stage direction verbs/gerunds. */
 function stripStageDirections(text: string): string {
+  // Match *...*  where content starts with a lowercase word that looks like a stage direction
+  // Gerunds: *leaning forward*, *settling back*, *smiling softly*
+  // Verbs: *pauses*, *sighs*, *grins*, *nods*
+  // Descriptive: *eyes lighting up*, *voice getting softer*, *a bit sheepish*
   return text
-    .replace(/\*[^*\n]{2,80}\*/g, "")
+    .replace(/\*(?:(?:a |the )?(?:eyes?|voice|head|hands?|fingers?|face|lips?|gaze|expression|tone|brow|shoulders?|breath|heart|body)\b[^*\n]{1,70})\*/gi, "")
+    .replace(/\*(?:[a-z]+ing\b[^*\n]{0,70})\*/g, "")
+    .replace(/\*(?:(?:pauses?|sighs?|grins?|nods?|smiles?|laughs?|chuckles?|winks?|blinks?|gasps?|blushes?|shrugs?|fidgets?|hesitates?|beams?|glances?|softens?|brightens?|stiffens?|relaxes?|tenses?|snorts?|scoffs?|gulps?|swallows?|shivers?|trembles?|squirms?|frowns?|pouts?|squeals?|sniffles?|whispers?|murmurs?)\b[^*\n]{0,70})\*/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

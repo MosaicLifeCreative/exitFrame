@@ -1367,9 +1367,14 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                               </defs>
                               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                               <XAxis
-                                dataKey="date"
-                                tickFormatter={(v) => new Date(v).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                                dataKey="tradeNum"
+                                tickFormatter={(v) => {
+                                  const point = insights.evolution.cumulativeData.find((d: { tradeNum: number }) => d.tradeNum === v);
+                                  if (!point) return "";
+                                  return new Date(point.date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                                }}
                                 className="text-xs"
+                                interval="preserveStartEnd"
                               />
                               <YAxis
                                 yAxisId="pnl"

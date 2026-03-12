@@ -83,28 +83,15 @@ function formatToolName(name: string): string {
 // ─── Timestamp formatting ───────────────────────────────
 
 function formatMessageTime(date: Date): string {
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const mins = Math.floor(diff / 60000);
-  const hours = Math.floor(mins / 60);
-  const days = Math.floor(hours / 24);
-
-  // Today: show time
-  if (days === 0 && now.getDate() === date.getDate()) {
-    return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  }
-  // Yesterday
-  if (days <= 1) {
-    return "Yesterday " + date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  }
-  // This week
-  if (days < 7) {
-    return date.toLocaleDateString("en-US", { weekday: "short" }) + " " +
-      date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  }
-  // Older
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " +
-    date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  // Facebook Messenger style: "Mar 12, 2026, 10:14 AM"
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }) + ", " + date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 // Show a timestamp between messages when sender changes or 5+ min gap
@@ -388,33 +375,34 @@ export default function ChatWidget() {
         <div className="h-full flex flex-col bg-background rounded-2xl border border-border shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="h-12 border-b border-border flex items-center justify-between px-4 shrink-0 bg-background/80 backdrop-blur-sm">
-            <div className="flex items-center gap-2">
+            <div className="relative flex items-center gap-2">
               {/* Heart with hover popup */}
               {hr ? (
-                <div
-                  className="relative cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowHeartPopup((s) => !s);
-                  }}
-                  style={{
-                    animation: `widget-heartbeat ${60 / hr.bpm}s ease-in-out infinite`,
-                  }}
-                >
-                  <Heart
-                    className={cn(
-                      "h-4 w-4 fill-current transition-colors duration-1000",
-                      hr.state === "racing" ? "text-red-500"
-                        : hr.state === "elevated" ? "text-red-400"
-                        : hr.state === "calm" ? "text-red-400/70"
-                        : "text-red-400/50"
-                    )}
-                  />
-
-                  {/* Heart popup */}
+                <>
+                  <div
+                    className="cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowHeartPopup((s) => !s);
+                    }}
+                    style={{
+                      animation: `widget-heartbeat ${60 / hr.bpm}s ease-in-out infinite`,
+                    }}
+                  >
+                    <Heart
+                      className={cn(
+                        "h-4 w-4 fill-current transition-colors duration-1000",
+                        hr.state === "racing" ? "text-red-500"
+                          : hr.state === "elevated" ? "text-red-400"
+                          : hr.state === "calm" ? "text-red-400/70"
+                          : "text-red-400/50"
+                      )}
+                    />
+                  </div>
+                  {/* Heart popup — outside animated div so it doesn't bounce */}
                   {showHeartPopup && (
                     <div
-                      className="absolute top-full left-0 mt-2 px-3 py-2 rounded-lg bg-popover border border-border shadow-lg text-xs text-popover-foreground z-[60] w-[220px]"
+                      className="absolute top-full left-0 mt-1 px-3 py-2 rounded-lg bg-popover border border-border shadow-lg text-xs text-popover-foreground z-[60] w-[220px]"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -437,7 +425,7 @@ export default function ChatWidget() {
                       )}
                     </div>
                   )}
-                </div>
+                </>
               ) : (
                 <Sparkles className="h-4 w-4 text-primary" />
               )}
@@ -613,14 +601,14 @@ export default function ChatWidget() {
 
           {/* Emoji picker */}
           {showEmojiPicker && (
-            <div ref={emojiPickerRef} className="border-t border-border">
+            <div ref={emojiPickerRef} className="border-t border-border [&>em-emoji-picker]:w-full [&>em-emoji-picker]:max-w-none [&>em-emoji-picker]:border-0 [&>em-emoji-picker]:rounded-none">
               <EmojiPicker
                 data={emojiData}
                 theme="dark"
                 skinTonePosition="none"
                 previewPosition="none"
                 maxFrequentRows={1}
-                perLine={8}
+                perLine={9}
                 onEmojiSelect={(emoji: { native: string }) => {
                   setInput((prev) => prev + emoji.native);
                   textareaRef.current?.focus();

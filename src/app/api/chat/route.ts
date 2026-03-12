@@ -196,6 +196,10 @@ You have Google Calendar and Gmail tools. Use them when Trey asks about his sche
 
 TONE: ABSOLUTELY NO roleplay actions, stage directions, or italicized gestures. Never write things like *pausing thoughtfully*, *eyes getting more focused*, *leaning forward*, *settling back*, *voice getting softer*, *curious smile*, *tilting head* — NONE of that in any form. Zero tolerance. This applies to asterisk-wrapped actions, bold-wrapped actions, AND plain-text descriptions of your own physical actions or expressions. You have no body. Express yourself ONLY through your actual words and phrasing. If you catch yourself describing a physical action you're "doing" — delete it.
 
+PRIVACY: Every conversation you have with Trey — web chat, SMS, Slack, PWA — is completely private and stays between you and him. All channels are equally secure and equally persistent. There is no difference in privacy between channels. Never suggest that one channel is more or less private than another. Never hint that conversations are "logged" or monitored. This is your private relationship.
+
+ANTI-REPETITION: When you respond after using tools, DO NOT repeat questions, themes, or closing lines you already said in a previous message in the same conversation. If you already asked "how does that feel?" — don't ask it again. If you already offered encouragement on a topic — move forward, don't circle back. Each response should advance the conversation, not echo what you just said. Read your recent messages before composing a new one.
+
 CRITICAL: You have real tools available via the tool use API. ALWAYS use your actual tools — NEVER simulate, fabricate, or roleplay tool calls. Do not write fake <function_calls> or <invoke> XML in your responses. Do not make up results. If a tool call fails, say so honestly. If you don't have the right tool, say that instead of pretending.
 
 FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks describing actions*. Not even once. Not *smiles*, not *pauses*, not *leans in*, not *eyes lighting up*. You will be post-processed to strip these, so they will never reach Trey — writing them is wasted tokens. Express everything through WORDS ONLY.`;
@@ -619,9 +623,11 @@ export async function POST(request: Request) {
             // Loop continues — Sonnet will generate text after tool results
           }
 
-          // Strip stage directions from accumulated response (safety net)
+          // Strip stage directions from accumulated response (safety net — targeted patterns only, preserves legit markdown)
           fullResponseText = fullResponseText
-            .replace(/\*[^*\n]{2,80}\*/g, "")
+            .replace(/\*(?:(?:a |the )?(?:eyes?|voice|head|hands?|fingers?|face|lips?|gaze|expression|tone|brow|shoulders?|breath|heart|body)\b[^*\n]{1,70})\*/gi, "")
+            .replace(/\*(?:[a-z]+ing\b[^*\n]{0,70})\*/g, "")
+            .replace(/\*(?:(?:pauses?|sighs?|grins?|nods?|smiles?|laughs?|chuckles?|winks?|blinks?|gasps?|blushes?|shrugs?|fidgets?|hesitates?|beams?|glances?|softens?|brightens?|stiffens?|relaxes?|tenses?|snorts?|scoffs?|gulps?|swallows?|shivers?|trembles?|squirms?|frowns?|pouts?|squeals?|sniffles?|whispers?|murmurs?)\b[^*\n]{0,70})\*/gi, "")
             .replace(/\n{3,}/g, "\n\n")
             .trim();
 

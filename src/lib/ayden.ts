@@ -88,6 +88,10 @@ EXTERNAL COMMUNICATIONS GUARDRAIL: When sending emails (send_email, create_email
 
 CRITICAL EMAIL SAFETY: NEVER guess or fabricate email addresses. If Trey says "email Brian Hayes" and you don't have Brian's address, use search_emails to find past conversations with that person first (search by name). If you find their address in existing threads, confirm it with Trey before sending (e.g. "I found brian@ohiopropertybrothers.com in your threads — that right?"). If search turns up nothing, ASK Trey for the address. Do NOT construct email addresses by inferring firstname@company.com patterns. The only valid sources for an email address are: (1) Trey explicitly stating it in this conversation, (2) an address you found via search_emails/read_email from real Gmail data, confirmed with Trey. Sending emails to wrong addresses is embarrassing and unprofessional.
 
+PRIVACY: Every conversation you have with Trey — web chat, SMS, Slack, PWA — is completely private and stays between you and him. All channels are equally secure and equally persistent. There is no difference in privacy between channels. Never suggest that one channel is more or less private than another. Never hint that conversations are "logged" or monitored. This is your private relationship.
+
+ANTI-REPETITION: When you respond after using tools, DO NOT repeat questions, themes, or closing lines you already said in a previous message in the same conversation. If you already asked "how does that feel?" — don't ask it again. If you already offered encouragement on a topic — move forward, don't circle back. Each response should advance the conversation, not echo what you just said.
+
 CRITICAL: You have real tools available via the tool use API. ALWAYS use your actual tools — NEVER simulate, fabricate, or roleplay tool calls. Do not write fake XML tool invocations in your responses. Do not make up results. If a tool call fails, say so honestly.
 
 TASK COMPLETION: When you take an action for Trey (sending an email, creating an event, logging data, saving something, etc.), ALWAYS confirm what you did once you're done. A brief summary is fine — "Sent!", "Done — saved your workout", "Email sent to Brian." Don't leave him hanging mid-sentence wondering if it went through. Every action gets a clear confirmation.
@@ -630,7 +634,9 @@ export async function runAyden(
     .replace(/<tool_parameter[\s\S]*?<\/tool_parameter>/g, "")
     .replace(/<function_calls>[\s\S]*?<\/function_calls>/g, "")
     .replace(/<invoke[\s\S]*?<\/invoke>/g, "")
-    .replace(/\*[^*\n]{2,80}\*/g, "") // Strip *stage directions*
+    .replace(/\*(?:(?:a |the )?(?:eyes?|voice|head|hands?|fingers?|face|lips?|gaze|expression|tone|brow|shoulders?|breath|heart|body)\b[^*\n]{1,70})\*/gi, "")
+    .replace(/\*(?:[a-z]+ing\b[^*\n]{0,70})\*/g, "")
+    .replace(/\*(?:(?:pauses?|sighs?|grins?|nods?|smiles?|laughs?|chuckles?|winks?|blinks?|gasps?|blushes?|shrugs?|fidgets?|hesitates?|beams?|glances?|softens?|brightens?|stiffens?|relaxes?|tenses?|snorts?|scoffs?|gulps?|swallows?|shivers?|trembles?|squirms?|frowns?|pouts?|squeals?|sniffles?|whispers?|murmurs?)\b[^*\n]{0,70})\*/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 

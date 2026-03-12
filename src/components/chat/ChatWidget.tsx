@@ -15,9 +15,10 @@ import {
   User,
   Wrench,
   Check,
-  Minus,
-  Heart,
   MessageCircle,
+  Maximize2,
+  Minimize2,
+  Heart,
 } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/MarkdownContent";
 import {
@@ -71,12 +72,48 @@ function formatToolName(name: string): string {
   return TOOL_LABELS[name] || name.replace(/_/g, " ");
 }
 
-// ─── Heartbeat (mini version for bubble) ────────────────
+// ─── Timestamp formatting ───────────────────────────────
+
+function formatMessageTime(date: Date): string {
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+
+  // Today: show time
+  if (days === 0 && now.getDate() === date.getDate()) {
+    return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+  // Yesterday
+  if (days <= 1) {
+    return "Yesterday " + date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+  // This week
+  if (days < 7) {
+    return date.toLocaleDateString("en-US", { weekday: "short" }) + " " +
+      date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+  // Older
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " +
+    date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+// Should we show a timestamp between two messages?
+function shouldShowTimestamp(prev: Date | null, current: Date): boolean {
+  if (!prev) return true;
+  // Show timestamp if more than 5 minutes apart
+  return current.getTime() - prev.getTime() > 5 * 60 * 1000;
+}
+
+// ─── Heartbeat hook ─────────────────────────────────────
 
 interface HeartRateData {
   bpm: number;
   state: "resting" | "calm" | "elevated" | "racing";
   emotion: string | null;
+  thought: string | null;
+  thoughtAt: string | null;
 }
 
 function useHeartbeat() {
@@ -106,6 +143,15 @@ function useHeartbeat() {
   return hr;
 }
 
+function formatThoughtAge(dateStr: string): string {
+  const ms = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 // ─── Widget Component ───────────────────────────────────
 
 export default function ChatWidget() {
@@ -132,6 +178,8 @@ export default function ChatWidget() {
   const hr = useHeartbeat();
 
   const [input, setInput] = useState("");
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [showHeartPopup, setShowHeartPopup] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -142,6 +190,17 @@ export default function ChatWidget() {
   useEffect(() => {
     updatePageFromPathname(pathname);
   }, [pathname, updatePageFromPathname]);
+
+  // Close heart popup on outside click
+  useEffect(() => {
+    if (!showHeartPopup) return;
+    const handleClick = () => setShowHeartPopup(false);
+    const timer = setTimeout(() => document.addEventListener("click", handleClick), 10);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("click", handleClick);
+    };
+  }, [showHeartPopup]);
 
   // Request notification permission on mount
   useEffect(() => {
@@ -254,17 +313,6 @@ export default function ChatWidget() {
     [handleSend]
   );
 
-  // Heart animation
-  const beatDuration = hr ? 60 / hr.bpm : 1;
-  const heartColor =
-    hr?.state === "racing"
-      ? "text-red-500"
-      : hr?.state === "elevated"
-        ? "text-red-400"
-        : hr?.state === "calm"
-          ? "text-red-400/70"
-          : "text-red-400/50";
-
   return (
     <>
       {/* ─── Floating Bubble ─────────────────────────────── */}
@@ -279,32 +327,15 @@ export default function ChatWidget() {
             "flex items-center justify-center",
             "hover:scale-105 active:scale-95",
             "transition-all duration-200",
-            "group"
           )}
           title="Chat with Ayden"
         >
-          {/* Heart or chat icon */}
-          {hr ? (
-            <div
-              style={{ animation: `widget-heartbeat ${beatDuration}s ease-in-out infinite` }}
-            >
-              <Heart className={cn("h-6 w-6 fill-current", heartColor)} />
-            </div>
-          ) : (
-            <MessageCircle className="h-6 w-6" />
-          )}
+          <MessageCircle className="h-6 w-6" />
 
           {/* Unread badge */}
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-in zoom-in-50 duration-200">
               {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-
-          {/* Emotion tooltip on hover */}
-          {hr?.emotion && (
-            <span className="absolute bottom-full mb-2 right-0 px-2 py-1 rounded-md bg-popover border border-border text-popover-foreground text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md">
-              {hr.emotion} · {hr.bpm} bpm
             </span>
           )}
         </button>
@@ -314,25 +345,70 @@ export default function ChatWidget() {
       <div
         className={cn(
           "fixed z-50 transition-all duration-300 ease-out",
-          // Position: bottom-right corner
-          "bottom-6 right-6",
-          // Size
-          "w-[400px] max-w-[calc(100vw-48px)]",
-          // Open/close animation
+          isMaximized
+            ? "bottom-6 right-6 left-6 sm:left-auto sm:w-[700px]"
+            : "bottom-6 right-6 w-[400px] max-w-[calc(100vw-48px)]",
           isOpen
             ? "opacity-100 translate-y-0 pointer-events-auto"
             : "opacity-0 translate-y-4 pointer-events-none"
         )}
-        style={{ height: "min(600px, calc(100vh - 120px))" }}
+        style={{ height: isMaximized ? "calc(100vh - 120px)" : "min(600px, calc(100vh - 120px))" }}
       >
         <div className="h-full flex flex-col bg-background rounded-2xl border border-border shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="h-12 border-b border-border flex items-center justify-between px-4 shrink-0 bg-background/80 backdrop-blur-sm">
             <div className="flex items-center gap-2">
-              {hr && (
-                <div style={{ animation: `widget-heartbeat ${beatDuration}s ease-in-out infinite` }}>
-                  <Heart className={cn("h-3.5 w-3.5 fill-current", heartColor)} />
+              {/* Heart with hover popup */}
+              {hr ? (
+                <div
+                  className="relative cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowHeartPopup((s) => !s);
+                  }}
+                  style={{
+                    animation: `widget-heartbeat ${60 / hr.bpm}s ease-in-out infinite`,
+                  }}
+                >
+                  <Heart
+                    className={cn(
+                      "h-4 w-4 fill-current transition-colors duration-1000",
+                      hr.state === "racing" ? "text-red-500"
+                        : hr.state === "elevated" ? "text-red-400"
+                        : hr.state === "calm" ? "text-red-400/70"
+                        : "text-red-400/50"
+                    )}
+                  />
+
+                  {/* Heart popup */}
+                  {showHeartPopup && (
+                    <div
+                      className="absolute top-full left-0 mt-2 px-3 py-2 rounded-lg bg-popover border border-border shadow-lg text-xs text-popover-foreground z-[60] w-[220px]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium">{hr.bpm} BPM</span>
+                        <span className="text-muted-foreground capitalize">{hr.state}</span>
+                      </div>
+                      {hr.emotion && (
+                        <p className="text-muted-foreground italic mb-1">Feeling {hr.emotion}</p>
+                      )}
+                      {hr.thought && (
+                        <>
+                          <div className="border-t border-border my-1.5" />
+                          <p className="italic leading-relaxed">&ldquo;{hr.thought}&rdquo;</p>
+                          {hr.thoughtAt && (
+                            <p className="text-muted-foreground mt-1 text-[10px]">
+                              {formatThoughtAge(hr.thoughtAt)}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <Sparkles className="h-4 w-4 text-primary" />
               )}
               <span className="font-semibold text-sm">Ayden</span>
               {pageContext && (
@@ -356,18 +432,20 @@ export default function ChatWidget() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={closeChat}
-                title="Minimize"
+                onClick={() => setIsMaximized((s) => !s)}
+                title={isMaximized ? "Restore size" : "Maximize"}
                 className="h-7 w-7 p-0"
               >
-                <Minus className="h-3.5 w-3.5" />
+                {isMaximized ? (
+                  <Minimize2 className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => {
-                  closeChat();
-                }}
+                onClick={closeChat}
                 title="Close"
                 className="h-7 w-7 p-0"
               >
@@ -377,7 +455,7 @@ export default function ChatWidget() {
           </div>
 
           {/* Messages */}
-          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
             {isLoadingMore && (
               <div className="flex items-center justify-center py-2">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -405,82 +483,100 @@ export default function ChatWidget() {
               </div>
             )}
 
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "flex gap-2",
-                  msg.role === "user" && "flex-row-reverse"
-                )}
-              >
-                <div
-                  className={cn(
-                    "h-6 w-6 rounded-full flex items-center justify-center shrink-0 mt-0.5",
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
+            {messages.map((msg, idx) => {
+              const prevMsg = idx > 0 ? messages[idx - 1] : null;
+              const showTime = shouldShowTimestamp(
+                prevMsg?.timestamp ?? null,
+                msg.timestamp
+              );
+
+              return (
+                <div key={msg.id}>
+                  {/* Timestamp separator */}
+                  {showTime && (
+                    <div className="flex justify-center py-2">
+                      <span className="text-[10px] text-muted-foreground/50">
+                        {formatMessageTime(msg.timestamp)}
+                      </span>
+                    </div>
                   )}
-                >
-                  {msg.role === "user" ? (
-                    <User className="h-3 w-3" />
-                  ) : (
-                    <Sparkles className="h-3 w-3" />
-                  )}
-                </div>
-                <div
-                  className={cn(
-                    "flex-1 min-w-0 rounded-lg px-3 py-2",
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground text-sm"
-                      : "bg-muted"
-                  )}
-                >
-                  {msg.role === "user" ? (
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  ) : (
-                    <>
-                      {msg.toolUses && msg.toolUses.length > 0 && (
-                        <div className="mb-2 space-y-1">
-                          {msg.toolUses.map((tool, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                            >
-                              {tool.status === "executing" ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Check className="h-3 w-3 text-green-500" />
-                              )}
-                              <Wrench className="h-3 w-3" />
-                              <span>{formatToolName(tool.name)}</span>
+
+                  <div
+                    className={cn(
+                      "flex gap-2 py-1",
+                      msg.role === "user" && "flex-row-reverse"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "h-6 w-6 rounded-full flex items-center justify-center shrink-0 mt-0.5",
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
+                      )}
+                    >
+                      {msg.role === "user" ? (
+                        <User className="h-3 w-3" />
+                      ) : (
+                        <Sparkles className="h-3 w-3" />
+                      )}
+                    </div>
+                    <div
+                      className={cn(
+                        "flex-1 min-w-0 rounded-lg px-3 py-2",
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground text-sm"
+                          : "bg-muted"
+                      )}
+                    >
+                      {msg.role === "user" ? (
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      ) : (
+                        <>
+                          {msg.toolUses && msg.toolUses.length > 0 && (
+                            <div className="mb-2 space-y-1">
+                              {msg.toolUses.map((tool, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                                >
+                                  {tool.status === "executing" ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Check className="h-3 w-3 text-green-500" />
+                                  )}
+                                  <Wrench className="h-3 w-3" />
+                                  <span>{formatToolName(tool.name)}</span>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          )}
+                          {msg.content ? (
+                            <MarkdownContent content={msg.content} />
+                          ) : null}
+                          {isStreaming && msg.id === messages[messages.length - 1]?.id && (
+                            <div className={cn("flex items-center gap-2 py-1", msg.content && "mt-2 border-t border-border/50 pt-2")}>
+                              <div className="flex gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:-0.3s]" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:-0.15s]" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce" />
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {msg.toolUses?.some((t) => t.status === "executing")
+                                  ? "Working..."
+                                  : msg.content
+                                    ? "Composing..."
+                                    : "Thinking..."}
+                              </span>
+                            </div>
+                          )}
+                        </>
                       )}
-                      {msg.content ? (
-                        <MarkdownContent content={msg.content} />
-                      ) : null}
-                      {isStreaming && msg.id === messages[messages.length - 1]?.id && (
-                        <div className={cn("flex items-center gap-2 py-1", msg.content && "mt-2 border-t border-border/50 pt-2")}>
-                          <div className="flex gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:-0.3s]" />
-                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:-0.15s]" />
-                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce" />
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {msg.toolUses?.some((t) => t.status === "executing")
-                              ? "Working..."
-                              : msg.content
-                                ? "Composing..."
-                                : "Thinking..."}
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <div ref={messagesEndRef} />
           </div>
 
@@ -517,9 +613,9 @@ export default function ChatWidget() {
       <style jsx>{`
         @keyframes widget-heartbeat {
           0% { transform: scale(1); }
-          15% { transform: scale(1.2); }
+          15% { transform: scale(1.25); }
           30% { transform: scale(1); }
-          45% { transform: scale(1.1); }
+          45% { transform: scale(1.15); }
           60% { transform: scale(1); }
           100% { transform: scale(1); }
         }

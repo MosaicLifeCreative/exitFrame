@@ -1,7 +1,7 @@
 // Browser notification utilities — sound, Notification API, favicon badge
 
-let originalFavicon: string | null = null;
-let badgeFaviconUrl: string | null = null;
+let originalFaviconHref: string | null = null;
+let faviconImage: HTMLImageElement | null = null;
 
 // ─── Notification Sound (Web Audio API) ─────────────────
 
@@ -95,34 +95,35 @@ export function showBrowserNotification(
 
 // ─── Favicon Badge ──────────────────────────────────────
 
-function ensureOriginalFavicon(): void {
-  if (originalFavicon !== null) return;
+function captureOriginalFavicon(): void {
+  if (originalFaviconHref !== null) return;
 
   const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-  originalFavicon = link?.href || "/favicon.ico";
+  originalFaviconHref = link?.href || "/icon.svg";
+
+  // Pre-load the favicon image for badge drawing
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    faviconImage = img;
+  };
+  img.src = originalFaviconHref;
 }
 
-function createBadgeFavicon(count: number): string {
+function drawBadgeFavicon(count: number): string | null {
+  if (!faviconImage) return null;
+
   const canvas = document.createElement("canvas");
   canvas.width = 32;
   canvas.height = 32;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return originalFavicon || "/favicon.ico";
+  if (!ctx) return null;
 
-  // Draw base icon (simple "E" for exitFrame)
-  ctx.fillStyle = "#1a1a2e";
-  ctx.beginPath();
-  ctx.arc(16, 16, 16, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 18px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("E", 16, 17);
+  // Draw the original favicon as base
+  ctx.drawImage(faviconImage, 0, 0, 32, 32);
 
   if (count > 0) {
-    // Red badge circle
+    // Red badge circle in top-right
     const badgeRadius = 7;
     const badgeX = 25;
     const badgeY = 7;
@@ -132,8 +133,8 @@ function createBadgeFavicon(count: number): string {
     ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
     ctx.fill();
 
-    // White border
-    ctx.strokeStyle = "#1a1a2e";
+    // Dark border for contrast
+    ctx.strokeStyle = "#0a0a0a";
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -150,7 +151,7 @@ function createBadgeFavicon(count: number): string {
 
 export function setFaviconBadge(count: number): void {
   if (typeof document === "undefined") return;
-  ensureOriginalFavicon();
+  captureOriginalFavicon();
 
   let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
   if (!link) {
@@ -160,12 +161,14 @@ export function setFaviconBadge(count: number): void {
   }
 
   if (count === 0) {
-    // Restore original
-    link.href = originalFavicon || "/favicon.ico";
-    badgeFaviconUrl = null;
+    // Restore original favicon
+    link.href = originalFaviconHref || "/icon.svg";
   } else {
-    badgeFaviconUrl = createBadgeFavicon(count);
-    link.href = badgeFaviconUrl;
+    const badgeUrl = drawBadgeFavicon(count);
+    if (badgeUrl) {
+      link.href = badgeUrl;
+    }
+    // If image hasn't loaded yet, just leave favicon as-is
   }
 }
 

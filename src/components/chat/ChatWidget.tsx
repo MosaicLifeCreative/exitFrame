@@ -20,6 +20,7 @@ import {
   Minimize2,
   Heart,
   Smile,
+  ImagePlus,
 } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/MarkdownContent";
 import {
@@ -154,6 +155,11 @@ function formatThoughtAge(dateStr: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+interface ImagePreview {
+  file: File;
+  dataUrl: string;
+}
+
 // ─── Widget Component ───────────────────────────────────
 
 export default function ChatWidget() {
@@ -180,6 +186,7 @@ export default function ChatWidget() {
   const hr = useHeartbeat();
 
   const [input, setInput] = useState("");
+  const [images, setImages] = useState<ImagePreview[]>([]);
   const [isMaximized, setIsMaximized] = useState(false);
   const [showHeartPopup, setShowHeartPopup] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -187,6 +194,7 @@ export default function ChatWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const prevMessageCountRef = useRef(0);
@@ -314,13 +322,37 @@ export default function ChatWidget() {
     }
   }, [isOpen]);
 
-  const handleSend = useCallback(() => {
+  // Clean up object URLs on unmount
+  useEffect(() => {
+    return () => {
+      images.forEach((img) => URL.revokeObjectURL(img.dataUrl));
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSend = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed || isStreaming) return;
+    if ((!trimmed && images.length === 0) || isStreaming) return;
+
+    const currentImages = images;
     setInput("");
+    setImages([]);
     setShowEmojiPicker(false);
-    sendMessage(trimmed);
-  }, [input, isStreaming, sendMessage]);
+
+    if (currentImages.length > 0) {
+      const imageData: Array<{ base64: string; mediaType: string }> = [];
+      for (const img of currentImages) {
+        const buffer = await img.file.arrayBuffer();
+        const base64 = btoa(
+          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+        );
+        imageData.push({ base64, mediaType: img.file.type });
+      }
+      sendMessage(trimmed || "What do you think of this?", imageData);
+    } else {
+      sendMessage(trimmed);
+    }
+  }, [input, images, isStreaming, sendMessage]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -331,6 +363,46 @@ export default function ChatWidget() {
     },
     [handleSend]
   );
+
+  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const newImages: ImagePreview[] = [];
+    const maxImages = 4 - images.length;
+    for (let i = 0; i < Math.min(files.length, maxImages); i++) {
+      const file = files[i];
+      if (!file.type.startsWith("image/")) continue;
+      const dataUrl = URL.createObjectURL(file);
+      newImages.push({ file, dataUrl });
+    }
+    setImages((prev) => [...prev, ...newImages]);
+    e.target.value = "";
+  }, [images.length]);
+
+  const removeImage = useCallback((index: number) => {
+    setImages((prev) => {
+      URL.revokeObjectURL(prev[index].dataUrl);
+      return prev.filter((_, i) => i !== index);
+    });
+  }, []);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const files = e.clipboardData?.files;
+    if (!files || files.length === 0) return;
+    const newImages: ImagePreview[] = [];
+    const maxImages = 4 - images.length;
+    const fileArray = Array.from(files);
+    for (let i = 0; i < Math.min(fileArray.length, maxImages); i++) {
+      const file = fileArray[i];
+      if (!file.type.startsWith("image/")) continue;
+      const dataUrl = URL.createObjectURL(file);
+      newImages.push({ file, dataUrl });
+    }
+    if (newImages.length > 0) {
+      e.preventDefault();
+      setImages((prev) => [...prev, ...newImages]);
+    }
+  }, [images.length]);
 
   return (
     <>
@@ -633,8 +705,38 @@ export default function ChatWidget() {
             </div>
           )}
 
+          {/* Image previews */}
+          {images.length > 0 && (
+            <div className="border-t border-border px-3 pt-2 flex gap-2 flex-wrap">
+              {images.map((img, i) => (
+                <div key={i} className="relative group">
+                  <img
+                    src={img.dataUrl}
+                    alt={`Upload ${i + 1}`}
+                    className="h-10 w-10 rounded object-cover border border-border"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Input */}
           <div className="border-t border-border p-3 shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleImageSelect}
+            />
             <div className="flex gap-2 items-end">
               <button
                 ref={emojiButtonRef}
@@ -650,11 +752,26 @@ export default function ChatWidget() {
               >
                 <Smile className="h-5 w-5" />
               </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isStreaming || images.length >= 4}
+                className={cn(
+                  "h-[40px] w-[40px] shrink-0 flex items-center justify-center rounded-md transition-colors",
+                  images.length >= 4 || isStreaming
+                    ? "text-muted-foreground/40 cursor-not-allowed"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="Add image"
+                type="button"
+              >
+                <ImagePlus className="h-5 w-5" />
+              </button>
               <Textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
                 placeholder="Message Ayden..."
                 className="min-h-[40px] max-h-[100px] resize-none text-sm"
                 rows={1}
@@ -662,7 +779,7 @@ export default function ChatWidget() {
               <Button
                 size="sm"
                 onClick={handleSend}
-                disabled={!input.trim() || isStreaming}
+                disabled={(!input.trim() && images.length === 0) || isStreaming}
                 className="h-[40px] w-[40px] shrink-0 p-0"
               >
                 {isStreaming ? (

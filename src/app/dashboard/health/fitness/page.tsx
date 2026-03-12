@@ -483,14 +483,45 @@ function LogWorkoutTab({
   const [expandedExercise, setExpandedExercise] = useState<number | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [isDraftSession, setIsDraftSession] = useState(false);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipAutosaveRestore = useRef(false);
+
+  const AUTOSAVE_KEY = "exitframe-workout-autosave";
 
   // Watch for workout drafts from Claude
   const workoutDraft = useChatStore((s) => s.workoutDraft);
   const clearWorkoutDraft = useChatStore((s) => s.clearWorkoutDraft);
 
+  // Restore from localStorage on mount (only if no draft or editing session)
+  useEffect(() => {
+    if (editingSession || workoutDraft) {
+      skipAutosaveRestore.current = true;
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(AUTOSAVE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.entries?.length > 0 || parsed.name) {
+          setName(parsed.name || "");
+          setEntries(parsed.entries || []);
+          setDuration(parsed.duration || "");
+          setNotes(parsed.notes || "");
+          if (parsed.entries?.length > 0) {
+            setExpandedExercise(0);
+          }
+        }
+      }
+    } catch {
+      // Corrupt data — ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Load workout draft from Claude
   useEffect(() => {
     if (workoutDraft) {
+      skipAutosaveRestore.current = true;
       setName(workoutDraft.name);
       setNotes(workoutDraft.notes || "");
       setEntries(workoutDraft.exercises);
@@ -505,6 +536,7 @@ function LogWorkoutTab({
   // Load editing session
   useEffect(() => {
     if (editingSession) {
+      skipAutosaveRestore.current = true;
       setName(editingSession.name);
       setNotes(editingSession.notes || "");
       setDuration(editingSession.durationMinutes?.toString() || "");
@@ -527,6 +559,32 @@ function LogWorkoutTab({
       setExpandedExercise(0);
     }
   }, [editingSession]);
+
+  // Debounced auto-save to localStorage
+  useEffect(() => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = setTimeout(() => {
+      if (entries.length === 0 && !name && !duration && !notes) {
+        localStorage.removeItem(AUTOSAVE_KEY);
+        return;
+      }
+      try {
+        localStorage.setItem(
+          AUTOSAVE_KEY,
+          JSON.stringify({ name, entries, duration, notes })
+        );
+      } catch {
+        // Storage full or unavailable — ignore
+      }
+    }, 1000);
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, [entries, name, duration, notes]);
 
   const loadTemplate = (templateId: string) => {
     const template = templates.find((t) => t.id === templateId);
@@ -631,6 +689,7 @@ function LogWorkoutTab({
     setNotes("");
     setEditingSessionId(null);
     setIsDraftSession(false);
+    localStorage.removeItem(AUTOSAVE_KEY);
   };
 
   const saveWorkout = async () => {

@@ -77,6 +77,7 @@ const TOOL_LABELS: Record<string, string> = {
   remember_person: "Remembering someone",
   recall_person: "Looking up a contact",
   update_person: "Updating contact info",
+  log_interaction: "Logging interaction",
   forget_person: "Removing contact",
 };
 

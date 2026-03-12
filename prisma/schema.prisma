@@ -1102,7 +1102,22 @@ model AydenContact {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
+  interactions AydenContactInteraction[]
+
   @@map("ayden_contacts")
+}
+
+model AydenContactInteraction {
+  id        String   @id @default(uuid()) @db.Uuid
+  contactId String   @map("contact_id") @db.Uuid
+  contact   AydenContact @relation(fields: [contactId], references: [id])
+  date      DateTime @default(now()) // When the interaction happened
+  channel   String?  // "email", "in-person", "phone", "slack", "text", etc.
+  summary   String   @db.Text // Brief description of the interaction
+  sentiment String?  // "positive", "neutral", "negative"
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("ayden_contact_interactions")
 }
 
 // ── Travel ──────────────────────────────────────────────

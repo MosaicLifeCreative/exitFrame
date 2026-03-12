@@ -109,6 +109,38 @@ export const peopleTools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "log_interaction",
+    description:
+      "Log a meaningful interaction with someone. Use when Trey mentions meeting, emailing, calling, or having a significant exchange with someone you know. Don't log every casual mention — only real interactions.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        contactId: {
+          type: "string",
+          description: "UUID of the contact (get from recall_person)",
+        },
+        channel: {
+          type: "string",
+          description: "How they interacted: email, in-person, phone, text, slack, video-call, etc.",
+        },
+        summary: {
+          type: "string",
+          description: "Brief description of the interaction, e.g. 'Discussed real estate investing strategies over coffee' or 'Exchanged emails about event sponsorship'",
+        },
+        sentiment: {
+          type: "string",
+          enum: ["positive", "neutral", "negative"],
+          description: "Overall tone of the interaction",
+        },
+        date: {
+          type: "string",
+          description: "When it happened (ISO date, e.g. '2026-03-12'). Defaults to today.",
+        },
+      },
+      required: ["contactId", "summary"],
+    },
+  },
+  {
     name: "forget_person",
     description:
       "Remove someone from your people database if Trey asks you to forget them.",
@@ -138,6 +170,8 @@ export async function executePeopleTool(
       return recallPerson(toolInput as unknown as RecallPersonInput);
     case "update_person":
       return updatePerson(toolInput as unknown as UpdatePersonInput);
+    case "log_interaction":
+      return logInteraction(toolInput as unknown as LogInteractionInput);
     case "forget_person":
       return forgetPerson(toolInput as unknown as ForgetPersonInput);
     default:
@@ -177,6 +211,14 @@ interface UpdatePersonInput {
   notes?: string;
   addFacts?: string[];
   removeFacts?: string[];
+}
+
+interface LogInteractionInput {
+  contactId: string;
+  channel?: string;
+  summary: string;
+  sentiment?: string;
+  date?: string;
 }
 
 interface ForgetPersonInput {
@@ -242,6 +284,12 @@ async function recallPerson(input: RecallPersonInput): Promise<string> {
         { nickname: { contains: input.name, mode: "insensitive" } },
       ],
     },
+    include: {
+      interactions: {
+        orderBy: { date: "desc" },
+        take: 5,
+      },
+    },
     orderBy: { updatedAt: "desc" },
     take: 5,
   });
@@ -264,6 +312,12 @@ async function recallPerson(input: RecallPersonInput): Promise<string> {
     notes: c.notes,
     facts: c.facts,
     lastUpdated: c.updatedAt.toISOString().slice(0, 10),
+    recentInteractions: c.interactions.map((i) => ({
+      date: i.date.toISOString().slice(0, 10),
+      channel: i.channel,
+      summary: i.summary,
+      sentiment: i.sentiment,
+    })),
   }));
 
   return JSON.stringify({ found: results.length, contacts: results });
@@ -322,6 +376,43 @@ async function updatePerson(input: UpdatePersonInput): Promise<string> {
   });
 }
 
+async function logInteraction(input: LogInteractionInput): Promise<string> {
+  // Verify contact exists
+  const contact = await prisma.aydenContact.findUnique({
+    where: { id: input.contactId },
+    select: { id: true, name: true, isActive: true },
+  });
+
+  if (!contact || !contact.isActive) {
+    return JSON.stringify({ success: false, message: "Contact not found." });
+  }
+
+  const interaction = await prisma.aydenContactInteraction.create({
+    data: {
+      contactId: input.contactId,
+      channel: input.channel || null,
+      summary: input.summary,
+      sentiment: input.sentiment || null,
+      date: input.date ? new Date(input.date) : new Date(),
+    },
+  });
+
+  // Touch the contact's updatedAt so recently-interacted people float to top
+  await prisma.aydenContact.update({
+    where: { id: input.contactId },
+    data: { updatedAt: new Date() },
+  });
+
+  return JSON.stringify({
+    success: true,
+    interaction: {
+      id: interaction.id,
+      contactName: contact.name,
+      summary: interaction.summary,
+    },
+  });
+}
+
 async function forgetPerson(input: ForgetPersonInput): Promise<string> {
   await prisma.aydenContact.update({
     where: { id: input.id },
@@ -340,6 +431,13 @@ async function forgetPerson(input: ForgetPersonInput): Promise<string> {
 export async function getAydenContacts(): Promise<string | null> {
   const contacts = await prisma.aydenContact.findMany({
     where: { isActive: true },
+    include: {
+      interactions: {
+        orderBy: { date: "desc" },
+        take: 1,
+        select: { date: true, summary: true },
+      },
+    },
     orderBy: [{ updatedAt: "desc" }],
     take: 50, // Cap to control token costs
   });
@@ -362,6 +460,14 @@ export async function getAydenContacts(): Promise<string | null> {
     }
     if (c.notes) {
       text += ` | Note: ${c.notes.slice(0, 100)}`;
+    }
+
+    // Show last interaction for context
+    if (c.interactions.length > 0) {
+      const last = c.interactions[0];
+      const daysAgo = Math.floor((Date.now() - new Date(last.date).getTime()) / (1000 * 60 * 60 * 24));
+      const timeLabel = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo}d ago`;
+      text += ` | Last: ${last.summary.slice(0, 60)} (${timeLabel})`;
     }
 
     text += ` (id: ${c.id})`;

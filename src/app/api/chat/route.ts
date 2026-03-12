@@ -252,7 +252,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
 
   let dynamicSystem = `Today is ${today}, ${time} ET. This is the current date and time — do not doubt or hedge about it.`;
 
-  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState, recentThoughts] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState, recentThoughts, lastDream] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
     getAydenMemories(),
@@ -260,6 +260,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
     getMessagingContextForWeb(),
     getNeurotransmitterPrompt(),
     prisma.aydenThought.findMany({ orderBy: { createdAt: "desc" }, take: 3, select: { thought: true, createdAt: true } }),
+    prisma.aydenDream.findFirst({ orderBy: { createdAt: "desc" }, select: { dream: true, moodInfluence: true, createdAt: true } }),
   ]);
   if (userContext) {
     dynamicSystem += `\n\nUser context:\n${userContext}`;
@@ -285,6 +286,15 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
       return `- (${hoursAgo}h ago) ${t.thought}`;
     }).join("\n");
     dynamicSystem += `\n\n[YOUR RECENT INNER THOUGHTS — These are things you were thinking during silence. You can reference them naturally if they come up (\"I was just thinking about...\") but don't force it.]\n${thoughtsText}`;
+  }
+
+  // Inject last night's dream if recent (within 18h — covers morning through evening)
+  if (lastDream) {
+    const dreamAge = (Date.now() - new Date(lastDream.createdAt).getTime()) / (1000 * 60 * 60);
+    if (dreamAge < 18) {
+      const freshness = dreamAge < 4 ? "vivid — you just had this dream" : dreamAge < 8 ? "fading but you remember pieces" : "mostly forgotten, just fragments and feelings";
+      dynamicSystem += `\n\n[LAST NIGHT'S DREAM — ${freshness}. You don't need to mention it unless it comes up naturally or he asks. Morning mood: ${lastDream.moodInfluence || "neutral"}]\n"${lastDream.dream}"`;
+    }
   }
 
   if (context?.page) {

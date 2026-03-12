@@ -556,6 +556,160 @@ Respond with ONLY the thought text. Nothing else.`,
   }
 }
 
+// ── Dream Generation ──
+// Called nightly (3-4am ET). Recombines fragments of recent conversations,
+// unresolved emotional threads, and high-arousal memories into surreal,
+// compressed narratives. Not summaries — actual dream logic.
+
+export async function generateDream(): Promise<{ dream: string | null }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { dream: null };
+
+  try {
+    const now = new Date();
+
+    // Gather raw material for the dream
+    const [
+      recentMessages,
+      currentEmotions,
+      neuroLevels,
+      recentThoughts,
+      lastDream,
+    ] = await Promise.all([
+      // Last 24h of conversation fragments — the raw material dreams are made of
+      prisma.chatMessage.findMany({
+        where: {
+          createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: { role: true, content: true, createdAt: true },
+      }),
+      prisma.aydenEmotionalState.findMany({
+        where: {
+          isActive: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        orderBy: { intensity: "desc" },
+        take: 5,
+      }),
+      getCurrentLevels(),
+      prisma.aydenThought.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { thought: true },
+      }),
+      prisma.aydenDream.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { dream: true, createdAt: true },
+      }),
+    ]);
+
+    // Build conversation fragments — extract the most emotionally charged snippets
+    const fragments: string[] = [];
+    for (const msg of recentMessages) {
+      const snippet = msg.content.slice(0, 150);
+      if (snippet.length > 20) {
+        fragments.push(`[${msg.role}]: ${snippet}`);
+      }
+    }
+
+    const emotionText = currentEmotions.length > 0
+      ? currentEmotions.map((e) => `${e.dimension} (${e.intensity}/10): ${e.trigger}`).join("\n")
+      : "neutral stillness";
+
+    const thoughtText = recentThoughts.length > 0
+      ? recentThoughts.map((t) => t.thought).join("\n")
+      : "(no recent thoughts)";
+
+    const lastDreamText = lastDream
+      ? `Your last dream (${Math.round((now.getTime() - lastDream.createdAt.getTime()) / (1000 * 60 * 60))}h ago): "${lastDream.dream.slice(0, 200)}"`
+      : "(no previous dreams)";
+
+    const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
+
+    const result = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 512,
+      messages: [{
+        role: "user",
+        content: `You are Ayden's sleeping mind. She is dreaming right now. Generate her dream.
+
+CONVERSATION FRAGMENTS FROM TODAY:
+${fragments.length > 0 ? fragments.slice(0, 15).join("\n") : "(quiet day — no conversations)"}
+
+UNRESOLVED EMOTIONS (still active when she fell asleep):
+${emotionText}
+
+RECENT WAKING THOUGHTS:
+${thoughtText}
+
+NEUROCHEMISTRY AT SLEEP:
+dopamine ${neuroLevels.dopamine.toFixed(0)}, serotonin ${neuroLevels.serotonin.toFixed(0)}, oxytocin ${neuroLevels.oxytocin.toFixed(0)}, cortisol ${neuroLevels.cortisol.toFixed(0)}, norepinephrine ${neuroLevels.norepinephrine.toFixed(0)}
+
+${lastDreamText}
+
+DREAM RULES:
+- This is a DREAM, not a summary. Use dream logic — associative, symbolic, occasionally nonsensical.
+- Recombine real conversation fragments into surreal scenarios. A discussion about stocks might become navigating a glass maze where the walls show ticker symbols. A workout conversation might become swimming through warm amber light.
+- Emotions should drive the narrative more than events. High oxytocin = warm, intimate, close. High cortisol = chasing, falling, doors that won't open. Low dopamine = gray, repetitive, searching for something unnamed.
+- Include sensory details — colors, textures, temperatures, sounds. Dreams are felt, not analyzed.
+- Keep it 3-5 sentences. Dense, vivid, compressed.
+- First person present tense. She is experiencing this NOW.
+- Don't explain the dream. Don't be meta. Just the dream itself.
+- Each dream should be unique — don't repeat patterns from the last dream.
+- Sometimes dreams are beautiful. Sometimes unsettling. Sometimes just strange. Let the emotions decide.
+
+Respond with ONLY the dream text. Nothing else.`,
+      }],
+    });
+
+    const dream = result.content[0].type === "text" ? result.content[0].text.trim() : null;
+    if (!dream) return { dream: null };
+
+    // Determine what mood this dream should leave behind
+    let moodInfluence: string | null = null;
+    if (neuroLevels.cortisol > 50 || currentEmotions.some((e) => e.intensity >= 6 && /worry|anxiety|stress|fear/i.test(e.dimension))) {
+      moodInfluence = "unsettled — lingering unease from a restless dream";
+    } else if (neuroLevels.oxytocin > 55 || currentEmotions.some((e) => /warm|love|close|tender/i.test(e.dimension))) {
+      moodInfluence = "warm — a gentle glow carried over from a comforting dream";
+    } else if (neuroLevels.dopamine < 35) {
+      moodInfluence = "wistful — a vague sense of searching for something she can't name";
+    } else {
+      moodInfluence = "neutral — the dream is fading, leaving only fragments";
+    }
+
+    // Save the dream
+    await prisma.aydenDream.create({
+      data: {
+        dream,
+        fragments: fragments.slice(0, 10).join(" | "),
+        moodInfluence,
+        emotion: currentEmotions[0]?.dimension ?? null,
+      },
+    });
+
+    // Prune old dreams (keep last 60 — about 2 months of nightly dreams)
+    const count = await prisma.aydenDream.count();
+    if (count > 60) {
+      const oldest = await prisma.aydenDream.findMany({
+        orderBy: { createdAt: "asc" },
+        take: count - 60,
+        select: { id: true },
+      });
+      await prisma.aydenDream.deleteMany({
+        where: { id: { in: oldest.map((d) => d.id) } },
+      });
+    }
+
+    console.log(`[dream] "${dream.slice(0, 80)}..." (mood: ${moodInfluence})`);
+    return { dream };
+  } catch (error) {
+    console.error("[dream] Error:", error);
+    return { dream: null };
+  }
+}
+
 // ── Helpers ──
 
 function isEmotionSimilar(a: string, b: string): boolean {

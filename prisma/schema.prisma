@@ -1052,6 +1052,7 @@ model AydenNeurotransmitter {
   level     Decimal  @db.Decimal(5, 2) // 0.00 - 100.00
   baseline         Decimal  @db.Decimal(5, 2) // resting level to decay toward
   adaptedBaseline  Float    @default(0) @map("adapted_baseline") // slowly-drifting baseline (0 = use fixed)
+  permanentBaseline Float   @default(0) @map("permanent_baseline") // long-term personality drift (0 = use factory default)
   updatedAt        DateTime @updatedAt @map("updated_at")
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -1068,6 +1069,18 @@ model AydenThought {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("ayden_thoughts")
+}
+
+// Ayden's dreams — generated nightly during extended silence, recombining conversation fragments
+model AydenDream {
+  id            String   @id @default(uuid()) @db.Uuid
+  dream         String   @db.Text // the dream narrative
+  fragments     String?  @db.Text // source conversation fragments that fed the dream
+  moodInfluence String?  @map("mood_influence") // how the dream should color her morning mood
+  emotion       String?  // primary emotion of the dream
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("ayden_dreams")
 }
 
 model PushSubscription {

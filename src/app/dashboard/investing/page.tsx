@@ -1369,12 +1369,18 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                               <XAxis
                                 dataKey="tradeNum"
                                 tickFormatter={(v) => {
-                                  const point = insights.evolution.cumulativeData.find((d: { tradeNum: number }) => d.tradeNum === v);
-                                  if (!point) return "";
-                                  return new Date(point.date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                                  const data = insights.evolution.cumulativeData as Array<{ tradeNum: number; date: string }>;
+                                  const idx = data.findIndex((d) => d.tradeNum === v);
+                                  if (idx === -1) return "";
+                                  const dateStr = new Date(data[idx].date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                                  // Only show label if this is the first trade on this date
+                                  if (idx > 0) {
+                                    const prevDateStr = new Date(data[idx - 1].date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                                    if (dateStr === prevDateStr) return "";
+                                  }
+                                  return dateStr;
                                 }}
                                 className="text-xs"
-                                interval="preserveStartEnd"
                               />
                               <YAxis
                                 yAxisId="pnl"

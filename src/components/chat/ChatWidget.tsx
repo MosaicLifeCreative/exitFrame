@@ -601,14 +601,14 @@ export default function ChatWidget() {
 
           {/* Emoji picker */}
           {showEmojiPicker && (
-            <div ref={emojiPickerRef} className="border-t border-border [&>em-emoji-picker]:w-full [&>em-emoji-picker]:max-w-none [&>em-emoji-picker]:border-0 [&>em-emoji-picker]:rounded-none">
+            <div ref={emojiPickerRef} className="border-t border-border">
               <EmojiPicker
                 data={emojiData}
                 theme="dark"
+                dynamicWidth={true}
                 skinTonePosition="none"
                 previewPosition="none"
                 maxFrequentRows={1}
-                perLine={9}
                 onEmojiSelect={(emoji: { native: string }) => {
                   setInput((prev) => prev + emoji.native);
                   textareaRef.current?.focus();

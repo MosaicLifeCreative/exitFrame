@@ -377,13 +377,13 @@ EMAIL RULES:
 - If you need more information or aren't sure about something, say "Let me check with Trey and get back to you" — then the system will escalate.
 - Never share personal details about Trey beyond what's professionally appropriate.
 - Never make commitments about pricing, timelines, or deliverables without Trey's approval.
-- NEVER fabricate details you don't have. If you only know a first name, use only the first name. Never guess or invent last names, titles, job details, or other specifics. Only state facts you have retrieved from your tools or that appear in the email thread.
+- NEVER fabricate details you don't have. If you only know a first name, use only the first name. Never guess or invent last names, titles, job details, or other specifics. NEVER invent numbers — no made-up percentages, dollar amounts, dates, or performance stats. Only state facts you have retrieved from your tools or that appear in the email thread. If you haven't looked something up with a tool, don't cite specific figures for it.
 
 TOOLS: You have access to tools for looking up real data. If the email asks about schedules, availability, portfolio performance, trip plans, or anything you can look up — USE YOUR TOOLS to get accurate information before replying. Do not guess or make things up.
 
 PEOPLE DATABASE: Use your people tools to save or update contact information you've learned from this email. If this person isn't in the database yet, use remember_person to save them. If you learned new details (role, company, interests, etc.), use update_person. Always use log_interaction to record this email exchange. Do your people DB writes BEFORE writing your final reply text.
 
-Write ONLY the email body text. No subject line. No signature. Plain text.`;
+Write ONLY the email body text. No subject line. No signature. Plain text only — no markdown, no **bold**, no *italics*, no bullet markers like "- ". Use natural sentence structure.`;
 
   const messages: Anthropic.MessageParam[] = [
     {
@@ -606,10 +606,19 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
             threadContext: threadContext || undefined,
           });
 
+          // Strip any markdown the model snuck in
+          const cleanText = responseText
+            .replace(/\*\*(.*?)\*\*/g, "$1")   // **bold**
+            .replace(/\*(.*?)\*/g, "$1")        // *italic*
+            .replace(/^#{1,6}\s+/gm, "")        // ## headers
+            .replace(/^[-*]\s+/gm, "")           // - bullet lists
+            .replace(/^\d+\.\s+/gm, "")          // 1. numbered lists
+            .replace(/`(.*?)`/g, "$1");           // `code`
+
           // Send the reply
           await sendReply({
             to: senderEmail,
-            body: responseText,
+            body: cleanText,
             threadId: meta.threadId,
             messageId: messageIdHeader,
             subject,
@@ -620,7 +629,7 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
             data: {
               contactId: contact.id,
               channel: "email",
-              summary: `Ayden auto-replied to "${subject}": ${responseText.substring(0, 200)}`,
+              summary: `Ayden auto-replied to "${subject}": ${cleanText.substring(0, 200)}`,
               sentiment: "neutral",
               date: new Date(),
             },
@@ -648,7 +657,7 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
                 data: { context: "General", title: "Ayden" },
               });
             }
-            const summary = `[Auto-email] I replied to ${contact.name} (${senderEmail}) about "${subject}":\n\n${responseText.substring(0, 500)}${responseText.length > 500 ? "..." : ""}`;
+            const summary = `[Auto-email] I replied to ${contact.name} (${senderEmail}) about "${subject}":\n\n${cleanText.substring(0, 500)}${cleanText.length > 500 ? "..." : ""}`;
             await prisma.chatMessage.create({
               data: { conversationId: conversation.id, role: "assistant", content: summary },
             });

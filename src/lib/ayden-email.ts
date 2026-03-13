@@ -501,8 +501,9 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
   await redis.set(REDIS_LAST_CHECK, new Date().toISOString());
 
   // Search for emails sent TO Ayden's alias since last check
-  // No is:unread filter — Redis dedup handles re-processing, so reading emails won't block Ayden
-  const afterEpoch = Math.floor(lastCheck.getTime() / 1000);
+  // Gmail's after: rounds to day boundaries, so subtract 24h to ensure we catch same-day emails.
+  // Redis dedup prevents re-processing, so over-fetching is safe.
+  const afterEpoch = Math.floor(lastCheck.getTime() / 1000) - 86400;
   const query = `to:ayden@mosaiclifecreative.com after:${afterEpoch}`;
 
   let messages: GmailMessageMeta[];

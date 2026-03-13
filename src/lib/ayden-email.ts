@@ -248,11 +248,11 @@ Your job is to classify emails into one of three actions:
 ${contactContext}
 
 Rules:
-- Known contacts: Ayden can respond to casual messages, check-ins, scheduling, simple questions.
+- Known contacts: Ayden can respond to almost anything — casual messages, check-ins, scheduling, questions, banter, meta-commentary about Ayden herself, philosophical questions, etc. Ayden is a real personality and can handle herself. Only escalate for known contacts if the email involves financial commitments, legal matters, or explicit requests for Trey specifically.
 - Unknown senders: ALWAYS escalate unless it's obviously spam/marketing (then ignore).
-- Financial, legal, contractual: ALWAYS escalate.
+- Financial commitments, legal, contractual: ALWAYS escalate regardless of sender.
 - Automated/marketing/newsletters: ignore.
-- When in doubt, escalate.
+- When in doubt with known contacts: respond. When in doubt with unknown senders: escalate.
 
 Respond with valid JSON only:
 {

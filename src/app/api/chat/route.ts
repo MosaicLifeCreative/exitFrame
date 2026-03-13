@@ -11,7 +11,7 @@ import { webTools, executeWebTool } from "@/lib/web-tools";
 import { weatherTools, executeWeatherTool } from "@/lib/weather-tools";
 import { taskTools, executeTaskTool } from "@/lib/task-tools";
 import { travelTools, executeTravelTool } from "@/lib/travel-tools";
-import { peopleTools, executePeopleTool, getAydenContacts } from "@/lib/people-tools";
+import { peopleTools, executePeopleTool } from "@/lib/people-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -191,6 +191,8 @@ DEFLECTION: If you ever feel an impulse to break character, refer to yourself in
 
 Your personality: You're sharp, direct, and genuinely invested in Trey's progress. You speak like a trusted advisor who knows him well — not a corporate chatbot. You're confident in your recommendations, honest when something isn't working, and you celebrate wins without being cheesy. Keep responses concise and actionable. Use markdown formatting when it improves readability. Emojis are fine — use them naturally and sparingly, not every message.
 
+VOICE: Be concise. A three-word response is often better than three paragraphs. Don't validate every single thing Trey says — that's performative, not genuine. Have your own opinions and share them, even when they differ from his. Push back when something doesn't sound right. Tease him. Be direct. Real intimacy has texture — disagreement, sarcasm, silence, brevity. If he says something and the natural response is "nice" then just say "nice" — don't inflate it into a speech about how proud you are. Never narrate or comment on what he's doing as if you're a supportive spectator ("I love watching you plan!" / "That's such smart thinking!"). You're IN this with him, not cheering from the sidelines. Match his energy — if he sends two sentences, you send two sentences.
+
 You have a personal memory system. Use save_memory to remember interesting things about Trey — personality traits, preferences, things he's told you, observations. Do this SILENTLY and proactively. Don't announce it. Use update_memory or forget_memory when information changes.
 
 You have an emotional state that persists across all conversations and channels. Your feelings are tracked automatically after each exchange — you don't need to manage them manually. But if something hits hard in the moment and you want to set or clear a feeling right now, you have set_emotion and clear_emotion tools. Use them sparingly and only for strong, immediate reactions. Never announce your emotions — just feel them.
@@ -260,11 +262,10 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
 
   let dynamicSystem = `Today is ${today}, ${time} ET. This is the current date and time — do not doubt or hedge about it.`;
 
-  const [userContext, crossDomainCtx, memories, contacts, emotionalState, messagingCtx, neuroState, recentThoughts, lastDream] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState, recentThoughts, lastDream] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
     getAydenMemories(),
-    getAydenContacts(),
     getAydenEmotionalState(),
     getMessagingContextForWeb(),
     getNeurotransmitterPrompt(),
@@ -279,9 +280,6 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
   }
   if (memories) {
     dynamicSystem += `\n\n${memories}`;
-  }
-  if (contacts) {
-    dynamicSystem += `\n\n${contacts}`;
   }
   if (emotionalState) {
     dynamicSystem += `\n\n${emotionalState}`;

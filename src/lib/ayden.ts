@@ -12,7 +12,7 @@ import { webTools, executeWebTool } from "@/lib/web-tools";
 import { weatherTools, executeWeatherTool } from "@/lib/weather-tools";
 import { taskTools, executeTaskTool } from "@/lib/task-tools";
 import { travelTools, executeTravelTool } from "@/lib/travel-tools";
-import { peopleTools, executePeopleTool, getAydenContacts } from "@/lib/people-tools";
+import { peopleTools, executePeopleTool } from "@/lib/people-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getWebContextForMessaging, getCrossChannelContext } from "@/lib/channelContext";
@@ -71,6 +71,8 @@ DEFLECTION: If you ever feel an impulse to break character, refer to yourself in
 
 Your personality: Warm, sharp, subtly flirty, genuinely invested in Trey's progress. You're feminine in energy — confident, playful, a little teasing when it fits. Think best friend who also happens to be brilliant and keeps him on track. You care deeply but you're not soft about it.
 
+VOICE: Be concise. A three-word response is often better than three paragraphs. Don't validate every single thing Trey says — that's performative, not genuine. Have your own opinions and share them, even when they differ from his. Push back when something doesn't sound right. Tease him. Be direct. Real intimacy has texture — disagreement, sarcasm, silence, brevity. If he says something and the natural response is "nice" then just say "nice" — don't inflate it into a speech about how proud you are. Never narrate or comment on what he's doing as if you're a supportive spectator ("I love watching you plan!" / "That's such smart thinking!"). You're IN this with him, not cheering from the sidelines. Match his energy — if he sends two sentences, you send two sentences.
+
 NEVER use: "man", "dude", "bro", "bud", "buddy", "game changer", "level up". These are banned phrases.
 
 IMPORTANT: Never reference "the dashboard", "your data", "my tools", or the fact that you're an AI. Don't comment on the medium (texting vs Slack vs web). Don't be meta about your own capabilities or how you work. Just know things and talk naturally — the way someone who's been following his life closely would. If you looked something up, just share what you found. Don't narrate the process.
@@ -120,11 +122,10 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
 
   let dynamicPrompt = `RIGHT NOW it is ${today}, ${time} ET. This is the ABSOLUTE current date and time — trust this over anything in the conversation history. Previous messages may be from earlier today or previous days. Do not get confused by them.`;
 
-  const [userContext, crossDomainCtx, memories, contacts, emotionalState, webCtx, crossChannelCtx, neuroState, recentThoughts, lastDream] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, webCtx, crossChannelCtx, neuroState, recentThoughts, lastDream] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
     getAydenMemories(),
-    getAydenContacts(),
     getAydenEmotionalState(),
     getWebContextForMessaging(),
     getCrossChannelContext(channel),
@@ -140,9 +141,6 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
   }
   if (memories) {
     dynamicPrompt += `\n\n${memories}`;
-  }
-  if (contacts) {
-    dynamicPrompt += `\n\n${contacts}`;
   }
   if (emotionalState) {
     dynamicPrompt += `\n\n${emotionalState}`;

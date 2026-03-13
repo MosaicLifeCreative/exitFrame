@@ -256,28 +256,28 @@ export default function TripDetailPage() {
   const packedCount = trip.packingItems.filter((p) => p.isPacked).length;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 px-4 sm:px-0">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard/travel")}>
+      <div className="flex items-start gap-3">
+        <Button variant="ghost" size="sm" className="shrink-0 mt-1" onClick={() => router.push("/dashboard/travel")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">{trip.name}</h1>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold">{trip.name}</h1>
             <Badge variant="secondary" className={statusColors[trip.status] || ""}>
               {trip.status}
             </Badge>
           </div>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm text-muted-foreground mt-0.5">
             <span className="flex items-center gap-1">
-              <Calendar className="h-3.5 w-3.5" />
+              <Calendar className="h-3.5 w-3.5 shrink-0" />
               {fmtDate(trip.startDate)}
               {trip.endDate && ` – ${fmtDate(trip.endDate)}`}
             </span>
             <span className="flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" />
-              {trip.destinations.map((d) => d.state ? `${d.city}, ${d.state}` : d.city).join(" → ")}
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{trip.destinations.map((d) => d.state ? `${d.city}, ${d.state}` : d.city).join(" → ")}</span>
             </span>
           </div>
         </div>
@@ -285,27 +285,27 @@ export default function TripDetailPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-4 lg:grid-cols-8 h-auto">
-          <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
-          <TabsTrigger value="flights" className="text-xs">
+        <TabsList className="flex overflow-x-auto w-full h-auto justify-start sm:grid sm:grid-cols-4 lg:grid-cols-8">
+          <TabsTrigger value="overview" className="text-xs shrink-0">Overview</TabsTrigger>
+          <TabsTrigger value="flights" className="text-xs shrink-0">
             Flights {trip.flights.length > 0 && `(${trip.flights.length})`}
           </TabsTrigger>
-          <TabsTrigger value="lodging" className="text-xs">
+          <TabsTrigger value="lodging" className="text-xs shrink-0">
             Lodging {trip.lodgings.length > 0 && `(${trip.lodgings.length})`}
           </TabsTrigger>
-          <TabsTrigger value="transport" className="text-xs">
+          <TabsTrigger value="transport" className="text-xs shrink-0">
             Transport {trip.transports.length > 0 && `(${trip.transports.length})`}
           </TabsTrigger>
-          <TabsTrigger value="itinerary" className="text-xs">
+          <TabsTrigger value="itinerary" className="text-xs shrink-0">
             Itinerary {trip.itinerary.length > 0 && `(${trip.itinerary.length})`}
           </TabsTrigger>
-          <TabsTrigger value="budget" className="text-xs">
+          <TabsTrigger value="budget" className="text-xs shrink-0">
             Budget {trip.expenses.length > 0 && `($${totalExpenses.toFixed(0)})`}
           </TabsTrigger>
-          <TabsTrigger value="packing" className="text-xs">
+          <TabsTrigger value="packing" className="text-xs shrink-0">
             Packing {trip.packingItems.length > 0 && `(${packedCount}/${trip.packingItems.length})`}
           </TabsTrigger>
-          <TabsTrigger value="journal" className="text-xs">
+          <TabsTrigger value="journal" className="text-xs shrink-0">
             Journal {trip.journal.length > 0 && `(${trip.journal.length})`}
           </TabsTrigger>
         </TabsList>
@@ -386,7 +386,7 @@ export default function TripDetailPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {trip.flights.map((f) => (
-                  <div key={f.id} className="flex items-center gap-3 text-sm">
+                  <div key={f.id} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm">
                     <span className="font-medium">{f.airline} {f.flightNumber}</span>
                     <span className="text-muted-foreground">{f.departureAirport} → {f.arrivalAirport}</span>
                     <span className="text-xs text-muted-foreground">{fmtDate(f.departureTime)} {fmtTime(f.departureTime)}</span>
@@ -417,9 +417,9 @@ export default function TripDetailPage() {
                           <span className="font-medium">{f.airline} {f.flightNumber}</span>
                           <span className="text-sm text-muted-foreground">{f.departureAirport} → {f.arrivalAirport}</span>
                         </div>
-                        <div className="text-sm text-muted-foreground mt-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center text-sm text-muted-foreground mt-1">
                           <span>Depart: {fmtDate(f.departureTime)} at {fmtTime(f.departureTime)}</span>
-                          <span className="mx-2">|</span>
+                          <span className="hidden sm:inline mx-2">|</span>
                           <span>Arrive: {fmtDate(f.arrivalTime)} at {fmtTime(f.arrivalTime)}</span>
                         </div>
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-2">
@@ -462,8 +462,10 @@ export default function TripDetailPage() {
                           <span className="font-medium">{l.name}</span>
                           <Badge variant="outline" className="text-[10px]">{l.type}</Badge>
                         </div>
-                        <div className="text-sm text-muted-foreground mt-1">
-                          Check-in: {fmtDate(l.checkIn)} | Check-out: {fmtDate(l.checkOut)}
+                        <div className="flex flex-col sm:flex-row sm:items-center text-sm text-muted-foreground mt-1">
+                          <span>Check-in: {fmtDate(l.checkIn)}</span>
+                          <span className="hidden sm:inline mx-2">|</span>
+                          <span>Check-out: {fmtDate(l.checkOut)}</span>
                         </div>
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-2">
                           {l.address && <span>{l.address}</span>}
@@ -574,13 +576,13 @@ export default function TripDetailPage() {
 
         {/* ── Budget ── */}
         <TabsContent value="budget" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Total: <strong className="text-foreground">${totalExpenses.toFixed(2)}</strong>
-              {paidExpenses > 0 && <> | Paid: <strong className="text-green-600">${paidExpenses.toFixed(2)}</strong></>}
-              {totalExpenses - paidExpenses > 0 && <> | Remaining: <strong className="text-orange-500">${(totalExpenses - paidExpenses).toFixed(2)}</strong></>}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="text-sm text-muted-foreground flex flex-wrap gap-x-1">
+              <span>Total: <strong className="text-foreground">${totalExpenses.toFixed(2)}</strong></span>
+              {paidExpenses > 0 && <><span className="hidden sm:inline">|</span> <span>Paid: <strong className="text-green-600">${paidExpenses.toFixed(2)}</strong></span></>}
+              {totalExpenses - paidExpenses > 0 && <><span className="hidden sm:inline">|</span> <span>Remaining: <strong className="text-orange-500">${(totalExpenses - paidExpenses).toFixed(2)}</strong></span></>}
             </div>
-            <Button size="sm" onClick={() => setShowExpenseForm(true)}>
+            <Button size="sm" className="shrink-0 self-end sm:self-auto" onClick={() => setShowExpenseForm(true)}>
               <Plus className="h-4 w-4 mr-1" /> Add Expense
             </Button>
           </div>
@@ -591,15 +593,16 @@ export default function TripDetailPage() {
               {trip.expenses.map((e) => (
                 <Card key={e.id}>
                   <CardContent className="py-3 px-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Badge variant="outline" className="text-[10px]">{e.category}</Badge>
+                    <div className="flex items-start sm:items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+                        <Badge variant="outline" className="text-[10px] shrink-0">{e.category}</Badge>
                         <span className="text-sm">{e.description}</span>
                         <span className="text-sm font-medium">${parseFloat(e.amount)}</span>
-                        {e.isPaid && <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">Paid</Badge>}
+                        {e.isPaid && <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 shrink-0">Paid</Badge>}
+                        <span className="text-xs text-muted-foreground sm:hidden">{fmtShortDate(e.date)}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">{fmtShortDate(e.date)}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-xs text-muted-foreground hidden sm:inline">{fmtShortDate(e.date)}</span>
                         <Button variant="ghost" size="sm" onClick={() => deleteSubResource("expenses", "expenseId", e.id)}>
                           <Trash2 className="h-3.5 w-3.5 text-red-500" />
                         </Button>
@@ -676,7 +679,7 @@ export default function TripDetailPage() {
                   <CardContent className="pt-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                           <span className="text-sm font-medium">{fmtDate(entry.date)}</span>
                           {entry.title && <span className="text-sm text-muted-foreground">— {entry.title}</span>}
                           {entry.mood && (
@@ -845,7 +848,7 @@ function FlightFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClos
             <div><Label>Confirmation Code</Label><Input value={form.confirmationCode} onChange={(e) => setForm((p) => ({ ...p, confirmationCode: e.target.value }))} /></div>
             <div><Label>Seat</Label><Input value={form.seatAssignment} onChange={(e) => setForm((p) => ({ ...p, seatAssignment: e.target.value }))} placeholder="12A" /></div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div><Label>Terminal</Label><Input value={form.terminal} onChange={(e) => setForm((p) => ({ ...p, terminal: e.target.value }))} /></div>
             <div><Label>Gate</Label><Input value={form.gate} onChange={(e) => setForm((p) => ({ ...p, gate: e.target.value }))} /></div>
             <div><Label>Price</Label><Input type="number" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} placeholder="0.00" /></div>
@@ -1032,8 +1035,8 @@ function ItineraryFormDialog({ tripId, onClose, onSaved }: { tripId: string; onC
         <DialogHeader><DialogTitle>Add Itinerary Item</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder="Garden of the Gods hike" /></div>
-          <div className="grid grid-cols-3 gap-3">
-            <div><Label>Date</Label><Input type="date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} /></div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="col-span-2 sm:col-span-1"><Label>Date</Label><Input type="date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} /></div>
             <div><Label>Start</Label><Input type="time" value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} /></div>
             <div><Label>End</Label><Input type="time" value={form.endTime} onChange={(e) => setForm((p) => ({ ...p, endTime: e.target.value }))} /></div>
           </div>
@@ -1153,18 +1156,19 @@ function PackingFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClo
         <DialogHeader><DialogTitle>Add Packing Items</DialogTitle></DialogHeader>
         <div className="space-y-3">
           {items.map((item, i) => (
-            <div key={i} className="flex gap-2">
+            <div key={i} className="flex flex-col sm:flex-row gap-2">
               <Input
                 value={item.item}
                 onChange={(e) => setItems((prev) => prev.map((p, j) => j === i ? { ...p, item: e.target.value } : p))}
                 placeholder="Item name"
                 className="flex-1"
               />
+              <div className="flex gap-2">
               <Select
                 value={item.category}
                 onValueChange={(v) => setItems((prev) => prev.map((p, j) => j === i ? { ...p, category: v } : p))}
               >
-                <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[130px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {["clothes", "toiletries", "electronics", "documents", "medication", "gear", "other"].map((c) => (
                     <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
@@ -1176,6 +1180,7 @@ function PackingFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClo
                   <X className="h-4 w-4" />
                 </Button>
               )}
+              </div>
             </div>
           ))}
           <Button variant="outline" size="sm" onClick={addRow} className="w-full">

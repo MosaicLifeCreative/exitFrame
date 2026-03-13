@@ -12,6 +12,8 @@ import { weatherTools, executeWeatherTool } from "@/lib/weather-tools";
 import { taskTools, executeTaskTool } from "@/lib/task-tools";
 import { travelTools, executeTravelTool } from "@/lib/travel-tools";
 import { peopleTools, executePeopleTool } from "@/lib/people-tools";
+import { noteTools, executeNoteTool } from "@/lib/note-tools";
+import { hobbyTools, executeHobbyTool } from "@/lib/hobby-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -335,6 +337,8 @@ const toolNameSets = {
   task: new Set(taskTools.map((t) => t.name)),
   travel: new Set(travelTools.map((t) => t.name)),
   people: new Set(peopleTools.map((t) => t.name)),
+  notes: new Set(noteTools.map((t) => t.name)),
+  hobby: new Set(hobbyTools.map((t) => t.name)),
 };
 
 async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -351,13 +355,15 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.task.has(name)) return executeTaskTool(name, input);
   if (toolNameSets.travel.has(name)) return executeTravelTool(name, input);
   if (toolNameSets.people.has(name)) return executePeopleTool(name, input);
+  if (toolNameSets.notes.has(name)) return executeNoteTool(name, input);
+  if (toolNameSets.hobby.has(name)) return executeHobbyTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools];
+  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];

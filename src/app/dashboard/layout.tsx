@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import MainContent from "@/components/layout/MainContent";
@@ -14,13 +14,28 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const toggleMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen((prev) => !prev);
+  }, []);
+
+  const closeMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(false);
+  }, []);
 
   return (
     <TimeTrackingProvider>
       <div className="h-screen flex flex-col overflow-hidden">
-        <Header onCommandPalette={() => setCommandPaletteOpen(true)} />
+        <Header
+          onCommandPalette={() => setCommandPaletteOpen(true)}
+          onMenuToggle={toggleMobileSidebar}
+        />
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar />
+          <Sidebar
+            isMobileOpen={mobileSidebarOpen}
+            onMobileClose={closeMobileSidebar}
+          />
           <MainContent>{children}</MainContent>
         </div>
         <CommandPalette

@@ -42,6 +42,8 @@ import {
   BookOpen,
   ScrollText,
   Plane,
+  Guitar,
+  X,
 } from "lucide-react";
 
 interface NavItem {
@@ -88,6 +90,7 @@ const navSections: NavSection[] = [
       { label: "Investing", href: "/dashboard/investing", icon: CandlestickChart },
       { label: "Goals", href: "/dashboard/goals", icon: Target },
       { label: "Travel", href: "/dashboard/travel", icon: Plane },
+      { label: "Hobbies", href: "/dashboard/hobbies", icon: Guitar },
       { label: "Trackers", href: "/dashboard/trackers", icon: BarChart3 },
       { label: "Plants", href: "/dashboard/plants", icon: Flower2 },
       { label: "Home", href: "/dashboard/home", icon: Home },
@@ -130,7 +133,12 @@ const navSections: NavSection[] = [
   },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export default function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     "Command Center": true,
@@ -167,31 +175,42 @@ export default function Sidebar() {
     return false;
   };
 
-  return (
-    <aside
-      className={cn(
-        "h-full bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300",
-        collapsed ? "w-[60px]" : "w-[240px]"
-      )}
-    >
+  const handleNavClick = () => {
+    if (onMobileClose) {
+      onMobileClose();
+    }
+  };
+
+  const sidebarContent = (showCollapsed: boolean) => (
+    <>
       {/* Logo area */}
       <div className="h-14 flex items-center justify-between px-4 border-b border-sidebar-border">
-        {!collapsed && (
+        {!showCollapsed && (
           <span className="text-sm font-semibold text-sidebar-foreground tracking-wider">
             MOSAIC LIFE
           </span>
         )}
+        {/* Desktop: collapse toggle. Mobile: close button */}
+        <div className="hidden md:block">
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <ChevronLeft
+              className={cn(
+                "h-4 w-4 transition-transform duration-300",
+                collapsed && "rotate-180"
+              )}
+            />
+          </button>
+        </div>
         <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={onMobileClose}
+          className="md:hidden p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
+          title="Close menu"
         >
-          <ChevronLeft
-            className={cn(
-              "h-4 w-4 transition-transform duration-300",
-              collapsed && "rotate-180"
-            )}
-          />
+          <X className="h-4 w-4" />
         </button>
       </div>
 
@@ -200,7 +219,7 @@ export default function Sidebar() {
         {navSections.map((section) => (
           <div key={section.title} className="mb-2">
             {/* Section header */}
-            {!collapsed ? (
+            {!showCollapsed ? (
               <button
                 onClick={() => toggleSection(section.title)}
                 className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-semibold
@@ -218,7 +237,7 @@ export default function Sidebar() {
             )}
 
             {/* Section items */}
-            {(collapsed || expandedSections[section.title]) && (
+            {(showCollapsed || expandedSections[section.title]) && (
               <div className="space-y-0.5">
                 {section.items.map((item) => {
                   const active = isItemActive(item);
@@ -226,13 +245,14 @@ export default function Sidebar() {
                   const hasChildren = item.children && item.children.length > 0;
                   const isExpanded = expandedItems[item.label];
 
-                  if (hasChildren && !collapsed) {
+                  if (hasChildren && !showCollapsed) {
                     return (
                       <div key={item.href}>
-                        {/* Parent item — clickable label goes to overview, chevron toggles children */}
+                        {/* Parent item -- clickable label goes to overview, chevron toggles children */}
                         <div className="flex items-center">
                           <Link
                             href={item.href}
+                            onClick={handleNavClick}
                             className={cn(
                               "flex-1 flex items-center gap-3 rounded-md rounded-r-none px-2 py-2 text-sm transition-colors",
                               active
@@ -271,6 +291,7 @@ export default function Sidebar() {
                                 <Link
                                   key={child.href}
                                   href={child.href}
+                                  onClick={handleNavClick}
                                   className={cn(
                                     "flex items-center gap-3 rounded-md px-2 py-1.5 text-sm transition-colors",
                                     childActive
@@ -289,12 +310,13 @@ export default function Sidebar() {
                     );
                   }
 
-                  // Collapsed parent with children — show just the icon
-                  if (hasChildren && collapsed) {
+                  // Collapsed parent with children -- show just the icon
+                  if (hasChildren && showCollapsed) {
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
+                        onClick={handleNavClick}
                         className={cn(
                           "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors justify-center px-0",
                           active
@@ -313,17 +335,18 @@ export default function Sidebar() {
                     <Link
                       key={item.href}
                       href={item.href}
+                      onClick={handleNavClick}
                       className={cn(
                         "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors",
                         active
                           ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                           : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                        collapsed && "justify-center px-0"
+                        showCollapsed && "justify-center px-0"
                       )}
-                      title={collapsed ? item.label : undefined}
+                      title={showCollapsed ? item.label : undefined}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span>{item.label}</span>}
+                      {!showCollapsed && <span>{item.label}</span>}
                     </Link>
                   );
                 })}
@@ -332,6 +355,46 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar -- hidden on mobile, always in normal flow */}
+      <aside
+        className={cn(
+          "hidden md:flex h-full bg-sidebar border-r border-sidebar-border flex-col transition-all duration-300",
+          collapsed ? "w-[60px]" : "w-[240px]"
+        )}
+      >
+        {sidebarContent(collapsed)}
+      </aside>
+
+      {/* Mobile sidebar overlay -- visible only when open on mobile */}
+      <div
+        className={cn(
+          "fixed inset-0 z-40 md:hidden",
+          isMobileOpen ? "pointer-events-auto" : "pointer-events-none"
+        )}
+      >
+        {/* Backdrop */}
+        <div
+          className={cn(
+            "absolute inset-0 bg-black/50 transition-opacity duration-300",
+            isMobileOpen ? "opacity-100" : "opacity-0"
+          )}
+          onClick={onMobileClose}
+        />
+        {/* Sidebar panel */}
+        <aside
+          className={cn(
+            "absolute top-0 left-0 h-full w-[280px] bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-in-out",
+            isMobileOpen ? "translate-x-0" : "-translate-x-full"
+          )}
+        >
+          {sidebarContent(false)}
+        </aside>
+      </div>
+    </>
   );
 }

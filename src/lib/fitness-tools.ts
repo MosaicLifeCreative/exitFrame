@@ -263,6 +263,21 @@ export const fitnessTools: Anthropic.Tool[] = [
       required: ["name", "totalDistance", "workout"],
     },
   },
+  {
+    name: "list_swim_workouts",
+    description:
+      "List saved swim workout plans. Use this to reference past swim workouts when building new ones or reviewing training history.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        limit: {
+          type: "number",
+          description: "Number of workouts to return (default 10, max 30)",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ─── Tool Execution ─────────────────────────────────────
@@ -303,6 +318,10 @@ interface GetRecentCardioInput {
   limit?: number;
 }
 
+interface ListSwimWorkoutsInput {
+  limit?: number;
+}
+
 interface SwimSetBlock {
   description: string;
   distance?: number;
@@ -340,6 +359,8 @@ export async function executeFitnessTool(
       return getRecentCardio(toolInput as unknown as GetRecentCardioInput);
     case "create_swim_workout":
       return createSwimWorkout(toolInput as unknown as CreateSwimWorkoutInput);
+    case "list_swim_workouts":
+      return listSwimWorkouts(toolInput as unknown as ListSwimWorkoutsInput);
     default:
       return JSON.stringify({ error: `Unknown tool: ${toolName}` });
   }
@@ -607,18 +628,35 @@ async function createSwimWorkout(input: CreateSwimWorkoutInput): Promise<string>
 
   // Build structured notes from the workout plan
   const workoutParts: string[] = [];
-  workoutParts.push(`Warmup: ${input.workout.warmup}`);
+  workoutParts.push(`**Warmup:** ${input.workout.warmup}`);
   for (const set of input.workout.mainSets) {
     let line = set.description;
     if (set.intensity) line += ` [${set.intensity}]`;
     if (set.distance) line += ` (${set.distance} ${distanceUnit})`;
     workoutParts.push(line);
   }
-  workoutParts.push(`Cooldown: ${input.workout.cooldown}`);
-  if (input.notes) workoutParts.push(`\nNotes: ${input.notes}`);
+  workoutParts.push(`**Cooldown:** ${input.workout.cooldown}`);
+  if (input.notes) workoutParts.push(`\n**Notes:** ${input.notes}`);
 
-  const fullNotes = `${input.name}\n${workoutParts.join("\n")}`;
+  const fullContent = workoutParts.join("\n");
+  const fullNotes = `${input.name}\n${fullContent}`;
 
+  // Determine focus from notes or default
+  const focus = input.notes || null;
+
+  // Save to SwimWorkout table (the plan/template)
+  const swimWorkout = await prisma.swimWorkout.create({
+    data: {
+      name: input.name,
+      focus,
+      totalYards: input.totalDistance,
+      content: fullContent,
+      source: "claude",
+      isTemplate: false,
+    },
+  });
+
+  // Also save as a cardio session for tracking
   const session = await prisma.cardioSession.create({
     data: {
       activityType: "swim",
@@ -635,6 +673,7 @@ async function createSwimWorkout(input: CreateSwimWorkoutInput): Promise<string>
         mainSets: input.workout.mainSets,
         cooldown: input.workout.cooldown,
         structured: true,
+        swimWorkoutId: swimWorkout.id,
       } as unknown as Record<string, never>,
     },
   });
@@ -643,12 +682,34 @@ async function createSwimWorkout(input: CreateSwimWorkoutInput): Promise<string>
     success: true,
     session: {
       id: session.id,
+      swimWorkoutId: swimWorkout.id,
       activityType: "swim",
       totalDistance: input.totalDistance,
       distanceUnit,
       estimatedMinutes: input.estimatedMinutes,
       workoutPlan: workoutParts,
     },
-    message: "Swim workout saved! Check the Cardio tab in Fitness.",
+    message: "Swim workout saved! Check the Swim Plans section in the Cardio tab.",
   });
+}
+
+async function listSwimWorkouts(input: ListSwimWorkoutsInput): Promise<string> {
+  const limit = Math.min(input.limit || 10, 30);
+
+  const workouts = await prisma.swimWorkout.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+
+  const result = workouts.map((w) => ({
+    id: w.id,
+    name: w.name,
+    focus: w.focus,
+    totalYards: w.totalYards,
+    content: w.content,
+    source: w.source,
+    createdAt: w.createdAt.toISOString().slice(0, 10),
+  }));
+
+  return JSON.stringify({ workouts: result, count: result.length });
 }

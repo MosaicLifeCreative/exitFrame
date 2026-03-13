@@ -133,7 +133,7 @@ export default function TravelPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 px-4 sm:px-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -146,7 +146,7 @@ export default function TravelPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {["upcoming", "active", "completed", "all"].map((s) => (
           <Button
             key={s}
@@ -192,15 +192,15 @@ export default function TravelPage() {
                           {trip.status}
                         </Badge>
                       </div>
-                      <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-0.5 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
+                          <Calendar className="h-3 w-3 shrink-0" />
                           {formatShortDate(trip.startDate)}
                           {trip.endDate && ` – ${formatShortDate(trip.endDate)}`}
                         </span>
                         <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {trip.destinations.map((d) => d.state ? `${d.city}, ${d.state}` : d.city).join(" → ")}
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{trip.destinations.map((d) => d.state ? `${d.city}, ${d.state}` : d.city).join(" → ")}</span>
                         </span>
                         {trip.status === "upcoming" && (
                           <span className="text-blue-500 font-medium">{getDaysUntil(trip.startDate)}</span>
@@ -452,8 +452,8 @@ function TripFormDialog({
                       <X className="h-4 w-4" />
                     </button>
                   )}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="col-span-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="col-span-2 sm:col-span-2">
                       <Input
                         placeholder="City"
                         value={dest.city}
@@ -461,7 +461,7 @@ function TripFormDialog({
                         className="h-8 text-sm"
                       />
                     </div>
-                    <div>
+                    <div className="col-span-2 sm:col-span-1">
                       <Input
                         placeholder="State"
                         value={dest.state}

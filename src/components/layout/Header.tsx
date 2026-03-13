@@ -3,7 +3,7 @@
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "next-themes";
-import { Sun, Moon, LogOut, Search } from "lucide-react";
+import { Sun, Moon, LogOut, Search, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import AydenHeartbeat from "./AydenHeartbeat";
 
@@ -27,8 +27,10 @@ function getPageTitle(pathname: string): string {
 
 export default function Header({
   onCommandPalette,
+  onMenuToggle,
 }: {
   onCommandPalette: () => void;
+  onMenuToggle: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -57,10 +59,20 @@ export default function Header({
 
   return (
     <header className="h-14 border-b border-border bg-background flex items-center justify-between px-6">
-      {/* Left: Page title */}
-      <h1 className="text-lg font-semibold text-foreground">
-        {getPageTitle(pathname)}
-      </h1>
+      {/* Left: Menu button (mobile) + Page title */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onMenuToggle}
+          className="md:hidden h-9 w-9 flex items-center justify-center rounded-md border border-input
+            hover:bg-accent hover:text-accent-foreground transition-colors"
+          title="Toggle menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <h1 className="text-lg font-semibold text-foreground">
+          {getPageTitle(pathname)}
+        </h1>
+      </div>
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">

@@ -99,7 +99,7 @@ export async function runAutonomousSandboxTrading(): Promise<{
   const totalValue = cashBalance + holdingsValue;
   const totalReturn = ((totalValue - startingCapital) / startingCapital * 100).toFixed(2);
   const cashPct = totalValue > 0 ? ((cashBalance / totalValue) * 100).toFixed(1) : "100.0";
-  const availableCash = Math.max(0, cashBalance - totalValue * MIN_CASH_RESERVE_PCT);
+  let availableCash = Math.max(0, cashBalance - totalValue * MIN_CASH_RESERVE_PCT);
 
   // Build context strings
   const positionContext = positionDetails.length > 0
@@ -319,6 +319,9 @@ No markdown, no code blocks, just the JSON array.`,
           where: { id: portfolio.id },
           data: { cashBalance: { decrement: total } },
         });
+
+        // Track spending so subsequent buys in this batch see reduced cash
+        availableCash -= total;
 
         await prisma.aiTrade.create({
           data: {

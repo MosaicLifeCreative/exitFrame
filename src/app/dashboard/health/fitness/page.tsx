@@ -408,7 +408,7 @@ export default function FitnessPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 border-b border-border overflow-x-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -416,14 +416,14 @@ export default function FitnessPage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
+                "flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                 activeTab === tab.id
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
-              <Icon className="h-4 w-4" />
-              {tab.label}
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">{tab.label}</span>
             </button>
           );
         })}
@@ -823,7 +823,7 @@ function LogWorkoutTab({
               {expandedExercise === eIdx && (
                 <div className="mt-3 space-y-2">
                   {/* Set headers */}
-                  <div className="grid grid-cols-[40px_1fr_1fr_80px_100px_40px] gap-2 text-xs text-muted-foreground px-1">
+                  <div className="hidden md:grid grid-cols-[40px_1fr_1fr_80px_100px_40px] gap-2 text-xs text-muted-foreground px-1">
                     <span>Set</span>
                     <span>Weight (lbs)</span>
                     <span>Reps</span>
@@ -835,52 +835,77 @@ function LogWorkoutTab({
                   {entry.sets.map((set, sIdx) => (
                     <div
                       key={sIdx}
-                      className="grid grid-cols-[40px_1fr_1fr_80px_100px_40px] gap-2 items-center"
+                      className="flex flex-col gap-1.5 rounded-md border border-border p-2 md:border-0 md:p-0 md:rounded-none md:grid md:grid-cols-[40px_1fr_1fr_80px_100px_40px] md:gap-2 md:items-center"
                     >
-                      <span className="text-sm text-muted-foreground text-center">
-                        {set.setNumber}
-                      </span>
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        value={set.weight}
-                        onChange={(e) => updateSet(eIdx, sIdx, "weight", e.target.value)}
-                        className="h-8"
-                      />
-                      <Input
-                        type="number"
-                        placeholder="10"
-                        value={set.reps}
-                        onChange={(e) => updateSet(eIdx, sIdx, "reps", e.target.value)}
-                        className="h-8"
-                      />
-                      <Input
-                        type="number"
-                        placeholder="1-10"
-                        min={1}
-                        max={10}
-                        value={set.rpe}
-                        onChange={(e) => updateSet(eIdx, sIdx, "rpe", e.target.value)}
-                        className="h-8"
-                      />
-                      <Select
-                        value={set.setType}
-                        onValueChange={(v) => updateSet(eIdx, sIdx, "setType", v)}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="warmup">Warmup</SelectItem>
-                          <SelectItem value="working">Working</SelectItem>
-                          <SelectItem value="drop">Drop</SelectItem>
-                          <SelectItem value="failure">Failure</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center justify-between md:contents">
+                        <span className="text-sm text-muted-foreground md:text-center">
+                          Set {set.setNumber}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 md:hidden"
+                          onClick={() => removeSet(eIdx, sIdx)}
+                          disabled={entry.sets.length <= 1}
+                        >
+                          <Trash2 className="h-3 w-3 text-muted-foreground" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 md:contents">
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] text-muted-foreground md:hidden">Weight (lbs)</label>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={set.weight}
+                            onChange={(e) => updateSet(eIdx, sIdx, "weight", e.target.value)}
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] text-muted-foreground md:hidden">Reps</label>
+                          <Input
+                            type="number"
+                            placeholder="10"
+                            value={set.reps}
+                            onChange={(e) => updateSet(eIdx, sIdx, "reps", e.target.value)}
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] text-muted-foreground md:hidden">RPE</label>
+                          <Input
+                            type="number"
+                            placeholder="1-10"
+                            min={1}
+                            max={10}
+                            value={set.rpe}
+                            onChange={(e) => updateSet(eIdx, sIdx, "rpe", e.target.value)}
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] text-muted-foreground md:hidden">Type</label>
+                          <Select
+                            value={set.setType}
+                            onValueChange={(v) => updateSet(eIdx, sIdx, "setType", v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="warmup">Warmup</SelectItem>
+                              <SelectItem value="working">Working</SelectItem>
+                              <SelectItem value="drop">Drop</SelectItem>
+                              <SelectItem value="failure">Failure</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0"
+                        className="hidden md:flex h-8 w-8 p-0"
                         onClick={() => removeSet(eIdx, sIdx)}
                         disabled={entry.sets.length <= 1}
                       >
@@ -1439,10 +1464,10 @@ function ExercisesTab({
           placeholder="Search exercises..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[200px]"
+          className="flex-1 min-w-0 w-full sm:min-w-[200px] sm:w-auto"
         />
         <Select value={filterGroup} onValueChange={setFilterGroup}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="All muscle groups" />
           </SelectTrigger>
           <SelectContent>
@@ -1816,6 +1841,17 @@ interface CardioSession {
   details: Record<string, unknown> | null;
 }
 
+interface SwimWorkoutPlan {
+  id: string;
+  name: string;
+  focus: string | null;
+  totalYards: number | null;
+  content: string;
+  source: string;
+  isTemplate: boolean;
+  createdAt: string;
+}
+
 const ACTIVITY_LABELS: Record<string, string> = {
   swim: "Swim",
   run: "Run",
@@ -1840,6 +1876,8 @@ function CardioTab() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [swimPlans, setSwimPlans] = useState<SwimWorkoutPlan[]>([]);
+  const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -1854,9 +1892,19 @@ function CardioTab() {
     }
   }, [typeFilter]);
 
+  const fetchSwimPlans = useCallback(async () => {
+    try {
+      const res = await fetch("/api/fitness/swim-workouts?limit=10").then((r) => r.json());
+      if (res.data) setSwimPlans(res.data);
+    } catch (err) {
+      console.error("Swim plans fetch error:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchSessions();
-  }, [fetchSessions]);
+    fetchSwimPlans();
+  }, [fetchSessions, fetchSwimPlans]);
 
   // Stats
   const thisWeek = useMemo(() => {
@@ -1968,16 +2016,16 @@ function CardioTab() {
                     }}
                   />
                 ) : (
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                     <Badge
                       variant="outline"
-                      className={`text-xs ${ACTIVITY_COLORS[session.activityType] || ""}`}
+                      className={`text-xs w-fit ${ACTIVITY_COLORS[session.activityType] || ""}`}
                     >
                       {ACTIVITY_LABELS[session.activityType] || session.activityType}
                     </Badge>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 text-sm">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
                         <span className="font-medium">
                           {new Date(session.performedAt).toLocaleDateString()}
                         </span>
@@ -2036,6 +2084,94 @@ function CardioTab() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Swim Plans */}
+      {swimPlans.length > 0 && (
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <Waves className="h-4 w-4 text-blue-400" />
+              Swim Plans
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {swimPlans.map((plan) => (
+              <Card key={plan.id} className="overflow-hidden">
+                <CardContent className="py-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm truncate">{plan.name}</span>
+                        {plan.focus && (
+                          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-400 border-blue-500/20">
+                            {plan.focus}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                        {plan.totalYards && (
+                          <span>{plan.totalYards.toLocaleString()} yds</span>
+                        )}
+                        <span>{new Date(plan.createdAt).toLocaleDateString()}</span>
+                        {plan.source === "claude" && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">Ayden</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => setExpandedPlanId(expandedPlanId === plan.id ? null : plan.id)}
+                      >
+                        {expandedPlanId === plan.id ? (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={async () => {
+                          await fetch(`/api/fitness/swim-workouts/${plan.id}`, { method: "DELETE" });
+                          fetchSwimPlans();
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                  {expandedPlanId === plan.id && (
+                    <div className="text-sm text-muted-foreground whitespace-pre-wrap border-t pt-2 mt-1">
+                      {plan.content.split("\n").map((line, i) => {
+                        if (line.startsWith("**") && line.includes(":**")) {
+                          const parts = line.split(":**");
+                          return (
+                            <p key={i} className="mb-1">
+                              <span className="font-medium text-foreground">{parts[0].replace(/\*\*/g, "")}:</span>
+                              {parts.slice(1).join(":**")}
+                            </p>
+                          );
+                        }
+                        if (line.trim() === "") return <br key={i} />;
+                        return <p key={i} className="mb-0.5">{line}</p>;
+                      })}
+                    </div>
+                  )}
+                  {expandedPlanId !== plan.id && plan.content && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {plan.content.replace(/\*\*/g, "").split("\n")[0]}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -2112,10 +2248,26 @@ function CardioForm({
   const [bikeType, setBikeType] = useState(String(details.bikeType || "road"));
   const [location, setLocation] = useState(String(details.location || ""));
 
+  // Track whether user has manually edited laps
+  const [lapsManuallyEdited, setLapsManuallyEdited] = useState(false);
+
   // Update distance unit when activity type changes
   useEffect(() => {
-    if (!session) setDistanceUnit(DEFAULT_UNITS[activityType]);
+    if (!session) {
+      setDistanceUnit(DEFAULT_UNITS[activityType]);
+      setLapsManuallyEdited(false);
+    }
   }, [activityType, session]);
+
+  // Auto-calculate laps from distance and pool length for swim
+  useEffect(() => {
+    if (activityType !== "swim" || lapsManuallyEdited) return;
+    const dist = parseFloat(distanceValue);
+    const pool = parseFloat(poolLength);
+    if (!dist || !pool || pool <= 0) return;
+    const calculated = Math.round(dist / pool);
+    setLaps(calculated > 0 ? String(calculated) : "");
+  }, [activityType, distanceValue, poolLength, lapsManuallyEdited]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2257,7 +2409,10 @@ function CardioForm({
                   type="number"
                   placeholder="0"
                   value={laps}
-                  onChange={(e) => setLaps(e.target.value)}
+                  onChange={(e) => {
+                    setLaps(e.target.value);
+                    setLapsManuallyEdited(true);
+                  }}
                 />
               </div>
             </div>

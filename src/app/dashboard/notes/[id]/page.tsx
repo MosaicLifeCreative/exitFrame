@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import {
@@ -13,6 +14,7 @@ import {
   Check,
   X,
   Loader2,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -171,7 +173,10 @@ export default function NoteEditorPage() {
     }
   };
 
-  const handleAction = async (actionId: string, action: "accepted" | "dismissed") => {
+  const handleAction = async (
+    actionId: string,
+    action: "accepted" | "dismissed"
+  ) => {
     try {
       const res = await fetch(`/api/notes/actions/${actionId}`, {
         method: "PUT",
@@ -180,7 +185,6 @@ export default function NoteEditorPage() {
       });
       if (res.ok) {
         if (action === "accepted") {
-          // Execute the action
           await fetch(`/api/notes/actions/${actionId}/execute`, {
             method: "POST",
           });
@@ -196,7 +200,9 @@ export default function NoteEditorPage() {
   };
 
   if (loading) {
-    return <div className="text-muted-foreground py-12 text-center">Loading...</div>;
+    return (
+      <div className="text-muted-foreground py-16 text-center">Loading...</div>
+    );
   }
 
   if (!note) return null;
@@ -204,12 +210,21 @@ export default function NoteEditorPage() {
   const pendingActions = note.actions.filter((a) => a.status === "pending");
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Back link */}
+      <Link
+        href="/dashboard/notes"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Back to Notes
+      </Link>
+
+      {/* Header: stacks on mobile */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
           <Select value={noteType} onValueChange={setNoteType}>
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="w-[140px] sm:w-[150px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -221,7 +236,8 @@ export default function NoteEditorPage() {
           </Select>
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
+            className="h-9 w-9"
             onClick={() => setIsPinned(!isPinned)}
           >
             {isPinned ? (
@@ -233,20 +249,33 @@ export default function NoteEditorPage() {
         </div>
         <div className="flex items-center gap-2">
           {noteType === "meeting_notes" && (
-            <Button variant="outline" onClick={detectActions} disabled={detecting}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={detectActions}
+              disabled={detecting}
+            >
               {detecting ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Sparkles className="h-4 w-4 mr-2" />
               )}
-              Detect Actions
+              <span className="hidden sm:inline">Detect Actions</span>
+              <span className="sm:hidden">Detect</span>
             </Button>
           )}
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="h-4 w-4 mr-2" />
-            {saving ? "Saving..." : "Save"}
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            <Save className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">
+              {saving ? "Saving..." : "Save"}
+            </span>
           </Button>
-          <Button variant="destructive" size="icon" onClick={handleDelete}>
+          <Button
+            variant="destructive"
+            size="icon"
+            className="h-8 w-8 sm:h-9 sm:w-9"
+            onClick={handleDelete}
+          >
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
@@ -256,7 +285,7 @@ export default function NoteEditorPage() {
       <Input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        className="text-xl font-semibold border-none shadow-none px-0 focus-visible:ring-0"
+        className="text-lg sm:text-xl font-semibold border-none shadow-none px-0 focus-visible:ring-0 h-auto py-1"
         placeholder="Note title..."
       />
 
@@ -265,23 +294,27 @@ export default function NoteEditorPage() {
         <MDEditor
           value={content}
           onChange={(val) => setContent(val || "")}
-          height={400}
+          height={300}
+          style={{ minHeight: 200 }}
           preview="live"
+          className="!rounded-lg !border-border"
         />
       </div>
       <div data-color-mode="dark" className="hidden dark:block">
         <MDEditor
           value={content}
           onChange={(val) => setContent(val || "")}
-          height={400}
+          height={300}
+          style={{ minHeight: 200 }}
           preview="live"
+          className="!rounded-lg !border-border"
         />
       </div>
 
       {/* Actions Panel */}
       {note.actions.length > 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               Detected Actions
               {pendingActions.length > 0 && (
@@ -289,34 +322,37 @@ export default function NoteEditorPage() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {note.actions.map((action) => (
               <div
                 key={action.id}
-                className="flex items-start justify-between p-3 border rounded-lg"
+                className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 p-3 border rounded-lg"
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <Badge variant="outline" className="text-xs">
-                      {actionTypeLabels[action.suggestedActionType] || action.suggestedActionType}
+                      {actionTypeLabels[action.suggestedActionType] ||
+                        action.suggestedActionType}
                     </Badge>
                     <Badge
-                      variant={action.status === "pending" ? "default" : "secondary"}
+                      variant={
+                        action.status === "pending" ? "default" : "secondary"
+                      }
                       className="text-xs"
                     >
                       {action.status}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground italic">
+                  <p className="text-sm text-muted-foreground italic truncate sm:whitespace-normal">
                     &ldquo;{action.detectedText}&rdquo;
                   </p>
                 </div>
                 {action.status === "pending" && (
-                  <div className="flex gap-1 ml-3">
+                  <div className="flex gap-1 shrink-0">
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-green-600 hover:text-green-700"
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
                       onClick={() => handleAction(action.id, "accepted")}
                     >
                       <Check className="h-4 w-4" />
@@ -324,7 +360,7 @@ export default function NoteEditorPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
                       onClick={() => handleAction(action.id, "dismissed")}
                     >
                       <X className="h-4 w-4" />

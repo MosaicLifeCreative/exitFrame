@@ -796,6 +796,21 @@ model CardioSession {
   @@map("cardio_sessions")
 }
 
+// Swim workout plans / templates — structured swim workouts from Ayden or manual
+model SwimWorkout {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String
+  focus      String?  // e.g. "Speed & Form", "Endurance", "Recovery"
+  totalYards Int?     @map("total_yards")
+  content    String   @db.Text // The full workout text (markdown formatted)
+  source     String   @default("claude") // "claude" or "manual"
+  isTemplate Boolean  @default(false) @map("is_template")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("swim_workouts")
+}
+
 
 // ============================================
 // HEALTH — Supplements, Symptoms
@@ -1294,6 +1309,56 @@ model TripJournalEntry {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("trip_journal_entries")
+}
+
+// ============================================
+// HOBBIES
+// ============================================
+
+model Hobby {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  description String?  @db.Text
+  icon        String?  // emoji or lucide icon name
+  status      String   @default("active") // "active", "paused", "archived"
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  logs      HobbyLog[]
+  resources HobbyResource[]
+
+  @@map("hobbies")
+}
+
+model HobbyLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  hobbyId   String   @map("hobby_id") @db.Uuid
+  title     String?
+  content   String?  @db.Text // markdown notes
+  duration  Int?     // minutes spent
+  mood      String?  // how it felt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  hobby Hobby @relation(fields: [hobbyId], references: [id], onDelete: Cascade)
+
+  @@map("hobby_logs")
+}
+
+model HobbyResource {
+  id           String   @id @default(uuid()) @db.Uuid
+  hobbyId      String   @map("hobby_id") @db.Uuid
+  title        String
+  url          String?  @db.Text
+  resourceType String   @map("resource_type") // "video", "article", "course", "tool", "book", "reference", "other"
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  hobby Hobby @relation(fields: [hobbyId], references: [id], onDelete: Cascade)
+
+  @@map("hobby_resources")
 }
 
 model PushSubscription {

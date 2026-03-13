@@ -349,10 +349,11 @@ export async function executeTrades(decisions: TradeDecision[]): Promise<{ execu
         }
 
         // Deduct cash
-        await prisma.aiPortfolio.update({
+        const updatedPortfolio = await prisma.aiPortfolio.update({
           where: { id: portfolio.id },
           data: { cashBalance: { decrement: total } },
         });
+        portfolio.cashBalance = updatedPortfolio.cashBalance;
 
         // Log trade
         await prisma.aiTrade.create({

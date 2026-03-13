@@ -80,6 +80,14 @@ const TOOL_LABELS: Record<string, string> = {
   update_person: "Updating contact info",
   log_interaction: "Logging interaction",
   forget_person: "Removing contact",
+  create_note: "Creating note",
+  search_notes: "Searching notes",
+  update_note: "Updating note",
+  list_notes: "Listing notes",
+  list_hobbies: "Checking hobbies",
+  log_hobby_activity: "Logging hobby activity",
+  add_hobby_resource: "Saving resource",
+  get_hobby_details: "Loading hobby details",
 };
 
 function formatToolName(name: string): string {

@@ -187,7 +187,7 @@ export default function Sidebar({ isMobileOpen = false, onMobileClose }: Sidebar
       <div className="h-14 flex items-center justify-between px-4 border-b border-sidebar-border">
         {!showCollapsed && (
           <span className="text-sm font-semibold text-sidebar-foreground tracking-wider">
-            MOSAIC LIFE
+            MOSAIC LIFE OS
           </span>
         )}
         {/* Desktop: collapse toggle. Mobile: close button */}

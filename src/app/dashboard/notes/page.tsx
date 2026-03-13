@@ -8,7 +8,6 @@ import {
   Search,
   Pin,
   PinOff,
-  FileText,
   AlertCircle,
   StickyNote,
 } from "lucide-react";

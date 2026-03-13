@@ -718,6 +718,7 @@ export default function ChatWidget() {
             <div className="border-t border-border px-3 pt-2 flex gap-2 flex-wrap">
               {images.map((img, i) => (
                 <div key={i} className="relative group">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={img.dataUrl}
                     alt={`Upload ${i + 1}`}

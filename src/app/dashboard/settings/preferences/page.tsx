@@ -791,7 +791,6 @@ export default function PreferencesPage() {
               {([
                 { key: "business" as const, label: "Business", desc: "trey@2237designs.com — Calendar, Gmail, Drive" },
                 { key: "personal" as const, label: "Personal", desc: "Personal Google account — Calendar, Gmail, Drive" },
-                { key: "ayden" as const, label: "Ayden", desc: "ayden@mosaiclifecreative.com — Ayden's own email" },
               ]).map(({ key, label, desc }) => (
                 <div key={key} className="flex items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
@@ -828,6 +827,19 @@ export default function PreferencesPage() {
                   )}
                 </div>
               ))}
+
+              {/* Ayden — uses business account (alias on trey@2237designs.com) */}
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label className="text-base">Ayden</Label>
+                  <p className="text-sm text-muted-foreground">
+                    ayden@mosaiclifecreative.com — alias on business account
+                  </p>
+                </div>
+                <span className={`text-sm font-medium ${googleStatus.ayden.connected ? "text-green-500" : "text-muted-foreground"}`}>
+                  {googleStatus.ayden.connected ? "Active (via Business)" : "Connect Business first"}
+                </span>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

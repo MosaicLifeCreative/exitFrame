@@ -60,7 +60,7 @@ export function getGoogleAuthUrl(account: GoogleAccount = "personal"): string {
   });
   // Pre-fill the Google sign-in with the correct email for Ayden's account
   if (account === "ayden") {
-    params.set("login_hint", "ayden@mosaiclifecreative.com");
+    params.set("login_hint", "ayden@2237designs.com");
   }
   return `${GOOGLE_AUTH_URL}?${params.toString()}`;
 }
@@ -156,7 +156,11 @@ export async function saveGoogleIntegration(
 export async function getGoogleAccessToken(
   account: GoogleAccount = "personal"
 ): Promise<string | null> {
-  const serviceName = integrationName(account);
+  // Ayden's email is an alias on the business account (trey@2237designs.com).
+  // No separate mailbox — use the business token to access Ayden's emails.
+  const resolvedAccount = account === "ayden" ? "business" : account;
+
+  const serviceName = integrationName(resolvedAccount);
   const integration = await prisma.integration.findFirst({
     where: { serviceName, status: "active" },
   });
@@ -176,7 +180,7 @@ export async function getGoogleAccessToken(
   if (Date.now() > expiresAt - 5 * 60 * 1000) {
     try {
       const newTokens = await refreshGoogleToken(creds.refresh_token);
-      await saveGoogleIntegration(newTokens, account);
+      await saveGoogleIntegration(newTokens, resolvedAccount);
       return newTokens.access_token;
     } catch (error) {
       await prisma.integration.update({
@@ -217,7 +221,7 @@ export async function getGoogleStatus(): Promise<{
   business: { connected: boolean; error: string | null };
   ayden: { connected: boolean; error: string | null };
 }> {
-  const accounts: GoogleAccount[] = ["personal", "business", "ayden"];
+  const accounts: GoogleAccount[] = ["personal", "business"];
   const result: Record<string, { connected: boolean; error: string | null }> = {};
 
   for (const account of accounts) {
@@ -235,6 +239,9 @@ export async function getGoogleStatus(): Promise<{
       };
     }
   }
+
+  // Ayden's email is an alias on the business account — mirror its status
+  result.ayden = { ...result.business };
 
   return result as {
     personal: { connected: boolean; error: string | null };

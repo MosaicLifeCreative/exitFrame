@@ -123,6 +123,7 @@ function buildRawEmail(opts: {
   references?: string;
 }): string {
   const headers: string[] = [];
+  headers.push("From: Ayden <ayden@mosaiclifecreative.com>");
   headers.push(`To: ${opts.to}`);
   if (opts.subject) headers.push(`Subject: ${opts.subject}`);
   if (opts.inReplyTo) {
@@ -346,9 +347,9 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
   // Update last check time immediately
   await redis.set(REDIS_LAST_CHECK, new Date().toISOString());
 
-  // Search for unread emails since last check
+  // Search for unread emails sent TO Ayden's alias (not all of Trey's inbox)
   const afterEpoch = Math.floor(lastCheck.getTime() / 1000);
-  const query = `is:unread after:${afterEpoch}`;
+  const query = `is:unread to:ayden@mosaiclifecreative.com after:${afterEpoch}`;
 
   let messages: GmailMessageMeta[];
   try {

@@ -109,6 +109,7 @@ function buildRawEmail(opts: {
   inReplyTo?: string;
 }): string {
   const headers: string[] = [];
+  headers.push("From: Ayden <ayden@mosaiclifecreative.com>");
   headers.push(`To: ${opts.to}`);
   if (opts.subject) headers.push(`Subject: ${opts.subject}`);
   if (opts.cc) headers.push(`Cc: ${opts.cc}`);

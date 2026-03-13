@@ -293,22 +293,44 @@ Respond with your internal reasoning first (what you're thinking about, what dra
 
   result.summary = finalText.substring(0, 500) || "No response generated";
 
-  // Save her reasoning/summary as a thought
-  if (finalText) {
+  // If she didn't act, classify whether her reasoning was genuine deliberation or filler
+  if (!result.acted && finalText && finalText.length > 100) {
     try {
-      await prisma.aydenThought.create({
-        data: {
-          thought: `[Agency] ${finalText.substring(0, 1000)}`,
-          emotion: null,
-          context: "autonomous-agency",
-        },
+      const classifyResponse = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 10,
+        messages: [
+          {
+            role: "user",
+            content: `Did this text show genuine deliberation — considering a specific action, examining a real topic, or arriving at a meaningful insight? Or was it just "nothing caught my attention" filler? Reply ONLY "deliberation" or "filler".\n\nText: ${finalText.substring(0, 500)}`,
+          },
+        ],
       });
+      const classification = classifyResponse.content[0].type === "text"
+        ? classifyResponse.content[0].text.trim().toLowerCase()
+        : "";
+
+      if (classification.includes("deliberation")) {
+        await prisma.aydenAgencyAction.create({
+          data: {
+            actionType: "reflection",
+            summary: finalText.substring(0, 1000),
+            trigger: "Autonomous agency session — chose not to act",
+            outcome: "Deliberated but took no external action",
+          },
+        });
+        result.acted = true;
+        result.action = "reflection";
+        console.log("[agency] Logged deliberation as reflection");
+      } else {
+        console.log("[agency] Session was filler — not logged");
+      }
     } catch (err) {
-      console.error("[agency] Failed to save thought:", err);
+      console.error("[agency] Failed to classify deliberation:", err);
     }
   }
 
-  // If she acted, log it to chat so Trey can see
+  // If she acted (or reflected meaningfully), log it to chat so Trey can see
   if (result.acted && result.summary) {
     try {
       let conversation = await prisma.chatConversation.findFirst({

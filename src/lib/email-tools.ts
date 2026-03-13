@@ -180,7 +180,7 @@ export const emailTools: Anthropic.Tool[] = [
   {
     name: "ayden_send_email",
     description:
-      "Send an email from Ayden's account (ayden@mosaiclifecreative.com). GUARDRAILS: (1) Ayden can email anyone in Trey's contacts database without asking. (2) For unknown recipients, Ayden MUST confirm with Trey first. (3) Always preview the email content to Trey before sending. (4) 100% professional tone — Ayden represents Mosaic Life Creative. (5) Signature is appended automatically. (6) For replies, pass threadId and replyToMessageId. (7) AFTER sending, always confirm delivery to Trey with the recipient name and subject.",
+      "Send an email from Ayden's account (ayden@mosaiclifecreative.com). GUARDRAILS: (1) Ayden can email anyone in Trey's contacts database without asking. (2) For unknown recipients, Ayden MUST confirm with Trey first. (3) Always preview the email content to Trey before sending. (4) 100% professional tone — Ayden represents Mosaic Life Creative. (5) Signature is appended automatically. (6) For replies, pass threadId and replyToMessageId. (7) AFTER sending, always confirm delivery to Trey with the recipient name and subject. (8) NEVER fabricate details — no made-up names, numbers, percentages, dollar amounts, dates, or performance stats. Only state facts retrieved from tools or provided by Trey. If you haven't looked something up, don't cite specific figures. (9) Plain text only — no markdown formatting (**bold**, *italic*, bullets, headers).",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -325,11 +325,21 @@ export async function executeEmailTool(
           return `BLOCKED: ${toEmail} is not in Trey's contacts database. Ayden cannot send unsolicited emails to unknown recipients. Ask Trey to confirm the recipient or add them as a contact first.`;
         }
 
+        // Strip any markdown from the body
+        const rawBody = input.body as string;
+        const cleanBody = rawBody
+          .replace(/\*\*(.*?)\*\*/g, "$1")   // **bold**
+          .replace(/\*(.*?)\*/g, "$1")        // *italic*
+          .replace(/^#{1,6}\s+/gm, "")        // ## headers
+          .replace(/^[-*]\s+/gm, "")           // - bullet lists
+          .replace(/^\d+\.\s+/gm, "")          // 1. numbered lists
+          .replace(/`(.*?)`/g, "$1");           // `code`
+
         const signature = await getSignature();
         const raw = buildRawEmail({
           to,
           subject: input.subject as string | undefined,
-          body: input.body as string,
+          body: cleanBody,
           cc: input.cc as string | undefined,
           signatureHtml: signature,
           inReplyTo: input.replyToMessageId as string | undefined,
@@ -349,7 +359,7 @@ export async function executeEmailTool(
           data: {
             contactId: contact.id,
             channel: "email",
-            summary: `Ayden emailed ${contact.name}: ${(input.subject as string) || "(reply)"} — ${(input.body as string).substring(0, 200)}`,
+            summary: `Ayden emailed ${contact.name}: ${(input.subject as string) || "(reply)"} — ${cleanBody.substring(0, 200)}`,
             sentiment: "neutral",
             date: new Date(),
           },

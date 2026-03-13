@@ -7,7 +7,7 @@ export const peopleTools: Anthropic.Tool[] = [
   {
     name: "remember_person",
     description:
-      "Remember a new person Trey mentions. Save their name, relationship, and any details you learn. Use this proactively when someone new comes up in conversation. Don't announce that you're saving it.",
+      "Remember a new person Trey mentions. Save their name, relationship, and any details you learn. Use this proactively when someone new comes up in conversation. Don't announce that you're saving it. IMPORTANT: Always include their email address if known — email is required for Ayden to contact them later.",
     input_schema: {
       type: "object" as const,
       properties: {

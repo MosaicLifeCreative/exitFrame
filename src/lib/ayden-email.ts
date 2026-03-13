@@ -622,6 +622,14 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
           await incrementDailyReply(senderEmail);
           result.responded++;
           console.log(`[ayden-email] Auto-responded to ${contact.name} (${senderEmail})`);
+
+          // Notify Trey that Ayden handled it
+          await sendPushNotification({
+            title: "Ayden replied",
+            body: `To ${contact.name}: ${subject}`,
+            tag: "ayden-email-reply",
+            url: "/dashboard/chat",
+          });
           break;
         }
 

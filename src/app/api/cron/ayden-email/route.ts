@@ -19,8 +19,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await checkAydenInbox();
+    const errSuffix = result.errors.length > 0 ? ` errors=${result.errors.join(" | ")}` : "";
     console.log(
-      `[ayden-email-cron] checked=${result.checked} responded=${result.responded} escalated=${result.escalated} ignored=${result.ignored}`
+      `[ayden-email-cron] checked=${result.checked} responded=${result.responded} escalated=${result.escalated} ignored=${result.ignored}${errSuffix}`
     );
     return NextResponse.json({ data: result });
   } catch (error) {

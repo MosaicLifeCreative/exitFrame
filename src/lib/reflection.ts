@@ -121,7 +121,7 @@ Omit empty arrays/objects if no changes for that layer.`,
     // ── Apply emotion updates ──
     if (parsed.emotions && parsed.emotions.length > 0) {
       for (const update of parsed.emotions) {
-        const emotion = update.emotion?.toLowerCase().trim();
+        const emotion = update.emotion?.toLowerCase().trim().replace(/_/g, " ");
         if (!emotion) continue;
 
         if (update.action === "set") {
@@ -336,7 +336,7 @@ Or if nothing should change: { "emotions": [], "reasoning": "why not" }`,
     const changes: string[] = [];
 
     for (const update of parsed.emotions) {
-      const emotion = update.emotion?.toLowerCase().trim();
+      const emotion = update.emotion?.toLowerCase().trim().replace(/_/g, " ");
       if (!emotion) continue;
 
       if (update.action === "set") {

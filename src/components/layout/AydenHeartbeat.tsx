@@ -102,7 +102,7 @@ export default function AydenHeartbeat() {
         <>
           <span className="text-muted-foreground/40 mx-0.5">&middot;</span>
           <span className="text-xs text-muted-foreground/70 italic">
-            {hr.emotion}
+            {hr.emotion.replace(/_/g, " ")}
           </span>
         </>
       )}

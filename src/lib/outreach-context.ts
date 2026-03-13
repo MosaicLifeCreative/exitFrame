@@ -149,10 +149,12 @@ export async function getCalendarContext(): Promise<string | null> {
     }
 
     const account = token ? "personal" : "business";
-    const now = new Date();
-    const startOfDay = new Date(now);
+    // Use ET for day boundaries so "today" matches Trey's timezone
+    const etNowStr = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+    const etNow = new Date(etNowStr);
+    const startOfDay = new Date(etNow);
     startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(now);
+    const endOfDay = new Date(etNow);
     endOfDay.setHours(23, 59, 59, 999);
 
     const data = await googleCalendarFetch<CalendarListResponse>(
@@ -171,8 +173,6 @@ export async function getCalendarContext(): Promise<string | null> {
 
     const events = data.items || [];
     if (events.length === 0) return "Today's calendar: No events scheduled.";
-
-    const etNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
 
     const lines = events.map((e) => {
       const startStr = e.start?.dateTime
@@ -200,7 +200,9 @@ export async function getCalendarContext(): Promise<string | null> {
 
 export async function getFitnessFollowUpContext(): Promise<string | null> {
   try {
-    const now = new Date();
+    // Use ET for day boundaries so "today"/"yesterday" match Trey's timezone
+    const etNowStr = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+    const now = new Date(etNowStr);
     const startOfDay = new Date(now);
     startOfDay.setHours(0, 0, 0, 0);
     const yesterday = new Date(now);
@@ -278,7 +280,9 @@ export async function getFitnessFollowUpContext(): Promise<string | null> {
 
 export async function getGoalDeadlineContext(): Promise<string | null> {
   try {
-    const now = new Date();
+    // Use ET for day boundaries
+    const etNowStr = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+    const now = new Date(etNowStr);
     const twoWeeksOut = new Date(now);
     twoWeeksOut.setDate(twoWeeksOut.getDate() + 14);
 
@@ -327,7 +331,9 @@ export async function getGoalDeadlineContext(): Promise<string | null> {
 
 export async function getTaskContext(): Promise<string | null> {
   try {
-    const now = new Date();
+    // Use ET for day boundaries
+    const etNowStr = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+    const now = new Date(etNowStr);
     const today = new Date(now);
     today.setHours(0, 0, 0, 0);
 

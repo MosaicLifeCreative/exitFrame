@@ -388,7 +388,7 @@ export default function Sidebar({ isMobileOpen = false, onMobileClose }: Sidebar
         {/* Sidebar panel */}
         <aside
           className={cn(
-            "absolute top-0 left-0 h-full w-[280px] bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-in-out",
+            "absolute top-0 left-0 h-full w-full bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-300 ease-in-out",
             isMobileOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >

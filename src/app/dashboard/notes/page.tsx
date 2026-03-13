@@ -38,6 +38,7 @@ interface Note {
 
 const noteTypeLabels: Record<string, string> = {
   general: "General",
+  idea: "Idea",
   meeting_notes: "Meeting Notes",
   reference: "Reference",
   checklist: "Checklist",
@@ -45,6 +46,7 @@ const noteTypeLabels: Record<string, string> = {
 
 const noteTypeColors: Record<string, string> = {
   general: "bg-gray-100 text-gray-700 dark:bg-gray-800/50 dark:text-gray-400",
+  idea: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   meeting_notes:
     "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
   reference:
@@ -207,6 +209,7 @@ export default function NotesPage() {
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="general">General</SelectItem>
+              <SelectItem value="idea">Idea</SelectItem>
               <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
               <SelectItem value="reference">Reference</SelectItem>
               <SelectItem value="checklist">Checklist</SelectItem>

@@ -9,7 +9,7 @@ const createNoteSchema = z.object({
   content: z.string().default(""),
   domain: z.enum(["life", "mlc", "product"]),
   domainRefId: z.string().uuid().nullable().optional(),
-  noteType: z.enum(["general", "meeting_notes", "reference", "checklist"]).optional(),
+  noteType: z.enum(["general", "idea", "meeting_notes", "reference", "checklist"]).optional(),
   isPinned: z.boolean().optional(),
 });
 

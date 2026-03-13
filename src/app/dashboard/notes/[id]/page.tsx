@@ -229,6 +229,7 @@ export default function NoteEditorPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="general">General</SelectItem>
+              <SelectItem value="idea">Idea</SelectItem>
               <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
               <SelectItem value="reference">Reference</SelectItem>
               <SelectItem value="checklist">Checklist</SelectItem>

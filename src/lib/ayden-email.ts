@@ -3,6 +3,10 @@ import { gmailFetch, getGoogleAccessToken } from "@/lib/google";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { sendPushNotification } from "@/lib/push";
+import { googleTools, executeGoogleTool } from "@/lib/google-tools";
+import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
+import { peopleTools, executePeopleTool } from "@/lib/people-tools";
+import { travelTools, executeTravelTool } from "@/lib/travel-tools";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -277,7 +281,69 @@ Respond with valid JSON only:
   }
 }
 
-// ─── Auto-Respond (Sonnet) ───────────────────────────────
+// ─── Thread Context ──────────────────────────────────────
+
+interface GmailThreadResponse {
+  id: string;
+  messages: Array<{
+    id: string;
+    payload: GmailMessageResponse["payload"];
+    internalDate: string;
+  }>;
+}
+
+async function getThreadContext(threadId: string): Promise<string> {
+  try {
+    const thread = await gmailFetch<GmailThreadResponse>(
+      `/threads/${threadId}`,
+      { params: { format: "full" }, account: ACCOUNT }
+    );
+
+    if (!thread.messages || thread.messages.length <= 1) return "";
+
+    // Build thread summary — skip the latest message (already provided), keep last 5
+    const priorMessages = thread.messages.slice(-6, -1);
+    const parts: string[] = [];
+
+    for (const msg of priorMessages) {
+      const from = getHeader(msg.payload.headers, "From");
+      const date = getHeader(msg.payload.headers, "Date");
+      const body = extractEmailBody(msg.payload);
+      const truncated = body.length > 1000 ? body.substring(0, 1000) + "..." : body;
+      parts.push(`[${date}] ${from}:\n${truncated}`);
+    }
+
+    return parts.join("\n\n---\n\n");
+  } catch {
+    return "";
+  }
+}
+
+// ─── Auto-Reply Tool Setup ───────────────────────────────
+
+// Curated subset of tools for autonomous email replies
+const autoReplyTools: Anthropic.Tool[] = [
+  // Calendar — so Ayden can check schedule when someone asks about availability
+  ...googleTools.filter((t) => ["list_calendar_events", "find_free_time"].includes(t.name)),
+  // Investing — portfolio questions
+  ...investingTools.filter((t) => ["get_portfolio_holdings", "get_ai_portfolio", "get_stock_quotes"].includes(t.name)),
+  // People — look up more context about the sender
+  ...peopleTools.filter((t) => ["recall_person"].includes(t.name)),
+  // Travel — trip info
+  ...travelTools.filter((t) => ["list_trips", "get_trip"].includes(t.name)),
+];
+
+const autoReplyToolNames = new Set(autoReplyTools.map((t) => t.name));
+
+async function dispatchAutoReplyTool(name: string, input: Record<string, unknown>): Promise<string> {
+  if (googleTools.some((t) => t.name === name)) return executeGoogleTool(name, input);
+  if (investingTools.some((t) => t.name === name)) return executeInvestingTool(name, input);
+  if (peopleTools.some((t) => t.name === name)) return executePeopleTool(name, input);
+  if (travelTools.some((t) => t.name === name)) return executeTravelTool(name, input);
+  return JSON.stringify({ error: `Unknown tool: ${name}` });
+}
+
+// ─── Auto-Respond (Sonnet with tools) ────────────────────
 
 async function generateResponse(opts: {
   from: string;
@@ -288,13 +354,15 @@ async function generateResponse(opts: {
   contactRelationship: string | null;
   contactNotes: string | null;
   suggestedDirection?: string;
+  threadContext?: string;
 }): Promise<string> {
   const anthropic = new Anthropic();
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 1000,
-    system: `You are Ayden, responding to an email sent to ayden@mosaiclifecreative.com. You are Trey Kauffman's AI assistant at Mosaic Life Creative.
+  const threadBlock = opts.threadContext
+    ? `\n\nEARLIER MESSAGES IN THIS THREAD (oldest first):\n${opts.threadContext}\n\n--- LATEST MESSAGE (reply to this) ---`
+    : "";
+
+  const system = `You are Ayden, responding to an email sent to ayden@mosaiclifecreative.com. You are Trey Kauffman's AI assistant at Mosaic Life Creative.
 
 IDENTITY: You are Ayden. Warm but professional in emails. You have your own personality — sharp, direct, genuinely helpful. You are NOT a generic AI assistant.
 
@@ -310,16 +378,73 @@ EMAIL RULES:
 - Never share personal details about Trey beyond what's professionally appropriate.
 - Never make commitments about pricing, timelines, or deliverables without Trey's approval.
 
-Write ONLY the email body text. No subject line. No signature. Plain text.`,
-    messages: [
-      {
-        role: "user",
-        content: `Reply to this email:\n\nFrom: ${opts.from}\nSubject: ${opts.subject}\n\n${opts.body.substring(0, 3000)}`,
-      },
-    ],
+TOOLS: You have access to tools for looking up real data. If the email asks about schedules, availability, portfolio performance, trip plans, or anything you can look up — USE YOUR TOOLS to get accurate information before replying. Do not guess or make things up.
+
+Write ONLY the email body text. No subject line. No signature. Plain text.`;
+
+  const messages: Anthropic.MessageParam[] = [
+    {
+      role: "user",
+      content: `Reply to this email:${threadBlock}\n\nFrom: ${opts.from}\nSubject: ${opts.subject}\n\n${opts.body.substring(0, 3000)}`,
+    },
+  ];
+
+  // Agentic loop — up to 2 tool rounds, then final text
+  const MAX_TOOL_ROUNDS = 2;
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1500,
+      system,
+      messages,
+      tools: autoReplyTools,
+    });
+
+    // If no tool use, extract text and return
+    if (response.stop_reason !== "tool_use") {
+      const text = response.content.find((b) => b.type === "text");
+      return text ? text.text : "";
+    }
+
+    // Execute tools
+    const toolBlocks = response.content.filter(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+    );
+
+    const toolResults: Anthropic.ToolResultBlockParam[] = [];
+    for (const tool of toolBlocks) {
+      if (!autoReplyToolNames.has(tool.name)) {
+        toolResults.push({ type: "tool_result", tool_use_id: tool.id, content: "Tool not available", is_error: true });
+        continue;
+      }
+      try {
+        const result = await dispatchAutoReplyTool(tool.name, tool.input as Record<string, unknown>);
+        toolResults.push({ type: "tool_result", tool_use_id: tool.id, content: result });
+        console.log(`[ayden-email] Auto-reply used tool: ${tool.name}`);
+      } catch (err) {
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: tool.id,
+          content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+          is_error: true,
+        });
+      }
+    }
+
+    messages.push({ role: "assistant", content: response.content });
+    messages.push({ role: "user", content: toolResults });
+  }
+
+  // Final round — force text only (no tools)
+  const finalResponse = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 1500,
+    system,
+    messages,
   });
 
-  return response.content[0].type === "text" ? response.content[0].text : "";
+  const text = finalResponse.content.find((b) => b.type === "text");
+  return text ? text.text : "";
 }
 
 // ─── Send Reply ──────────────────────────────────────────
@@ -375,9 +500,10 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
   // Update last check time immediately
   await redis.set(REDIS_LAST_CHECK, new Date().toISOString());
 
-  // Search for unread emails sent TO Ayden's alias (not all of Trey's inbox)
+  // Search for emails sent TO Ayden's alias since last check
+  // No is:unread filter — Redis dedup handles re-processing, so reading emails won't block Ayden
   const afterEpoch = Math.floor(lastCheck.getTime() / 1000);
-  const query = `is:unread to:ayden@mosaiclifecreative.com after:${afterEpoch}`;
+  const query = `to:ayden@mosaiclifecreative.com after:${afterEpoch}`;
 
   let messages: GmailMessageMeta[];
   try {
@@ -457,7 +583,10 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
             break;
           }
 
-          // Generate response with Sonnet
+          // Fetch thread context for multi-message conversations
+          const threadContext = await getThreadContext(meta.threadId);
+
+          // Generate response with Sonnet (with tools + thread context)
           const responseText = await generateResponse({
             from,
             fromName: contact.name,
@@ -467,6 +596,7 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
             contactRelationship: contact.relationship,
             contactNotes: contact.notes,
             suggestedDirection: triage.suggestedResponse,
+            threadContext: threadContext || undefined,
           });
 
           // Send the reply

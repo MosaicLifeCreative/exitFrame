@@ -180,7 +180,7 @@ export const emailTools: Anthropic.Tool[] = [
   {
     name: "ayden_send_email",
     description:
-      "Send an email from Ayden's account (ayden@mosaiclifecreative.com). GUARDRAILS: (1) Ayden can email anyone in Trey's contacts database without asking. (2) For unknown recipients, Ayden MUST confirm with Trey first. (3) Always preview the email content to Trey before sending. (4) 100% professional tone — Ayden represents Mosaic Life Creative. (5) Signature is appended automatically. (6) For replies, pass threadId and replyToMessageId.",
+      "Send an email from Ayden's account (ayden@mosaiclifecreative.com). GUARDRAILS: (1) Ayden can email anyone in Trey's contacts database without asking. (2) For unknown recipients, Ayden MUST confirm with Trey first. (3) Always preview the email content to Trey before sending. (4) 100% professional tone — Ayden represents Mosaic Life Creative. (5) Signature is appended automatically. (6) For replies, pass threadId and replyToMessageId. (7) AFTER sending, always confirm delivery to Trey with the recipient name and subject.",
     input_schema: {
       type: "object" as const,
       properties: {

@@ -385,6 +385,30 @@ function getToolsForPage(page?: string): Anthropic.Tool[] {
 
 type AnthropicMessage = Anthropic.MessageParam;
 
+// ─── Retry helper for Anthropic overloaded (529) errors ──
+function isOverloadedError(err: unknown): boolean {
+  if (err instanceof Anthropic.APIError && err.status === 529) return true;
+  if (err instanceof Error && err.message.includes("overloaded")) return true;
+  return false;
+}
+
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt < maxRetries && isOverloadedError(err)) {
+        const delay = 1000 * Math.pow(2, attempt); // 1s, 2s
+        console.log(`[chat] Anthropic overloaded, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Unreachable");
+}
+
 export async function POST(request: Request) {
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -498,13 +522,15 @@ export async function POST(request: Request) {
           const MAX_TOOL_ROUNDS = 3;
           let fullResponseText = "";
           for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-            const response = await anthropic.messages.create({
-              model: TOOL_MODEL,
-              max_tokens: 1024,
-              system: systemPrompt,
-              messages: apiMessages,
-              tools,
-            });
+            const response = await withRetry(() =>
+              anthropic.messages.create({
+                model: TOOL_MODEL,
+                max_tokens: 1024,
+                system: systemPrompt,
+                messages: apiMessages,
+                tools,
+              })
+            );
 
             if (response.stop_reason !== "tool_use") {
               break; // No more tools — Sonnet will generate the streamed response
@@ -587,28 +613,52 @@ export async function POST(request: Request) {
           // Sonnet gets action tools only (no memory/emotion — Haiku handles those in Phase 1)
           const MAX_SONNET_TOOL_ROUNDS = 3;
           for (let sonnetRound = 0; sonnetRound < MAX_SONNET_TOOL_ROUNDS; sonnetRound++) {
-            const finalStream = anthropic.messages.stream({
-              model: RESPONSE_MODEL,
-              max_tokens: 4096,
-              system: systemPrompt,
-              messages: apiMessages,
-              tools: sonnetTools,
-            });
+            // Retry stream creation on overloaded errors (up to 2 retries with backoff)
+            let finalMessage: Anthropic.Message | undefined;
+            const MAX_STREAM_RETRIES = 2;
+            let streamSuccess = false;
+            for (let streamAttempt = 0; streamAttempt <= MAX_STREAM_RETRIES; streamAttempt++) {
+              try {
+                const finalStream = anthropic.messages.stream({
+                  model: RESPONSE_MODEL,
+                  max_tokens: 4096,
+                  system: systemPrompt,
+                  messages: apiMessages,
+                  tools: sonnetTools,
+                });
 
-            // Stream text deltas to client as they arrive
-            for await (const event of finalStream) {
-              if (
-                event.type === "content_block_delta" &&
-                event.delta.type === "text_delta"
-              ) {
-                fullResponseText += event.delta.text;
-                const chunk = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
-                controller.enqueue(encoder.encode(chunk));
+                // Stream text deltas to client as they arrive
+                for await (const event of finalStream) {
+                  if (
+                    event.type === "content_block_delta" &&
+                    event.delta.type === "text_delta"
+                  ) {
+                    fullResponseText += event.delta.text;
+                    const chunk = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
+                    controller.enqueue(encoder.encode(chunk));
+                  }
+                }
+
+                finalMessage = await finalStream.finalMessage();
+                streamSuccess = true;
+                break;
+              } catch (streamErr) {
+                if (streamAttempt < MAX_STREAM_RETRIES && isOverloadedError(streamErr) && fullResponseText.length === 0) {
+                  // Only retry if we haven't sent any text yet
+                  const delay = 1000 * Math.pow(2, streamAttempt);
+                  console.log(`[chat] Sonnet stream overloaded, retrying in ${delay}ms (attempt ${streamAttempt + 1}/${MAX_STREAM_RETRIES})`);
+                  const retryChunk = `data: ${JSON.stringify({ status: "Ayden is thinking... (retrying)" })}\n\n`;
+                  controller.enqueue(encoder.encode(retryChunk));
+                  await new Promise((r) => setTimeout(r, delay));
+                  continue;
+                }
+                throw streamErr;
               }
             }
+            if (!streamSuccess || !finalMessage) throw new Error("Stream failed after retries");
 
             // After stream completes, check if Sonnet wants to use tools
-            const finalMessage = await finalStream.finalMessage();
+
             if (finalMessage.stop_reason !== "tool_use") break; // Done — no tools needed
 
             // Extract tool_use blocks from the completed message
@@ -684,7 +734,10 @@ export async function POST(request: Request) {
           controller.close();
         } catch (err) {
           console.error("Stream error:", err);
-          const errorMsg = `data: ${JSON.stringify({ error: "Stream interrupted" })}\n\n`;
+          const userMsg = isOverloadedError(err)
+            ? "Ayden is temporarily unavailable (server overloaded). Try again in a moment."
+            : "Stream interrupted — something went wrong. Try sending your message again.";
+          const errorMsg = `data: ${JSON.stringify({ error: userMsg })}\n\n`;
           controller.enqueue(encoder.encode(errorMsg));
           controller.close();
         }

@@ -71,6 +71,15 @@ function extractEmailBody(payload: GmailMessageResponse["payload"]): string {
   return "(Could not extract email body)";
 }
 
+function encodeSubject(subject: string): string {
+  // RFC 2047: encode non-ASCII subjects as =?UTF-8?B?base64?=
+  if (/[^\x00-\x7F]/.test(subject)) {
+    const encoded = Buffer.from(subject, "utf-8").toString("base64");
+    return `=?UTF-8?B?${encoded}?=`;
+  }
+  return subject;
+}
+
 function textToHtml(text: string): string {
   return text
     .split("\n\n")
@@ -90,8 +99,8 @@ async function getSignature(): Promise<string> {
       "/settings/sendAs",
       { account: ACCOUNT }
     );
-    const primary = data.sendAs?.find((s) => s.isPrimary || s.isDefault);
-    const html = primary?.signature || "";
+    const aydenAlias = data.sendAs?.find((s) => s.sendAsEmail === "ayden@mosaiclifecreative.com");
+    const html = aydenAlias?.signature || "";
     signatureCache = { html, fetchedAt: Date.now() };
     return html;
   } catch {
@@ -111,7 +120,7 @@ function buildRawEmail(opts: {
   const headers: string[] = [];
   headers.push("From: Ayden <ayden@mosaiclifecreative.com>");
   headers.push(`To: ${opts.to}`);
-  if (opts.subject) headers.push(`Subject: ${opts.subject}`);
+  if (opts.subject) headers.push(`Subject: ${encodeSubject(opts.subject)}`);
   if (opts.cc) headers.push(`Cc: ${opts.cc}`);
   if (opts.inReplyTo) headers.push(`In-Reply-To: ${opts.inReplyTo}`);
   headers.push("Content-Type: text/html; charset=utf-8");

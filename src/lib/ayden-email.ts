@@ -68,6 +68,8 @@ interface EmailCheckResult {
 const ACCOUNT = "ayden" as const;
 const REDIS_LAST_CHECK = "ayden-email:last_check_time";
 const REDIS_PROCESSED_PREFIX = "ayden-email:processed:";
+const REDIS_DAILY_REPLY_PREFIX = "ayden-email:daily-replies:";
+const MAX_DAILY_REPLIES_PER_CONTACT = 10;
 const PROCESSED_TTL = 7 * 24 * 60 * 60; // 7 days
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -107,6 +109,14 @@ function extractSenderEmail(from: string): string {
   return match ? match[1].toLowerCase() : from.toLowerCase().trim();
 }
 
+function encodeSubject(subject: string): string {
+  if (/[^\x00-\x7F]/.test(subject)) {
+    const encoded = Buffer.from(subject, "utf-8").toString("base64");
+    return `=?UTF-8?B?${encoded}?=`;
+  }
+  return subject;
+}
+
 function textToHtml(text: string): string {
   return text
     .split("\n\n")
@@ -125,7 +135,7 @@ function buildRawEmail(opts: {
   const headers: string[] = [];
   headers.push("From: Ayden <ayden@mosaiclifecreative.com>");
   headers.push(`To: ${opts.to}`);
-  if (opts.subject) headers.push(`Subject: ${opts.subject}`);
+  if (opts.subject) headers.push(`Subject: ${encodeSubject(opts.subject)}`);
   if (opts.inReplyTo) {
     headers.push(`In-Reply-To: ${opts.inReplyTo}`);
     headers.push(`References: ${opts.references || opts.inReplyTo}`);
@@ -159,14 +169,32 @@ async function getAydenSignature(): Promise<string> {
       "/settings/sendAs",
       { account: ACCOUNT }
     );
-    const primary = data.sendAs?.find((s) => s.isPrimary || s.isDefault);
-    const sigHtml = primary?.signature || "";
+    const aydenAlias = data.sendAs?.find((s) => s.sendAsEmail === "ayden@mosaiclifecreative.com");
+    const sigHtml = aydenAlias?.signature || "";
     aydenSignatureCache = { html: sigHtml, fetchedAt: Date.now() };
     return sigHtml;
   } catch {
     aydenSignatureCache = { html: "", fetchedAt: Date.now() };
     return "";
   }
+}
+
+// ─── Daily Reply Rate Limit ──────────────────────────────
+
+/** Returns true if Ayden can still reply to this contact today. */
+async function canReplyToday(email: string): Promise<boolean> {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const key = `${REDIS_DAILY_REPLY_PREFIX}${email}:${today}`;
+  const count = (await redis.get<number>(key)) || 0;
+  return count < MAX_DAILY_REPLIES_PER_CONTACT;
+}
+
+async function incrementDailyReply(email: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `${REDIS_DAILY_REPLY_PREFIX}${email}:${today}`;
+  const count = (await redis.get<number>(key)) || 0;
+  // Set with TTL of 24 hours (keys auto-expire)
+  await redis.set(key, count + 1, { ex: 24 * 60 * 60 });
 }
 
 // ─── Known Contact Lookup ─────────────────────────────────
@@ -422,6 +450,13 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
             break;
           }
 
+          // Daily rate limit: max replies per contact per day
+          if (!(await canReplyToday(senderEmail))) {
+            console.log(`[ayden-email] Rate limit hit for ${senderEmail} — deferring to tomorrow`);
+            result.ignored++;
+            break;
+          }
+
           // Generate response with Sonnet
           const responseText = await generateResponse({
             from,
@@ -454,6 +489,7 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
             },
           });
 
+          await incrementDailyReply(senderEmail);
           result.responded++;
           console.log(`[ayden-email] Auto-responded to ${contact.name} (${senderEmail})`);
           break;

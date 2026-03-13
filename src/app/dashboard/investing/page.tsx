@@ -597,6 +597,7 @@ export default function InvestingPage() {
   const [aiPortfolio, setAiPortfolio] = useState<AiPortfolioData | null>(null);
   const [loadingAiPortfolio, setLoadingAiPortfolio] = useState(true);
   const [insights, setInsights] = useState<TradingInsights | null>(null);
+  const [timelineLimit, setTimelineLimit] = useState(20);
   const [loadingInsights, setLoadingInsights] = useState(true);
 
   // Watchlist & News
@@ -847,7 +848,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">My Portfolio</CardTitle></CardHeader>
           <CardContent>
@@ -901,17 +902,19 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
 
       {/* Main tabs */}
       <Tabs defaultValue="portfolio">
-        <TabsList>
-          <TabsTrigger value="portfolio" className="gap-1.5"><TrendingUp className="h-4 w-4" />My Portfolio</TabsTrigger>
-          <TabsTrigger value="our-portfolio" className="gap-1.5"><Wallet className="h-4 w-4" />Our Portfolio</TabsTrigger>
-          <TabsTrigger value="sandbox" className="gap-1.5"><Bot className="h-4 w-4" />Ayden&apos;s Portfolio</TabsTrigger>
-          <TabsTrigger value="performance" className="gap-1.5"><BarChart3 className="h-4 w-4" />Performance</TabsTrigger>
-          <TabsTrigger value="watchlist" className="gap-1.5"><Eye className="h-4 w-4" />Watchlist</TabsTrigger>
-          <TabsTrigger value="news" className="gap-1.5">
-            <Newspaper className="h-4 w-4" />News
-            {news.length > 0 && <Badge variant="secondary" className="ml-1 text-xs">{news.length}</Badge>}
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-1 px-1">
+          <TabsList className="w-max md:w-auto">
+            <TabsTrigger value="portfolio" className="gap-1.5"><TrendingUp className="h-4 w-4" /><span className="hidden sm:inline">My Portfolio</span><span className="sm:hidden">Mine</span></TabsTrigger>
+            <TabsTrigger value="our-portfolio" className="gap-1.5"><Wallet className="h-4 w-4" /><span className="hidden sm:inline">Our Portfolio</span><span className="sm:hidden">Ours</span></TabsTrigger>
+            <TabsTrigger value="sandbox" className="gap-1.5"><Bot className="h-4 w-4" /><span className="hidden sm:inline">Ayden&apos;s Portfolio</span><span className="sm:hidden">Ayden</span></TabsTrigger>
+            <TabsTrigger value="performance" className="gap-1.5"><BarChart3 className="h-4 w-4" /><span className="hidden sm:inline">Performance</span><span className="sm:hidden">Perf</span></TabsTrigger>
+            <TabsTrigger value="watchlist" className="gap-1.5"><Eye className="h-4 w-4" /><span className="hidden sm:inline">Watchlist</span><span className="sm:hidden">Watch</span></TabsTrigger>
+            <TabsTrigger value="news" className="gap-1.5">
+              <Newspaper className="h-4 w-4" /><span className="hidden sm:inline">News</span>
+              {news.length > 0 && <Badge variant="secondary" className="ml-1 text-xs">{news.length}</Badge>}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ==================== MY PORTFOLIO ==================== */}
         <TabsContent value="portfolio" className="space-y-4">
@@ -932,45 +935,47 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
             </Card>
           ) : (
             <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Ticker</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Shares</TableHead>
-                    <TableHead>Avg Cost</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Market Value</TableHead>
-                    <TableHead>Today</TableHead>
-                    <TableHead>Total P&L</TableHead>
-                    <TableHead className="w-[80px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {holdings.map((holding) => (
-                    <EditableHoldingRow
-                      key={holding.id}
-                      holding={holding}
-                      quote={quoteMap.get(holding.ticker)}
-                      onUpdate={fetchHoldings}
-                      onDelete={deleteHolding}
-                    />
-                  ))}
-                  <TableRow className="font-semibold bg-muted/50">
-                    <TableCell colSpan={5}>Total</TableCell>
-                    <TableCell>{fmtMoney(totalMarketValue)}</TableCell>
-                    <TableCell>
-                      <PnlText value={totalTodayGain} />
-                      <span className="text-xs ml-1">(<PctText value={totalTodayGainPct} className="text-xs" />)</span>
-                    </TableCell>
-                    <TableCell>
-                      <PnlText value={totalPnl} />
-                      <span className="text-xs ml-1">(<PctText value={totalPnlPct} className="text-xs" />)</span>
-                    </TableCell>
-                    <TableCell></TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ticker</TableHead>
+                      <TableHead className="hidden md:table-cell">Company</TableHead>
+                      <TableHead>Shares</TableHead>
+                      <TableHead>Avg Cost</TableHead>
+                      <TableHead>Price</TableHead>
+                      <TableHead>Market Value</TableHead>
+                      <TableHead>Today</TableHead>
+                      <TableHead>Total P&L</TableHead>
+                      <TableHead className="w-[80px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {holdings.map((holding) => (
+                      <EditableHoldingRow
+                        key={holding.id}
+                        holding={holding}
+                        quote={quoteMap.get(holding.ticker)}
+                        onUpdate={fetchHoldings}
+                        onDelete={deleteHolding}
+                      />
+                    ))}
+                    <TableRow className="font-semibold bg-muted/50">
+                      <TableCell colSpan={5} className="md:first:colSpan-5">Total</TableCell>
+                      <TableCell>{fmtMoney(totalMarketValue)}</TableCell>
+                      <TableCell>
+                        <PnlText value={totalTodayGain} />
+                        <span className="text-xs ml-1">(<PctText value={totalTodayGainPct} className="text-xs" />)</span>
+                      </TableCell>
+                      <TableCell>
+                        <PnlText value={totalPnl} />
+                        <span className="text-xs ml-1">(<PctText value={totalPnlPct} className="text-xs" />)</span>
+                      </TableCell>
+                      <TableCell></TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
             </Card>
           )}
         </TabsContent>
@@ -1001,7 +1006,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
             <>
               {/* Balance summary */}
               {ttBalance && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Net Liquidating Value</CardTitle></CardHeader>
                     <CardContent>
@@ -1058,6 +1063,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                   {ttEquityPositions.length > 0 && (
                     <Card>
                       <CardHeader><CardTitle className="text-base">Equity Positions</CardTitle></CardHeader>
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -1091,6 +1097,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </Card>
                   )}
 
@@ -1098,6 +1105,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                   {ttOptionPositions.length > 0 && (
                     <Card>
                       <CardHeader><CardTitle className="text-base">Options Positions</CardTitle></CardHeader>
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -1134,6 +1142,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </Card>
                   )}
 
@@ -1188,13 +1197,19 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
           ) : (
             <>
               {/* Portfolio summary cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 <Card>
                   <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle></CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{fmtMoney(aiPortfolio.totalValue)}</div>
                     <PctText value={aiPortfolio.totalReturn} className="text-sm" />
                     <span className="text-xs text-muted-foreground ml-1">total return</span>
+                    {aiPortfolio.positions.length > 0 && (
+                      <div className="mt-1">
+                        <span className="text-[10px] text-muted-foreground">Unrealized: </span>
+                        <PnlText value={aiPortfolio.positions.reduce((sum, p) => sum + p.pnl, 0)} className="text-[10px]" />
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
                 <Card>
@@ -1236,11 +1251,12 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
               ) : (
                 <Card>
                   <CardHeader><CardTitle className="text-base">Open Positions</CardTitle></CardHeader>
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Ticker</TableHead>
-                        <TableHead>Company</TableHead>
+                        <TableHead className="hidden md:table-cell">Company</TableHead>
                         <TableHead>Shares</TableHead>
                         <TableHead>Avg Cost</TableHead>
                         <TableHead>Price</TableHead>
@@ -1257,7 +1273,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                         return (
                           <TableRow key={pos.id}>
                             <TableCell className="font-mono font-semibold">{pos.ticker}</TableCell>
-                            <TableCell className="text-muted-foreground">{pos.companyName}</TableCell>
+                            <TableCell className="text-muted-foreground hidden md:table-cell">{pos.companyName}</TableCell>
                             <TableCell>{shares}</TableCell>
                             <TableCell>{fmtMoney(parseFloat(pos.avgCostBasis))}</TableCell>
                             <TableCell>{fmtMoney(pos.currentPrice)}</TableCell>
@@ -1285,6 +1301,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                       </TableRow>
                     </TableBody>
                   </Table>
+                  </div>
                 </Card>
               )}
 
@@ -1324,10 +1341,11 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                         </Card>
                         <Card>
                           <CardContent className="pt-4 pb-3 px-4">
-                            <p className="text-xs text-muted-foreground">Total P&L</p>
+                            <p className="text-xs text-muted-foreground">Realized P&L</p>
                             <p className={`text-xl font-bold ${insights.performance.totalPnl >= 0 ? "text-green-600" : "text-red-500"}`}>
                               {fmtMoney(insights.performance.totalPnl)}
                             </p>
+                            <p className="text-[10px] text-muted-foreground">closed trades only</p>
                           </CardContent>
                         </Card>
                         <Card>
@@ -1453,7 +1471,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                           <div className="relative space-y-0">
                             {/* Vertical line */}
                             <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
-                            {insights.evolution.timeline.slice(0, 20).map((event, i) => {
+                            {insights.evolution.timeline.slice(0, timelineLimit).map((event, i) => {
                               const iconClass = "h-3.5 w-3.5";
                               let icon;
                               let dotColor;
@@ -1512,6 +1530,16 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                               );
                             })}
                           </div>
+                          {insights.evolution.timeline.length > timelineLimit && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full mt-2 text-muted-foreground"
+                              onClick={() => setTimelineLimit((prev) => prev + 20)}
+                            >
+                              Show more ({insights.evolution.timeline.length - timelineLimit} remaining)
+                            </Button>
+                          )}
                         </CardContent>
                       </Card>
                     )}
@@ -1676,6 +1704,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                         <CardHeader className="pb-2">
                           <CardTitle className="text-base">Performance by Ticker</CardTitle>
                         </CardHeader>
+                        <div className="overflow-x-auto">
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -1696,6 +1725,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                             ))}
                           </TableBody>
                         </Table>
+                        </div>
                       </Card>
                     )}
 
@@ -1748,6 +1778,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
               {aiPortfolio.trades.length > 0 && (
                 <Card>
                   <CardHeader><CardTitle className="text-base">Recent Trades</CardTitle></CardHeader>
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1783,6 +1814,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </Card>
               )}
             </>
@@ -1835,7 +1867,7 @@ const tickerItems = watchlist.filter((w) => w.type === "ticker");
           )}
 
           {/* Metrics comparison */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             <Card>
               <CardHeader><CardTitle className="text-base">My Portfolio</CardTitle></CardHeader>
               <CardContent className="space-y-3">

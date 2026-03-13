@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const error = request.nextUrl.searchParams.get("error");
   const state = request.nextUrl.searchParams.get("state") || "personal";
-  const account = (state === "business" ? "business" : "personal") as GoogleAccount;
+  const account = (state === "business" ? "business" : state === "ayden" ? "ayden" : "personal") as GoogleAccount;
 
   const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`

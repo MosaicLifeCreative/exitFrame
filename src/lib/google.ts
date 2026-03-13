@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
 /** Supported Google account types */
-export type GoogleAccount = "personal" | "business";
+export type GoogleAccount = "personal" | "business" | "ayden";
 
 const INTEGRATION_PREFIX = "google";
 
@@ -56,8 +56,12 @@ export function getGoogleAuthUrl(account: GoogleAccount = "personal"): string {
     scope: SCOPES,
     access_type: "offline",
     prompt: "consent", // Force consent to always get refresh_token
-    state: account, // "personal" or "business" — callback reads this
+    state: account, // "personal", "business", or "ayden" — callback reads this
   });
+  // Pre-fill the Google sign-in with the correct email for Ayden's account
+  if (account === "ayden") {
+    params.set("login_hint", "ayden@mosaiclifecreative.com");
+  }
   return `${GOOGLE_AUTH_URL}?${params.toString()}`;
 }
 
@@ -211,8 +215,9 @@ export async function disconnectGoogle(account: GoogleAccount = "personal"): Pro
 export async function getGoogleStatus(): Promise<{
   personal: { connected: boolean; error: string | null };
   business: { connected: boolean; error: string | null };
+  ayden: { connected: boolean; error: string | null };
 }> {
-  const accounts: GoogleAccount[] = ["personal", "business"];
+  const accounts: GoogleAccount[] = ["personal", "business", "ayden"];
   const result: Record<string, { connected: boolean; error: string | null }> = {};
 
   for (const account of accounts) {
@@ -234,6 +239,7 @@ export async function getGoogleStatus(): Promise<{
   return result as {
     personal: { connected: boolean; error: string | null };
     business: { connected: boolean; error: string | null };
+    ayden: { connected: boolean; error: string | null };
   };
 }
 

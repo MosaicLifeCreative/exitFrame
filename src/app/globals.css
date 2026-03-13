@@ -149,3 +149,36 @@ em-emoji-picker {
     display: none !important;
   }
 }
+
+/* Tiptap editor content styles */
+.tiptap-content h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+.tiptap-content h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+.tiptap-content h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem; }
+.tiptap-content p { margin-bottom: 0.5rem; }
+.tiptap-content ul, .tiptap-content ol { padding-left: 1.5rem; margin-bottom: 0.5rem; }
+.tiptap-content ul { list-style-type: disc; }
+.tiptap-content ol { list-style-type: decimal; }
+.tiptap-content blockquote { border-left: 3px solid hsl(var(--border)); padding-left: 1rem; margin: 0.5rem 0; opacity: 0.8; }
+.tiptap-content code { background: hsl(var(--muted)); padding: 0.15rem 0.3rem; border-radius: 0.25rem; font-size: 0.875rem; }
+.tiptap-content pre { background: hsl(var(--muted)); padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.5rem 0; }
+.tiptap-content pre code { background: none; padding: 0; border-radius: 0; font-size: 0.875rem; }
+.tiptap-content a { color: hsl(var(--primary)); text-decoration: underline; }
+.tiptap-content mark { background: hsl(var(--chart-4) / 0.3); padding: 0.1rem 0.2rem; border-radius: 0.15rem; }
+
+/* Tiptap task list */
+.tiptap-content ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.tiptap-content ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 0.5rem; }
+.tiptap-content ul[data-type="taskList"] li label { display: flex; align-items: flex-start; gap: 0.5rem; }
+.tiptap-content ul[data-type="taskList"] li input[type="checkbox"] { margin-top: 0.25rem; accent-color: hsl(var(--primary)); }
+
+/* Tiptap placeholder */
+.tiptap-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  height: 0;
+}
+
+/* Tiptap focus */
+.tiptap-content:focus { outline: none; }

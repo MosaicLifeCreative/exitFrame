@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import {
   Save,
@@ -27,9 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-// Dynamic import for markdown editor (avoids SSR issues)
-const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
+import { TiptapEditor } from "@/components/ui/TiptapEditor";
 
 interface NoteAction {
   id: string;
@@ -290,27 +287,12 @@ export default function NoteEditorPage() {
         placeholder="Note title..."
       />
 
-      {/* Markdown Editor */}
-      <div data-color-mode="light" className="dark:hidden">
-        <MDEditor
-          value={content}
-          onChange={(val) => setContent(val || "")}
-          height={300}
-          style={{ minHeight: 200 }}
-          preview="live"
-          className="!rounded-lg !border-border"
-        />
-      </div>
-      <div data-color-mode="dark" className="hidden dark:block">
-        <MDEditor
-          value={content}
-          onChange={(val) => setContent(val || "")}
-          height={300}
-          style={{ minHeight: 200 }}
-          preview="live"
-          className="!rounded-lg !border-border"
-        />
-      </div>
+      {/* Rich Text Editor */}
+      <TiptapEditor
+        content={content}
+        onChange={setContent}
+        placeholder="Start writing..."
+      />
 
       {/* Actions Panel */}
       {note.actions.length > 0 && (

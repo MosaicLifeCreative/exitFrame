@@ -11,6 +11,8 @@ interface ChatMessage {
   content: string;
   timestamp: Date;
   toolUses?: ToolUseStatus[];
+  /** Data URLs for images the user sent (persisted in chat for display) */
+  imageUrls?: string[];
 }
 
 interface PageContext {
@@ -287,11 +289,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   sendMessage: async (content: string, images?: Array<{ base64: string; mediaType: string }>) => {
     const { messages, pageContext, conversationSummary } = get();
 
+    // Convert base64 to data URLs for persistent display
+    const imageUrls = images?.map((img) => `data:${img.mediaType};base64,${img.base64}`);
+
     const userMsg: ChatMessage = {
       id: generateId(),
       role: "user",
       content,
       timestamp: new Date(),
+      ...(imageUrls && imageUrls.length > 0 ? { imageUrls } : {}),
     };
 
     const assistantMsg: ChatMessage = {

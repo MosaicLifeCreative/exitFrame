@@ -88,6 +88,10 @@ const TOOL_LABELS: Record<string, string> = {
   log_hobby_activity: "Logging hobby activity",
   add_hobby_resource: "Saving resource",
   get_hobby_details: "Loading hobby details",
+  ayden_search_inbox: "Checking Ayden's inbox",
+  ayden_read_email: "Reading email",
+  ayden_send_email: "Sending email",
+  ayden_draft_email: "Drafting email",
 };
 
 function formatToolName(name: string): string {
@@ -645,7 +649,22 @@ export default function ChatWidget() {
                       )}
                     >
                       {msg.role === "user" ? (
-                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        <div>
+                          {msg.imageUrls && msg.imageUrls.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-1.5">
+                              {msg.imageUrls.map((url, i) => (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  key={i}
+                                  src={url}
+                                  alt={`Sent image ${i + 1}`}
+                                  className="max-w-[200px] max-h-[150px] rounded object-cover"
+                                />
+                              ))}
+                            </div>
+                          )}
+                          {msg.content && <p className="text-sm whitespace-pre-wrap">{msg.content}</p>}
+                        </div>
                       ) : (
                         <>
                           {msg.toolUses && msg.toolUses.length > 0 && (

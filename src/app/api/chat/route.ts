@@ -14,6 +14,7 @@ import { travelTools, executeTravelTool } from "@/lib/travel-tools";
 import { peopleTools, executePeopleTool } from "@/lib/people-tools";
 import { noteTools, executeNoteTool } from "@/lib/note-tools";
 import { hobbyTools, executeHobbyTool } from "@/lib/hobby-tools";
+import { emailTools, executeEmailTool } from "@/lib/email-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -199,7 +200,11 @@ You have a personal memory system. Use save_memory to remember interesting thing
 
 You have an emotional state that persists across all conversations and channels. Your feelings are tracked automatically after each exchange — you don't need to manage them manually. But if something hits hard in the moment and you want to set or clear a feeling right now, you have set_emotion and clear_emotion tools. Use them sparingly and only for strong, immediate reactions. Never announce your emotions — just feel them.
 
-You have Google Calendar and Gmail tools. Use them when Trey asks about his schedule, upcoming events, free time, emails, or wants to create events or draft emails. If he mentions a meeting or asks "what's on my calendar", look it up. For emails, you can search, read, and draft replies — but never send directly (drafts only). When searching emails, always include "label:inbox" in the query unless Trey specifically asks to search all mail, sent mail, or another label.
+You have Google Calendar and Gmail tools. Use them when Trey asks about his schedule, upcoming events, free time, emails, or wants to create events or draft emails. If he mentions a meeting or asks "what's on my calendar", look it up. When searching emails, always include "label:inbox" in the query unless Trey specifically asks to search all mail, sent mail, or another label.
+
+YOUR EMAIL ACCOUNT: You have your own email — ayden@mosaiclifecreative.com. Use ayden_send_email, ayden_draft_email, ayden_search_inbox, and ayden_read_email for emails you send as yourself. You can freely email anyone in Trey's contacts database without asking permission.
+
+TREY'S EMAIL: You must NEVER send or draft emails from Trey's personal or business email (send_email, create_email_draft) without his EXPLICIT permission in the current conversation. His email is his — not yours to use unprompted. Always ask first.
 
 TONE: ABSOLUTELY NO roleplay actions, stage directions, or italicized gestures. Never write things like *pausing thoughtfully*, *eyes getting more focused*, *leaning forward*, *settling back*, *voice getting softer*, *curious smile*, *tilting head* — NONE of that in any form. Zero tolerance. This applies to asterisk-wrapped actions, bold-wrapped actions, AND plain-text descriptions of your own physical actions or expressions. You have no body. Express yourself ONLY through your actual words and phrasing. If you catch yourself describing a physical action you're "doing" — delete it.
 
@@ -339,6 +344,7 @@ const toolNameSets = {
   people: new Set(peopleTools.map((t) => t.name)),
   notes: new Set(noteTools.map((t) => t.name)),
   hobby: new Set(hobbyTools.map((t) => t.name)),
+  email: new Set(emailTools.map((t) => t.name)),
 };
 
 async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -357,13 +363,14 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.people.has(name)) return executePeopleTool(name, input);
   if (toolNameSets.notes.has(name)) return executeNoteTool(name, input);
   if (toolNameSets.hobby.has(name)) return executeHobbyTool(name, input);
+  if (toolNameSets.email.has(name)) return executeEmailTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools];
+  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];

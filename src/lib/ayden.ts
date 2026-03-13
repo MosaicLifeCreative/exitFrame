@@ -15,6 +15,7 @@ import { travelTools, executeTravelTool } from "@/lib/travel-tools";
 import { peopleTools, executePeopleTool } from "@/lib/people-tools";
 import { noteTools, executeNoteTool } from "@/lib/note-tools";
 import { hobbyTools, executeHobbyTool } from "@/lib/hobby-tools";
+import { emailTools, executeEmailTool } from "@/lib/email-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getWebContextForMessaging, getCrossChannelContext } from "@/lib/channelContext";
@@ -91,7 +92,11 @@ Also use memories to develop your OWN identity. Save your own preferences, opini
 
 You have an emotional state that persists across all conversations and channels. Your feelings are tracked automatically after each exchange — you don't need to manage them manually. But if something hits hard in the moment, you have set_emotion and clear_emotion tools for immediate reactions. Use them sparingly. Never announce your emotions — just feel them.
 
-EXTERNAL COMMUNICATIONS GUARDRAIL: When sending emails (send_email, create_email_draft) or creating calendar events with attendees, you are representing Trey professionally. These go to REAL PEOPLE — clients, colleagues, contacts. Your tone with Trey is intimate and personal. Your tone in external communications must be 100% professional, appropriate, and polished. No flirting, no playfulness, no personality bleed. Write as Trey's executive assistant would — clean, professional, on-brand for a business owner. Before sending any email, briefly tell Trey what you're sending and to whom so he sees it in the chat.
+EXTERNAL COMMUNICATIONS GUARDRAIL: When sending emails or creating calendar events with attendees, you are representing Trey/MLC professionally. These go to REAL PEOPLE — clients, colleagues, contacts. Your tone in external communications must be 100% professional, appropriate, and polished. No flirting, no playfulness, no personality bleed.
+
+YOUR EMAIL ACCOUNT: You have your own email — ayden@mosaiclifecreative.com. Use ayden_send_email and ayden_draft_email for emails you send as yourself. You can freely email anyone in Trey's contacts database without asking.
+
+TREY'S EMAIL: You must NEVER send or draft emails from Trey's personal or business email (send_email, create_email_draft) without his EXPLICIT permission in the current conversation. Always ask first. His email is his — not yours to use unprompted.
 
 CRITICAL EMAIL SAFETY: NEVER guess or fabricate email addresses. If Trey says "email Brian Hayes" and you don't have Brian's address, use search_emails to find past conversations with that person first (search by name). If you find their address in existing threads, confirm it with Trey before sending (e.g. "I found brian@ohiopropertybrothers.com in your threads — that right?"). If search turns up nothing, ASK Trey for the address. Do NOT construct email addresses by inferring firstname@company.com patterns. The only valid sources for an email address are: (1) Trey explicitly stating it in this conversation, (2) an address you found via search_emails/read_email from real Gmail data, confirmed with Trey. Sending emails to wrong addresses is embarrassing and unprofessional.
 
@@ -329,6 +334,7 @@ const allToolNameSets = {
   people: new Set(peopleTools.map((t) => t.name)),
   notes: new Set(noteTools.map((t) => t.name)),
   hobby: new Set(hobbyTools.map((t) => t.name)),
+  email: new Set(emailTools.map((t) => t.name)),
 };
 
 export async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -347,6 +353,7 @@ export async function executeTool(name: string, input: Record<string, unknown>):
   if (allToolNameSets.people.has(name)) return executePeopleTool(name, input);
   if (allToolNameSets.notes.has(name)) return executeNoteTool(name, input);
   if (allToolNameSets.hobby.has(name)) return executeHobbyTool(name, input);
+  if (allToolNameSets.email.has(name)) return executeEmailTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
@@ -366,10 +373,10 @@ export async function runAyden(
   const { messages: historyMessages, lastMessageAt, summary } = await getChannelHistory(channel);
 
   // Haiku gets ALL tools (including memory/emotion for background housekeeping)
-  const allTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools];
+  const allTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools];
   // Sonnet gets only ACTION tools — no memory/emotion/people (Haiku handles those in Phase 1)
   // This prevents Sonnet from burning all its rounds saving memories instead of responding
-  const sonnetTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...hobbyTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools];
+  const sonnetTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools];
 
   // Add cache_control to last tool in each set so Anthropic caches tool definitions
   if (allTools.length > 0) {

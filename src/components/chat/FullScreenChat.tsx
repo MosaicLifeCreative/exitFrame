@@ -395,7 +395,22 @@ export default function FullScreenChat() {
                 )}
               >
                 {msg.role === "user" ? (
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  <div>
+                    {msg.imageUrls && msg.imageUrls.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-1.5">
+                        {msg.imageUrls.map((url, i) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={i}
+                            src={url}
+                            alt={`Sent image ${i + 1}`}
+                            className="max-w-[200px] max-h-[150px] rounded object-cover"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {msg.content && <p className="text-sm whitespace-pre-wrap">{msg.content}</p>}
+                  </div>
                 ) : (
                   <>
                     {msg.toolUses && msg.toolUses.length > 0 && (

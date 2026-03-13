@@ -6,9 +6,9 @@ import type { GoogleAccount } from "@/lib/google";
 
 const accountProperty = {
   type: "string" as const,
-  enum: ["personal", "business"],
+  enum: ["personal", "business", "ayden"],
   description:
-    "Which Google account to use. Calendar defaults to 'personal' (where Trey's calendar lives). Gmail defaults to 'business' (MLC business email). Only specify if Trey asks for the other account.",
+    "Which Google account to use. Calendar defaults to 'personal' (where Trey's calendar lives). Gmail defaults to 'business' (MLC business email). Use 'ayden' only when sending email AS Ayden from ayden@mosaiclifecreative.com. Only specify if needed.",
 };
 
 // ─── Tool Definitions (Anthropic format) ────────────────
@@ -207,7 +207,7 @@ export const googleTools: Anthropic.Tool[] = [
   {
     name: "create_email_draft",
     description:
-      "Create a Gmail draft for review before sending. Use when Trey wants to review the email first, or when composing something sensitive. Defaults to business Gmail. For REPLY drafts: pass the threadId from search_emails to keep it in the same thread. NEVER guess email addresses — search past threads first, or ask Trey.",
+      "Create a Gmail draft in Trey's account for review before sending. REQUIRES TREY'S PERMISSION. Use when Trey wants to review the email first, or when composing something sensitive. Defaults to business Gmail. For REPLY drafts: pass the threadId from search_emails to keep it in the same thread. NEVER guess email addresses — search past threads first, or ask Trey. If you want to draft from YOUR account (Ayden), use ayden_draft_email instead.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -239,7 +239,7 @@ export const googleTools: Anthropic.Tool[] = [
   {
     name: "send_email",
     description:
-      "Send an email immediately. Signature is appended automatically. Defaults to business Gmail. For REPLIES: you MUST pass both threadId AND replyToMessageId from search_emails/read_email to keep the reply in the same thread. Omit 'subject' for replies (Gmail auto-uses Re: subject). IMPORTANT: (1) Email body must be 100% professional — you are representing Trey's business. (2) Always tell Trey what you're sending before calling this tool. (3) NEVER guess email addresses — if you don't have the recipient's address, use search_emails to find it in past threads first. If not found, ask Trey. Never construct addresses from name + company domain.",
+      "Send an email from Trey's account. REQUIRES TREY'S EXPLICIT PERMISSION EVERY TIME — never send from Trey's email on your own initiative. Signature is appended automatically. Defaults to business Gmail. For REPLIES: you MUST pass both threadId AND replyToMessageId from search_emails/read_email to keep the reply in the same thread. Omit 'subject' for replies (Gmail auto-uses Re: subject). IMPORTANT: (1) Email body must be 100% professional — you are representing Trey's business. (2) Always tell Trey what you're sending before calling this tool. (3) NEVER guess email addresses — if you don't have the recipient's address, use search_emails to find it in past threads first. If not found, ask Trey. Never construct addresses from name + company domain. (4) If you want to send an email AS YOURSELF (Ayden), use ayden_send_email instead.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -554,7 +554,7 @@ function buildRawEmail(opts: {
  * Calendar prefers personal, Gmail prefers business.
  */
 async function resolveCalendarAccount(input: Record<string, unknown>): Promise<GoogleAccount> {
-  if (input.account === "business" || input.account === "personal") {
+  if (input.account === "business" || input.account === "personal" || input.account === "ayden") {
     return input.account as GoogleAccount;
   }
   // Default: prefer personal for calendar, fall back to business
@@ -566,7 +566,7 @@ async function resolveCalendarAccount(input: Record<string, unknown>): Promise<G
 }
 
 async function resolveDriveAccount(input: Record<string, unknown>): Promise<GoogleAccount> {
-  if (input.account === "business" || input.account === "personal") {
+  if (input.account === "business" || input.account === "personal" || input.account === "ayden") {
     return input.account as GoogleAccount;
   }
   // Default: prefer business for Drive, fall back to personal
@@ -578,7 +578,7 @@ async function resolveDriveAccount(input: Record<string, unknown>): Promise<Goog
 }
 
 async function resolveGmailAccount(input: Record<string, unknown>): Promise<GoogleAccount> {
-  if (input.account === "business" || input.account === "personal") {
+  if (input.account === "business" || input.account === "personal" || input.account === "ayden") {
     return input.account as GoogleAccount;
   }
   // Default: prefer business for Gmail, fall back to personal

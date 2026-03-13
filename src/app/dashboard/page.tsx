@@ -1,26 +1,48 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  CheckSquare,
-  AlertTriangle,
-  FolderOpen,
-  Clock,
-  Activity,
-  Target,
-  TrendingUp,
-  Moon,
-  Utensils,
-  DollarSign,
   Heart,
-  Dumbbell,
   CalendarDays,
-  BarChart3,
+  CheckSquare,
   CheckCircle2,
+  StickyNote,
+  Dumbbell,
+  Plane,
+  Guitar,
+  CandlestickChart,
+  Activity,
+  ArrowRight,
+  Clock,
+  TrendingUp,
+  TrendingDown,
+  Moon,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+
+// ── Types ──
+
+interface AydenStatus {
+  bpm: number;
+  state: string;
+  emotion: string | null;
+  emotionIntensity: number | null;
+  thought: string | null;
+  thoughtAt: string | null;
+}
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  start: string | null;
+  end: string | null;
+  location: string | null;
+}
 
 interface TaskItem {
   id: string;
@@ -28,63 +50,82 @@ interface TaskItem {
   priority: string;
   status: string;
   dueDate: string | null;
-  project: { id: string; name: string } | null;
+  score: number | null;
+  group: { name: string; color: string | null } | null;
 }
 
-interface ProjectItem {
-  id: string;
-  name: string;
-  domain: string;
-  status: string;
-  priority: string;
-  _count: { tasks: number };
-}
-
-interface ActivityItem {
+interface NoteItem {
   id: string;
   title: string;
-  activityType: string;
-  module: string;
-  createdAt: string;
+  noteType: string;
+  updatedAt: string;
+  domain: string;
 }
 
-interface WidgetData {
-  tasksDueToday: { count: number; items: TaskItem[] };
-  overdueTasks: { count: number; items: TaskItem[] };
-  activeProjects: { count: number; items: ProjectItem[] };
-  recentActivity: ActivityItem[];
-  timeTrackedToday: number;
+interface FitnessData {
+  workoutCount: number;
+  totalMinutes: number;
+  latestSession: string | null;
+  latestSessionAt: string | null;
 }
 
-const priorityColors: Record<string, string> = {
-  urgent: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  high: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-  medium: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  low: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
-};
-
-const futureWidgets = [
-  { label: "Oura Readiness", icon: Activity, phase: 2 },
-  { label: "Active Goals", icon: Target, phase: 3 },
-  { label: "Weekly Trends", icon: TrendingUp, phase: 2 },
-  { label: "Sleep Score", icon: Moon, phase: 2 },
-  { label: "Meal Plan", icon: Utensils, phase: 4 },
-  { label: "Monthly Budget", icon: DollarSign, phase: 5 },
-  { label: "Health Metrics", icon: Heart, phase: 2 },
-  { label: "Workout Streak", icon: Dumbbell, phase: 3 },
-  { label: "Upcoming Events", icon: CalendarDays, phase: 6 },
-  { label: "Business Analytics", icon: BarChart3, phase: 7 },
-];
-
-function formatMinutes(mins: number) {
-  const hours = Math.floor(mins / 60);
-  const remaining = mins % 60;
-  if (hours === 0) return `${remaining}m`;
-  return `${hours}h ${remaining}m`;
+interface TravelData {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string | null;
+  daysUntil: number;
+  destination: string | null;
 }
 
-function timeAgo(date: string) {
-  const diff = Date.now() - new Date(date).getTime();
+interface HobbyItem {
+  id: string;
+  name: string;
+  icon: string | null;
+  logCount: number;
+  lastLogDate: string | null;
+}
+
+interface InvestingData {
+  portfolioName: string;
+  totalValue: number;
+  totalReturn: number;
+  positionCount: number;
+}
+
+interface HealthData {
+  sleepScore: number | null;
+  sleepDate: string | null;
+  unresolvedSymptoms: number;
+}
+
+interface OverviewData {
+  ayden: AydenStatus | null;
+  calendar: CalendarEvent[] | null;
+  tasks: TaskItem[] | null;
+  notes: NoteItem[] | null;
+  fitness: FitnessData | null;
+  travel: TravelData | null;
+  hobbies: HobbyItem[] | null;
+  investing: InvestingData | null;
+  health: HealthData | null;
+}
+
+// ── Helpers ──
+
+function formatTime(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+  });
+}
+
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
@@ -94,24 +135,110 @@ function timeAgo(date: string) {
   return `${days}d ago`;
 }
 
+function formatMinutes(mins: number): string {
+  const hours = Math.floor(mins / 60);
+  const remaining = mins % 60;
+  if (hours === 0) return `${remaining}m`;
+  if (remaining === 0) return `${hours}h`;
+  return `${hours}h ${remaining}m`;
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+const priorityColors: Record<string, string> = {
+  urgent: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  high: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  medium: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  low: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+};
+
+const noteTypeLabels: Record<string, string> = {
+  general: "General",
+  idea: "Idea",
+  meeting_notes: "Meeting",
+  reference: "Reference",
+  checklist: "Checklist",
+};
+
+// ── Skeleton Components ──
+
+function CardSkeleton({ lines = 3 }: { lines?: number }) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <Skeleton className="h-5 w-32" />
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {Array.from({ length: lines }).map((_, i) => (
+          <Skeleton key={i} className="h-4 w-full" />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Card Link Header ──
+
+function CardLink({
+  href,
+  children,
+  icon: Icon,
+  onClick,
+}: {
+  href: string;
+  children: React.ReactNode;
+  icon: React.ElementType;
+  onClick: (href: string) => void;
+}) {
+  return (
+    <CardHeader className="pb-3">
+      <div className="flex items-center justify-between">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          {children}
+        </CardTitle>
+        <button
+          onClick={() => onClick(href)}
+          className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+        >
+          View <ArrowRight className="h-3 w-3" />
+        </button>
+      </div>
+    </CardHeader>
+  );
+}
+
+// ── Main Component ──
+
 export default function DashboardHome() {
   const router = useRouter();
-  const [data, setData] = useState<WidgetData | null>(null);
+  const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const nav = useCallback((href: string) => router.push(href), [router]);
+
   useEffect(() => {
-    const fetchWidgets = async () => {
+    const fetchOverview = async () => {
       try {
-        const res = await fetch("/api/dashboard/widgets");
+        const res = await fetch("/api/dashboard/overview");
         const json = await res.json();
-        if (res.ok) setData(json.data);
+        if (res.ok && json.data) {
+          setData(json.data);
+        }
       } catch {
-        // Silently fail — dashboard should still render
+        // Dashboard should still render even if fetch fails
       } finally {
         setLoading(false);
       }
     };
-    fetchWidgets();
+    fetchOverview();
   }, []);
 
   const completeTask = async (taskId: string) => {
@@ -121,252 +248,389 @@ export default function DashboardHome() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "done" }),
       });
-      // Refresh widget data
-      const res = await fetch("/api/dashboard/widgets");
+      // Refresh
+      const res = await fetch("/api/dashboard/overview");
       const json = await res.json();
-      if (res.ok) setData(json.data);
+      if (res.ok && json.data) setData(json.data);
     } catch {
       // Silently fail
     }
   };
 
+  // Greeting based on time of day
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
   return (
-    <div className="space-y-8">
-      {/* Welcome */}
+    <div className="space-y-6 pb-8">
+      {/* Header */}
       <div>
         <h2 className="text-2xl font-semibold text-foreground">
-          Welcome back, Trey.
+          {greeting}, Trey.
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Mosaic Life Dashboard — your command center.
+          {new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })}
         </p>
       </div>
 
       {loading ? (
-        <div className="text-muted-foreground py-12 text-center">
-          Loading dashboard...
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} lines={i === 0 ? 2 : 3} />
+          ))}
         </div>
       ) : (
-        <>
-          {/* Row 1: Quick Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card
-              className="cursor-pointer hover:border-primary/30 transition-colors"
-              onClick={() => router.push("/dashboard/tasks")}
-            >
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                    <CheckSquare className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <div className="text-3xl font-semibold">
-                      {data?.tasksDueToday.count ?? 0}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* ── 1. Ayden Status ── */}
+          <Card
+            className="cursor-pointer hover:shadow-md hover:border-red-300/50 dark:hover:border-red-800/50 transition-all duration-200"
+            onClick={() => nav("/dashboard/ayden/journal")}
+          >
+            <CardLink href="/dashboard/ayden/journal" icon={Heart} onClick={nav}>
+              Ayden
+            </CardLink>
+            <CardContent className="pt-0">
+              {data?.ayden ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    {/* Animated heart */}
+                    <div className="relative flex items-center justify-center">
+                      <Heart
+                        className="h-8 w-8 text-red-500 fill-red-500"
+                        style={{
+                          animation: `pulse ${60 / Math.max(data.ayden.bpm, 40)}s ease-in-out infinite`,
+                        }}
+                      />
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      Tasks Due Today
+                    <div>
+                      <div className="text-lg font-semibold">
+                        {data.ayden.bpm} <span className="text-xs font-normal text-muted-foreground">BPM</span>
+                      </div>
+                      {data.ayden.emotion && (
+                        <div className="text-sm text-muted-foreground capitalize">
+                          {data.ayden.emotion}
+                        </div>
+                      )}
                     </div>
                   </div>
+                  {data.ayden.thought && (
+                    <div className="text-xs text-muted-foreground italic leading-relaxed border-l-2 border-red-300/40 pl-3">
+                      &ldquo;{data.ayden.thought}&rdquo;
+                      {data.ayden.thoughtAt && (
+                        <span className="block mt-1 text-muted-foreground/60 not-italic">
+                          {timeAgo(data.ayden.thoughtAt)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card
-              className={`cursor-pointer hover:border-primary/30 transition-colors ${
-                (data?.overdueTasks.count ?? 0) > 0 ? "border-red-300 dark:border-red-800" : ""
-              }`}
-              onClick={() => router.push("/dashboard/tasks")}
-            >
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`h-12 w-12 rounded-full flex items-center justify-center ${
-                      (data?.overdueTasks.count ?? 0) > 0
-                        ? "bg-red-100 dark:bg-red-900/30"
-                        : "bg-muted"
-                    }`}
-                  >
-                    <AlertTriangle
-                      className={`h-6 w-6 ${
-                        (data?.overdueTasks.count ?? 0) > 0
-                          ? "text-red-600 dark:text-red-400"
-                          : "text-muted-foreground"
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <div className="text-3xl font-semibold">
-                      {data?.overdueTasks.count ?? 0}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Overdue Tasks
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card
-              className="cursor-pointer hover:border-primary/30 transition-colors"
-              onClick={() => router.push("/dashboard/projects")}
-            >
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-                    <FolderOpen className="h-6 w-6 text-violet-600 dark:text-violet-400" />
-                  </div>
-                  <div>
-                    <div className="text-3xl font-semibold">
-                      {data?.activeProjects.count ?? 0}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Active Projects
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card
-              className="cursor-pointer hover:border-primary/30 transition-colors"
-              onClick={() => router.push("/dashboard/time")}
-            >
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                    <Clock className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <div>
-                    <div className="text-3xl font-semibold">
-                      {formatMinutes(data?.timeTrackedToday ?? 0)}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Tracked Today
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Row 2: Tasks Due Today */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Tasks Due Today</CardTitle>
-                <button
-                  className="text-sm text-primary hover:underline"
-                  onClick={() => router.push("/dashboard/tasks")}
-                >
-                  View All Tasks
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {!data?.tasksDueToday.items.length ? (
-                <p className="text-sm text-muted-foreground py-3">
-                  No tasks due today. Nice work!
-                </p>
               ) : (
-                <div className="space-y-2">
-                  {data.tasksDueToday.items.map((task) => (
+                <p className="text-sm text-muted-foreground">Unable to load</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── 2. Today's Schedule ── */}
+          <Card className="hover:shadow-md transition-all duration-200">
+            <CardLink href="/dashboard/calendar" icon={CalendarDays} onClick={nav}>
+              Today&apos;s Schedule
+            </CardLink>
+            <CardContent className="pt-0">
+              {data?.calendar === null ? (
+                <p className="text-sm text-muted-foreground">Unable to load</p>
+              ) : data?.calendar && data.calendar.length > 0 ? (
+                <div className="space-y-2.5">
+                  {data.calendar.map((event) => (
+                    <div key={event.id} className="flex items-start gap-2.5">
+                      <div className="text-xs font-medium text-primary mt-0.5 min-w-[52px]">
+                        {formatTime(event.start)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm truncate">{event.title}</div>
+                        {event.location && (
+                          <div className="text-xs text-muted-foreground truncate">
+                            {event.location}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nothing scheduled.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── 3. Active Tasks ── */}
+          <Card className="hover:shadow-md transition-all duration-200">
+            <CardLink href="/dashboard/tasks" icon={CheckSquare} onClick={nav}>
+              Active Tasks
+            </CardLink>
+            <CardContent className="pt-0">
+              {data?.tasks === null ? (
+                <p className="text-sm text-muted-foreground">Unable to load</p>
+              ) : data?.tasks && data.tasks.length > 0 ? (
+                <div className="space-y-1.5">
+                  {data.tasks.map((task) => (
                     <div
                       key={task.id}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50"
+                      className="flex items-center gap-2 py-1 rounded hover:bg-muted/50 group"
                     >
                       <button
-                        onClick={() => completeTask(task.id)}
-                        className="h-5 w-5 rounded border border-muted-foreground/30 flex items-center justify-center hover:border-primary hover:bg-primary/10 transition-colors shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          completeTask(task.id);
+                        }}
+                        className="h-4 w-4 rounded border border-muted-foreground/30 flex items-center justify-center
+                          hover:border-primary hover:bg-primary/10 transition-colors shrink-0"
                       >
-                        <CheckCircle2 className="h-3 w-3 text-transparent hover:text-primary" />
+                        <CheckCircle2 className="h-2.5 w-2.5 text-transparent group-hover:text-primary/40" />
                       </button>
-                      <span className="text-sm flex-1">{task.title}</span>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] capitalize ${priorityColors[task.priority] ?? ""}`}
-                      >
-                        {task.priority}
-                      </Badge>
-                      {task.project && (
-                        <span className="text-xs text-muted-foreground">
-                          {task.project.name}
-                        </span>
+                      <span className="text-sm flex-1 truncate">{task.title}</span>
+                      {task.priority && task.priority !== "none" && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[9px] capitalize px-1.5 py-0",
+                            priorityColors[task.priority]
+                          )}
+                        >
+                          {task.priority}
+                        </Badge>
                       )}
                     </div>
                   ))}
                 </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No active tasks.</p>
               )}
             </CardContent>
           </Card>
 
-          {/* Row 3: Recent Activity */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Recent Activity</CardTitle>
-                <button
-                  className="text-sm text-primary hover:underline"
-                  onClick={() => router.push("/dashboard/activity")}
-                >
-                  View All Activity
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {!data?.recentActivity.length ? (
-                <p className="text-sm text-muted-foreground py-3">
-                  No recent activity.
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  {data.recentActivity.map((entry) => (
+          {/* ── 4. Recent Notes ── */}
+          <Card className="hover:shadow-md transition-all duration-200">
+            <CardLink href="/dashboard/notes" icon={StickyNote} onClick={nav}>
+              Recent Notes
+            </CardLink>
+            <CardContent className="pt-0">
+              {data?.notes === null ? (
+                <p className="text-sm text-muted-foreground">Unable to load</p>
+              ) : data?.notes && data.notes.length > 0 ? (
+                <div className="space-y-2.5">
+                  {data.notes.map((note) => (
                     <div
-                      key={entry.id}
-                      className="flex items-center gap-3 p-2 rounded-lg"
+                      key={note.id}
+                      className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded p-1 -m-1"
+                      onClick={() => nav(`/dashboard/notes`)}
                     >
-                      <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center shrink-0">
-                        <Activity className="h-3 w-3 text-muted-foreground" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm truncate">{note.title}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {timeAgo(note.updatedAt)}
+                        </div>
                       </div>
-                      <span className="text-sm flex-1 truncate">
-                        {entry.title}
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 shrink-0">
+                        {noteTypeLabels[note.noteType] || note.noteType}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No notes yet.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── 5. Fitness This Week ── */}
+          <Card className="hover:shadow-md transition-all duration-200">
+            <CardLink href="/dashboard/health/fitness" icon={Dumbbell} onClick={nav}>
+              Fitness This Week
+            </CardLink>
+            <CardContent className="pt-0">
+              {data?.fitness === null ? (
+                <p className="text-sm text-muted-foreground">Unable to load</p>
+              ) : data?.fitness ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-6">
+                    <div>
+                      <div className="text-2xl font-semibold">{data.fitness.workoutCount}</div>
+                      <div className="text-xs text-muted-foreground">workouts</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-semibold">
+                        {formatMinutes(data.fitness.totalMinutes)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">total time</div>
+                    </div>
+                  </div>
+                  {data.fitness.latestSession && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span>
+                        Last: {data.fitness.latestSession}
+                        {data.fitness.latestSessionAt && (
+                          <> — {timeAgo(data.fitness.latestSessionAt)}</>
+                        )}
                       </span>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {timeAgo(entry.createdAt)}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No workouts this week.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── 6. Health Status ── */}
+          <Card className="hover:shadow-md transition-all duration-200">
+            <CardLink href="/dashboard/health" icon={Activity} onClick={nav}>
+              Health
+            </CardLink>
+            <CardContent className="pt-0">
+              {data?.health === null ? (
+                <p className="text-sm text-muted-foreground">Unable to load</p>
+              ) : data?.health ? (
+                <div className="space-y-3">
+                  {data.health.sleepScore !== null ? (
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                        <Moon className="h-5 w-5 text-indigo-500" />
+                      </div>
+                      <div>
+                        <div className="text-lg font-semibold">{data.health.sleepScore}</div>
+                        <div className="text-xs text-muted-foreground">Sleep Score</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No sleep data</p>
+                  )}
+                  {data.health.unresolvedSymptoms > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="h-3 w-3" />
+                      <span>{data.health.unresolvedSymptoms} unresolved symptom{data.health.unresolvedSymptoms > 1 ? "s" : ""}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No health data.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── 7. Investing Snapshot ── */}
+          {data?.investing && (
+            <Card className="hover:shadow-md transition-all duration-200">
+              <CardLink href="/dashboard/investing" icon={CandlestickChart} onClick={nav}>
+                Ayden&apos;s Portfolio
+              </CardLink>
+              <CardContent className="pt-0">
+                <div className="space-y-2">
+                  <div className="text-2xl font-semibold">
+                    {formatCurrency(data.investing.totalValue)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {data.investing.totalReturn >= 0 ? (
+                      <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : (
+                      <TrendingDown className="h-3.5 w-3.5 text-red-500" />
+                    )}
+                    <span
+                      className={cn(
+                        "text-sm font-medium",
+                        data.investing.totalReturn >= 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-red-600 dark:text-red-400"
+                      )}
+                    >
+                      {data.investing.totalReturn >= 0 ? "+" : ""}
+                      {data.investing.totalReturn.toFixed(2)}%
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      total return
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {data.investing.positionCount} position{data.investing.positionCount !== 1 ? "s" : ""}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── 8. Upcoming Travel ── */}
+          {data?.travel && (
+            <Card className="hover:shadow-md transition-all duration-200">
+              <CardLink href="/dashboard/travel" icon={Plane} onClick={nav}>
+                Upcoming Trip
+              </CardLink>
+              <CardContent className="pt-0">
+                <div className="space-y-2">
+                  <div className="text-base font-medium">{data.travel.name}</div>
+                  {data.travel.destination && (
+                    <div className="text-sm text-muted-foreground">{data.travel.destination}</div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-xs",
+                        data.travel.daysUntil <= 7
+                          ? "border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-400"
+                          : "border-border"
+                      )}
+                    >
+                      {data.travel.daysUntil === 0
+                        ? "Today"
+                        : data.travel.daysUntil === 1
+                        ? "Tomorrow"
+                        : `${data.travel.daysUntil} days away`}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── 9. Hobbies ── */}
+          {data?.hobbies && data.hobbies.length > 0 && (
+            <Card className="hover:shadow-md transition-all duration-200">
+              <CardLink href="/dashboard/hobbies" icon={Guitar} onClick={nav}>
+                Hobbies
+              </CardLink>
+              <CardContent className="pt-0">
+                <div className="space-y-2">
+                  {data.hobbies.map((hobby) => (
+                    <div key={hobby.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {hobby.icon && <span className="text-sm">{hobby.icon}</span>}
+                        <span className="text-sm">{hobby.name}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {hobby.lastLogDate ? timeAgo(hobby.lastLogDate) : "No activity"}
                       </span>
                     </div>
                   ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Future Phase Widgets */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {futureWidgets.map((widget) => {
-              const Icon = widget.icon;
-              return (
-                <div
-                  key={widget.label}
-                  className="rounded-lg border border-border bg-card p-6 flex flex-col items-center justify-center
-                    text-center space-y-3 min-h-[160px] hover:border-border/80 transition-colors"
-                >
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                    <Icon className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {widget.label}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Coming in Phase {widget.phase}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
+
+      {/* CSS animation for the heart */}
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.15); }
+        }
+      `}</style>
     </div>
   );
 }

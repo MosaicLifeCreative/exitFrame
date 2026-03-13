@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Link, Unlink } from "lucide-react";
 import { useChatContext } from "@/hooks/useChatContext";
 
 // ─── Types ───────────────────────────────────────────────
@@ -71,6 +71,17 @@ interface TradingPrefs {
 
 interface AydenPrefs {
   quietMode: boolean;
+}
+
+interface GoogleAccountStatus {
+  connected: boolean;
+  error: string | null;
+}
+
+interface GoogleStatus {
+  personal: GoogleAccountStatus;
+  business: GoogleAccountStatus;
+  ayden: GoogleAccountStatus;
 }
 
 // ─── Defaults ────────────────────────────────────────────
@@ -138,8 +149,46 @@ export default function PreferencesPage() {
   const [lifestyle, setLifestyle] = useState<LifestylePrefs>(defaultLifestyle);
   const [trading, setTrading] = useState<TradingPrefs>(defaultTrading);
   const [ayden, setAyden] = useState<AydenPrefs>(defaultAyden);
+  const defaultGoogleStatus: GoogleStatus = {
+    personal: { connected: false, error: null },
+    business: { connected: false, error: null },
+    ayden: { connected: false, error: null },
+  };
+  const [googleStatus, setGoogleStatus] = useState<GoogleStatus>(defaultGoogleStatus);
+  const [googleLoading, setGoogleLoading] = useState<string | null>(null);
+
+  const [activeTab, setActiveTab] = useState("profile");
 
   useChatContext("Settings", "User preferences and profile settings page");
+
+  // Handle Google OAuth redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleResult = params.get("google");
+    const account = params.get("account");
+    if (googleResult === "connected" && account) {
+      toast.success(`Google ${account} account connected`);
+      setActiveTab("integrations");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (googleResult === "error") {
+      const msg = params.get("message") || "Unknown error";
+      toast.error(`Google connection failed: ${msg}`);
+      setActiveTab("integrations");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  const loadGoogleStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/google");
+      if (res.ok) {
+        const json = await res.json();
+        setGoogleStatus(json.data);
+      }
+    } catch {
+      // silent — non-critical
+    }
+  }, []);
 
   const loadPreferences = useCallback(async () => {
     try {
@@ -163,7 +212,51 @@ export default function PreferencesPage() {
 
   useEffect(() => {
     loadPreferences();
-  }, [loadPreferences]);
+    loadGoogleStatus();
+  }, [loadPreferences, loadGoogleStatus]);
+
+  const connectGoogle = async (account: "personal" | "business" | "ayden") => {
+    setGoogleLoading(account);
+    try {
+      const res = await fetch("/api/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "connect", account }),
+      });
+      const json = await res.json();
+      if (json.data?.authUrl) {
+        window.location.href = json.data.authUrl;
+      } else {
+        toast.error(json.error || "Failed to start OAuth");
+      }
+    } catch {
+      toast.error("Failed to connect Google account");
+    } finally {
+      setGoogleLoading(null);
+    }
+  };
+
+  const disconnectGoogle = async (account: "personal" | "business" | "ayden") => {
+    setGoogleLoading(account);
+    try {
+      const res = await fetch("/api/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "disconnect", account }),
+      });
+      if (res.ok) {
+        setGoogleStatus((prev) => ({ ...prev, [account]: { connected: false, error: null } }));
+        toast.success(`Google ${account} account disconnected`);
+      } else {
+        const json = await res.json();
+        toast.error(json.error || "Failed to disconnect");
+      }
+    } catch {
+      toast.error("Failed to disconnect Google account");
+    } finally {
+      setGoogleLoading(null);
+    }
+  };
 
   const saveCategory = async (category: string, data: ProfilePrefs | HealthPrefs | FitnessPrefs | LifestylePrefs | TradingPrefs | AydenPrefs) => {
     setSaving(category);
@@ -204,7 +297,7 @@ export default function PreferencesPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="health">Health</TabsTrigger>
@@ -212,6 +305,7 @@ export default function PreferencesPage() {
           <TabsTrigger value="lifestyle">Lifestyle</TabsTrigger>
           <TabsTrigger value="trading">Trading</TabsTrigger>
           <TabsTrigger value="ayden">Ayden</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
         </TabsList>
 
         {/* ── Profile Tab ── */}
@@ -679,6 +773,61 @@ export default function PreferencesPage() {
                   />
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Integrations Tab ── */}
+        <TabsContent value="integrations">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Google Accounts</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Connect Google accounts to enable Calendar, Gmail, and Drive tools.
+              </p>
+
+              {([
+                { key: "business" as const, label: "Business", desc: "trey@2237designs.com — Calendar, Gmail, Drive" },
+                { key: "personal" as const, label: "Personal", desc: "Personal Google account — Calendar, Gmail, Drive" },
+                { key: "ayden" as const, label: "Ayden", desc: "ayden@mosaiclifecreative.com — Ayden's own email" },
+              ]).map(({ key, label, desc }) => (
+                <div key={key} className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">{label}</Label>
+                    <p className="text-sm text-muted-foreground">{desc}</p>
+                  </div>
+                  {googleStatus[key].connected ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={googleLoading === key}
+                      onClick={() => disconnectGoogle(key)}
+                    >
+                      {googleLoading === key ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Unlink className="h-4 w-4 mr-2" />
+                      )}
+                      Disconnect
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      disabled={googleLoading === key}
+                      onClick={() => connectGoogle(key)}
+                    >
+                      {googleLoading === key ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Link className="h-4 w-4 mr-2" />
+                      )}
+                      Connect
+                    </Button>
+                  )}
+                </div>
+              ))}
             </CardContent>
           </Card>
         </TabsContent>

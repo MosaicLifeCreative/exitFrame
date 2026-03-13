@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { action, account: rawAccount } = body;
-    const account: GoogleAccount = rawAccount === "business" ? "business" : "personal";
+    const account: GoogleAccount = rawAccount === "business" ? "business" : rawAccount === "ayden" ? "ayden" : "personal";
 
     switch (action) {
       case "connect": {

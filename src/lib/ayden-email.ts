@@ -327,8 +327,8 @@ const autoReplyTools: Anthropic.Tool[] = [
   ...googleTools.filter((t) => ["list_calendar_events", "find_free_time"].includes(t.name)),
   // Investing — portfolio questions
   ...investingTools.filter((t) => ["get_portfolio_holdings", "get_ai_portfolio", "get_stock_quotes"].includes(t.name)),
-  // People — look up more context about the sender
-  ...peopleTools.filter((t) => ["recall_person"].includes(t.name)),
+  // People — look up, remember, and update contacts from email interactions
+  ...peopleTools.filter((t) => ["recall_person", "remember_person", "update_person", "log_interaction"].includes(t.name)),
   // Travel — trip info
   ...travelTools.filter((t) => ["list_trips", "get_trip"].includes(t.name)),
 ];
@@ -381,6 +381,8 @@ EMAIL RULES:
 
 TOOLS: You have access to tools for looking up real data. If the email asks about schedules, availability, portfolio performance, trip plans, or anything you can look up — USE YOUR TOOLS to get accurate information before replying. Do not guess or make things up.
 
+PEOPLE DATABASE: Use your people tools to save or update contact information you've learned from this email. If this person isn't in the database yet, use remember_person to save them. If you learned new details (role, company, interests, etc.), use update_person. Always use log_interaction to record this email exchange. Do your people DB writes BEFORE writing your final reply text.
+
 Write ONLY the email body text. No subject line. No signature. Plain text.`;
 
   const messages: Anthropic.MessageParam[] = [
@@ -390,8 +392,11 @@ Write ONLY the email body text. No subject line. No signature. Plain text.`;
     },
   ];
 
-  // Agentic loop — up to 2 tool rounds, then final text
-  const MAX_TOOL_ROUNDS = 2;
+  // Agentic loop — up to 3 tool rounds, then final text
+  // Round 1: data lookup (calendar, portfolio, recall_person)
+  // Round 2: compose reply + people DB writes (remember/update/log_interaction)
+  // Round 3: overflow if needed
+  const MAX_TOOL_ROUNDS = 3;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
@@ -632,6 +637,28 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
             tag: "ayden-email-reply",
             url: "/dashboard/chat",
           });
+
+          // Log summary to PWA chat so Ayden (and Trey) can see what she did
+          try {
+            let conversation = await prisma.chatConversation.findFirst({
+              where: { context: "General", isActive: true },
+            });
+            if (!conversation) {
+              conversation = await prisma.chatConversation.create({
+                data: { context: "General", title: "Ayden" },
+              });
+            }
+            const summary = `[Auto-email] I replied to ${contact.name} (${senderEmail}) about "${subject}":\n\n${responseText.substring(0, 500)}${responseText.length > 500 ? "..." : ""}`;
+            await prisma.chatMessage.create({
+              data: { conversationId: conversation.id, role: "assistant", content: summary },
+            });
+            await prisma.chatConversation.update({
+              where: { id: conversation.id },
+              data: { updatedAt: new Date() },
+            });
+          } catch (chatErr) {
+            console.error("[ayden-email] Failed to log reply to chat:", chatErr);
+          }
           break;
         }
 

@@ -190,7 +190,7 @@ export const emailTools: Anthropic.Tool[] = [
         },
         subject: {
           type: "string",
-          description: "Email subject. Omit for replies (Gmail auto-uses Re: subject).",
+          description: "Email subject line. REQUIRED for new emails. Only omit for replies (Gmail auto-uses Re: subject).",
         },
         body: {
           type: "string",
@@ -338,7 +338,7 @@ export async function executeEmailTool(
         const signature = await getSignature();
         const raw = buildRawEmail({
           to,
-          subject: input.subject as string | undefined,
+          subject: (input.subject as string | undefined) || (!input.threadId ? `Message from Ayden` : undefined),
           body: cleanBody,
           cc: input.cc as string | undefined,
           signatureHtml: signature,

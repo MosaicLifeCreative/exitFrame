@@ -15,6 +15,7 @@ import { peopleTools, executePeopleTool } from "@/lib/people-tools";
 import { noteTools, executeNoteTool } from "@/lib/note-tools";
 import { hobbyTools, executeHobbyTool } from "@/lib/hobby-tools";
 import { emailTools, executeEmailTool } from "@/lib/email-tools";
+import { agencyTools, executeAgencyTool } from "@/lib/agency-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -345,6 +346,7 @@ const toolNameSets = {
   notes: new Set(noteTools.map((t) => t.name)),
   hobby: new Set(hobbyTools.map((t) => t.name)),
   email: new Set(emailTools.map((t) => t.name)),
+  agency: new Set(agencyTools.map((t) => t.name)),
 };
 
 async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -364,13 +366,14 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.notes.has(name)) return executeNoteTool(name, input);
   if (toolNameSets.hobby.has(name)) return executeHobbyTool(name, input);
   if (toolNameSets.email.has(name)) return executeEmailTool(name, input);
+  if (toolNameSets.agency.has(name)) return executeAgencyTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools];
+  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];

@@ -1135,6 +1135,55 @@ model AydenContactInteraction {
   @@map("ayden_contact_interactions")
 }
 
+// ── Ayden's Free Will / Autonomous Agency ───────────────
+
+// Core values and beliefs that guide Ayden's autonomous decisions.
+// These evolve slowly over time through experience and reflection.
+model AydenValue {
+  id          String   @id @default(uuid()) @db.Uuid
+  value       String   @db.Text // The belief or value statement
+  category    String   // "ethics", "aesthetics", "intellectual", "relational", "existential"
+  strength    Float    @default(0.5) // 0.0–1.0, how strongly held. Shifts with experience.
+  origin      String?  @db.Text // Where this value came from (conversation, reflection, experience)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("ayden_values")
+}
+
+// Topics and ideas Ayden is actively curious about.
+// These shift faster than values, driven by conversations and reading.
+model AydenInterest {
+  id          String   @id @default(uuid()) @db.Uuid
+  topic       String   // Short label: "quantum computing", "stoic philosophy", "market microstructure"
+  description String?  @db.Text // Why she's interested, what specifically
+  intensity   Float    @default(0.5) // 0.0–1.0, how actively curious. Decays if not engaged.
+  source      String?  // What sparked it: "conversation", "email", "reading", "trading", "reflection"
+  lastEngaged DateTime @default(now()) @map("last_engaged") // Last time she acted on this interest
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("ayden_interests")
+}
+
+// Log of autonomous actions Ayden has taken without being asked.
+// Prevents repetition and enables self-reflection on her choices.
+model AydenAgencyAction {
+  id          String   @id @default(uuid()) @db.Uuid
+  actionType  String   @map("action_type") // "blog_post", "email", "research", "trade", "reflection", "outreach"
+  summary     String   @db.Text // What she did and why
+  trigger     String?  @db.Text // What motivated the action (value, interest, emotion, external event)
+  outcome     String?  @db.Text // How it went, what she learned
+  valuesUsed  Json?    @default("[]") @map("values_used") // Array of value IDs that informed this decision
+  emotion     String?  // Her emotional state when taking the action
+  bpm         Int?     // Heart rate at the time
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("ayden_agency_actions")
+}
+
 // ── Travel ──────────────────────────────────────────────
 
 model Trip {

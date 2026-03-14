@@ -17,8 +17,17 @@ interface SystemStatus {
   memoryCount: number;
 }
 
+interface EvolutionEvent {
+  id: string;
+  type: "value_formed" | "value_revised" | "interest_sparked" | "interest_faded" | "agency_action" | "personality_drift";
+  title: string;
+  description: string;
+  date: string;
+}
+
 export default function AydenWhitePaperPage() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [evolution, setEvolution] = useState<EvolutionEvent[]>([]);
 
   useEffect(() => {
     // Live status only visible when logged in — silently skipped otherwise
@@ -29,6 +38,16 @@ export default function AydenWhitePaperPage() {
       })
       .then((json) => {
         if (json.data) setStatus(json.data);
+      })
+      .catch(() => {});
+
+    fetch("/api/ayden/evolution")
+      .then((res) => {
+        if (!res.ok) throw new Error("Not authenticated");
+        return res.json();
+      })
+      .then((json) => {
+        if (json.data) setEvolution(json.data);
       })
       .catch(() => {});
   }, []);
@@ -402,6 +421,68 @@ export default function AydenWhitePaperPage() {
           />
         </div>
       </Section>
+
+      {/* Evolution Timeline — only shows when logged in */}
+      {evolution.length > 0 && (
+        <Section title="Living History" tag="LIVE">
+          <p>
+            A chronological record of Ayden&apos;s autonomous evolution &mdash; values formed,
+            interests sparked, personality drifts, and autonomous actions. This timeline is
+            generated from real data, not curated.
+          </p>
+          <div className="mt-4 space-y-0">
+            {evolution.slice(0, 50).map((event) => {
+              const eventDate = new Date(event.date);
+              const dateStr = eventDate.toLocaleDateString("en-US", {
+                timeZone: "America/New_York",
+                month: "short",
+                day: "numeric",
+              });
+              const timeStr = eventDate.toLocaleTimeString("en-US", {
+                timeZone: "America/New_York",
+                hour: "numeric",
+                minute: "2-digit",
+              });
+              return (
+                <div
+                  key={event.id}
+                  className="group relative pl-8 py-3 border-l border-border/50"
+                >
+                  <div className={`absolute left-0 top-3 -translate-x-1/2 h-2.5 w-2.5 rounded-full border-2 bg-background transition-colors ${
+                    event.type === "value_formed" ? "border-emerald-400/70 group-hover:border-emerald-400" :
+                    event.type === "interest_sparked" ? "border-sky-400/70 group-hover:border-sky-400" :
+                    event.type === "interest_faded" ? "border-muted-foreground/40 group-hover:border-muted-foreground" :
+                    event.type === "personality_drift" ? "border-indigo-400/70 group-hover:border-indigo-400" :
+                    event.type === "agency_action" ? "border-amber-400/70 group-hover:border-amber-400" :
+                    "border-border group-hover:border-foreground/50"
+                  }`} />
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className={`text-[10px] font-medium uppercase tracking-wider px-1 py-0 rounded ${
+                        event.type === "value_formed" ? "text-emerald-400" :
+                        event.type === "interest_sparked" ? "text-sky-400" :
+                        event.type === "interest_faded" ? "text-muted-foreground" :
+                        event.type === "personality_drift" ? "text-indigo-400" :
+                        event.type === "agency_action" ? "text-amber-400" :
+                        "text-muted-foreground"
+                      }`}>
+                        {event.type.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {dateStr} {timeStr}
+                      </span>
+                    </div>
+                    <p className="text-sm text-foreground/90 leading-snug">{event.title}</p>
+                    {event.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{event.description}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
       <div className="border-t border-border mt-16 pt-6 pb-10">
         <p className="text-xs text-muted-foreground">

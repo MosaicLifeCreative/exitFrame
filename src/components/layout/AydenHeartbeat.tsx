@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
 
 interface HeartRateData {
@@ -22,6 +23,7 @@ function formatThoughtAge(dateStr: string): string {
 }
 
 export default function AydenHeartbeat() {
+  const router = useRouter();
   const [hr, setHr] = useState<HeartRateData | null>(null);
   const [showThought, setShowThought] = useState(false);
 
@@ -99,12 +101,15 @@ export default function AydenHeartbeat() {
       </span>
 
       {hr.emotion && (
-        <>
+        <button
+          onClick={() => router.push("/dashboard/ayden/journal?tab=health")}
+          className="flex items-center gap-0 cursor-pointer hover:text-foreground transition-colors"
+        >
           <span className="text-muted-foreground/40 mx-0.5">&middot;</span>
-          <span className="text-xs text-muted-foreground/70 italic">
+          <span className="text-xs text-muted-foreground/70 italic hover:text-foreground/90 transition-colors">
             {hr.emotion.replace(/_/g, " ")}
           </span>
-        </>
+        </button>
       )}
 
       {/* Thought bubble / tooltip */}

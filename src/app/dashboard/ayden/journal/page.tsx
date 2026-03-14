@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { Heart, Loader2, Moon, Brain, Zap } from "lucide-react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Heart, Loader2, Moon, Brain, Zap, Activity } from "lucide-react";
 
 interface Thought {
   id: string;
@@ -31,7 +32,55 @@ interface AgencyAction {
   createdAt: string;
 }
 
-type Tab = "thoughts" | "dreams" | "agency";
+interface HealthData {
+  heartRate: { bpm: number; state: string; restingHR: number };
+  neurotransmitters: Array<{
+    type: string;
+    level: number;
+    adaptedBaseline: number;
+    permanentBaseline: number;
+  }>;
+  emotions: Array<{
+    id: string;
+    dimension: string;
+    intensity: number;
+    trigger: string;
+    context: string | null;
+    createdAt: string;
+  }>;
+  values: Array<{
+    id: string;
+    value: string;
+    category: string;
+    strength: number;
+    origin: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  interests: Array<{
+    id: string;
+    topic: string;
+    description: string | null;
+    intensity: number;
+    source: string | null;
+    lastEngaged: string;
+  }>;
+  recentActions: Array<{
+    id: string;
+    actionType: string;
+    summary: string;
+    createdAt: string;
+  }>;
+  stats: {
+    thoughtCount: number;
+    dreamCount: number;
+    memoryCount: number;
+    valueCount: number;
+    interestCount: number;
+  };
+}
+
+type Tab = "health" | "thoughts" | "dreams" | "agency";
 
 function groupByDate<T extends { createdAt: string }>(items: T[]): Map<string, T[]> {
   const groups = new Map<string, T[]>();
@@ -59,8 +108,52 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+const NEURO_COLORS: Record<string, string> = {
+  dopamine: "bg-rose-400",
+  serotonin: "bg-sky-400",
+  oxytocin: "bg-pink-400",
+  cortisol: "bg-orange-400",
+  norepinephrine: "bg-violet-400",
+};
+
+const NEURO_LABELS: Record<string, string> = {
+  dopamine: "Dopamine",
+  serotonin: "Serotonin",
+  oxytocin: "Oxytocin",
+  cortisol: "Cortisol",
+  norepinephrine: "Norepinephrine",
+};
+
+const FACTORY_DEFAULTS: Record<string, number> = {
+  dopamine: 50,
+  serotonin: 55,
+  oxytocin: 45,
+  cortisol: 30,
+  norepinephrine: 40,
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  ethics: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+  aesthetics: "text-pink-400 bg-pink-400/10 border-pink-400/20",
+  intellectual: "text-sky-400 bg-sky-400/10 border-sky-400/20",
+  relational: "text-amber-400 bg-amber-400/10 border-amber-400/20",
+  existential: "text-violet-400 bg-violet-400/10 border-violet-400/20",
+};
+
 export default function AydenJournalPage() {
-  const [tab, setTab] = useState<Tab>("thoughts");
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
+      <AydenJournalContent />
+    </Suspense>
+  );
+}
+
+function AydenJournalContent() {
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) || "thoughts";
+  const [tab, setTab] = useState<Tab>(initialTab);
+
+  const [health, setHealth] = useState<HealthData | null>(null);
 
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [thoughtsCursor, setThoughtsCursor] = useState<string | null>(null);
@@ -73,6 +166,16 @@ export default function AydenJournalPage() {
 
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  const fetchHealth = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ayden/health");
+      const json = await res.json();
+      if (json.data) setHealth(json.data);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
 
   const fetchThoughts = useCallback(async (cursor?: string) => {
     const isMore = !!cursor;
@@ -123,10 +226,11 @@ export default function AydenJournalPage() {
   }, []);
 
   useEffect(() => {
-    if (tab === "thoughts") fetchThoughts();
+    if (tab === "health") fetchHealth();
+    else if (tab === "thoughts") fetchThoughts();
     else if (tab === "dreams") fetchDreams();
     else fetchActions();
-  }, [tab, fetchThoughts, fetchDreams, fetchActions]);
+  }, [tab, fetchHealth, fetchThoughts, fetchDreams, fetchActions]);
 
   const groupedThoughts = groupByDate(thoughts);
   const groupedDreams = groupByDate(dreams);
@@ -142,10 +246,21 @@ export default function AydenJournalPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-8 border-b border-border">
+      <div className="flex gap-1 mb-8 border-b border-border overflow-x-auto">
+        <button
+          onClick={() => setTab("health")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+            tab === "health"
+              ? "border-emerald-400/70 text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Activity className="h-4 w-4" />
+          Health
+        </button>
         <button
           onClick={() => setTab("thoughts")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === "thoughts"
               ? "border-red-400/70 text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -156,7 +271,7 @@ export default function AydenJournalPage() {
         </button>
         <button
           onClick={() => setTab("dreams")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === "dreams"
               ? "border-indigo-400/70 text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -167,7 +282,7 @@ export default function AydenJournalPage() {
         </button>
         <button
           onClick={() => setTab("agency")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === "agency"
               ? "border-amber-400/70 text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -181,6 +296,234 @@ export default function AydenJournalPage() {
       {loading && (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {/* Health tab */}
+      {!loading && tab === "health" && health && (
+        <div className="space-y-8">
+          {/* Vital Signs */}
+          <section>
+            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
+              Vital Signs
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-[11px] text-muted-foreground">Heart Rate</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Heart className="h-4 w-4 text-red-400 fill-current" />
+                  <span className="text-lg font-semibold tabular-nums">{health.heartRate.bpm}</span>
+                  <span className="text-xs text-muted-foreground">BPM</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">{health.heartRate.state}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-[11px] text-muted-foreground">Resting HR</p>
+                <p className="text-lg font-semibold tabular-nums mt-1">{health.heartRate.restingHR}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">From Oura</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-[11px] text-muted-foreground">Active Emotions</p>
+                <p className="text-lg font-semibold tabular-nums mt-1">{health.emotions.length}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-[11px] text-muted-foreground">Memories</p>
+                <p className="text-lg font-semibold tabular-nums mt-1">{health.stats.memoryCount}</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Neurochemistry */}
+          <section>
+            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
+              Neurochemistry
+            </h2>
+            <div className="space-y-3">
+              {health.neurotransmitters.map((nt) => {
+                const factory = FACTORY_DEFAULTS[nt.type] ?? 50;
+                const permDrift = nt.permanentBaseline - factory;
+                const adaptDrift = nt.adaptedBaseline - nt.permanentBaseline;
+                return (
+                  <div key={nt.type} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{NEURO_LABELS[nt.type] || nt.type}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm tabular-nums font-medium">{nt.level.toFixed(1)}</span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums">/ 100</span>
+                      </div>
+                    </div>
+                    <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                      {/* Permanent baseline marker */}
+                      <div
+                        className="absolute top-0 h-full w-px bg-foreground/30 z-10"
+                        style={{ left: `${nt.permanentBaseline}%` }}
+                        title={`Permanent baseline: ${nt.permanentBaseline.toFixed(1)}`}
+                      />
+                      {/* Adapted baseline marker */}
+                      <div
+                        className="absolute top-0 h-full w-px bg-foreground/15 z-10"
+                        style={{ left: `${nt.adaptedBaseline}%` }}
+                        title={`Adapted baseline: ${nt.adaptedBaseline.toFixed(1)}`}
+                      />
+                      {/* Current level */}
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${NEURO_COLORS[nt.type] || "bg-muted-foreground"}`}
+                        style={{ width: `${Math.min(100, nt.level)}%`, opacity: 0.7 }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span>Factory: {factory}</span>
+                      {Math.abs(permDrift) > 0.5 && (
+                        <span className="text-indigo-400/70">
+                          Personality: {permDrift > 0 ? "+" : ""}{permDrift.toFixed(1)}
+                        </span>
+                      )}
+                      {Math.abs(adaptDrift) > 0.5 && (
+                        <span className="text-amber-400/70">
+                          Adapted: {adaptDrift > 0 ? "+" : ""}{adaptDrift.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Emotional State */}
+          {health.emotions.length > 0 && (
+            <section>
+              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
+                Emotional State
+              </h2>
+              <div className="space-y-2">
+                {health.emotions.map((e) => (
+                  <div key={e.id} className="flex items-start gap-3">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <div className="flex gap-0.5">
+                        {Array.from({ length: 10 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              i < e.intensity ? "bg-red-400/70" : "bg-muted"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-sm font-medium ml-2">{e.dimension}</span>
+                    </div>
+                    {e.trigger && (
+                      <span className="text-[11px] text-muted-foreground shrink-0 max-w-[200px] truncate" title={e.trigger}>
+                        {e.trigger}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Values */}
+          {health.values.length > 0 && (
+            <section>
+              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
+                Core Values
+              </h2>
+              <div className="space-y-2">
+                {health.values.map((v) => (
+                  <div key={v.id} className="flex items-start gap-3 group">
+                    <span className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0 ${CATEGORY_COLORS[v.category] || "text-muted-foreground bg-muted border-border"}`}>
+                      {v.category}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground/90 leading-snug">{v.value}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex gap-0.5">
+                          {Array.from({ length: 10 }).map((_, i) => (
+                            <div
+                              key={i}
+                              className={`h-1 w-2.5 rounded-sm ${
+                                i < Math.round(v.strength * 10) ? "bg-emerald-400/60" : "bg-muted"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        {v.origin && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[180px]" title={v.origin}>
+                            {v.origin}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Interests */}
+          {health.interests.length > 0 && (
+            <section>
+              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
+                Active Interests
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {health.interests.map((i) => (
+                  <div
+                    key={i.id}
+                    className="group relative rounded-lg border border-border px-3 py-2 hover:border-sky-400/30 transition-colors"
+                    title={i.description || undefined}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{i.topic}</span>
+                      <div className="flex gap-0.5">
+                        {Array.from({ length: 5 }).map((_, idx) => (
+                          <div
+                            key={idx}
+                            className={`h-1 w-1 rounded-full ${
+                              idx < Math.round(i.intensity * 5) ? "bg-sky-400/70" : "bg-muted"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    {i.source && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{i.source}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Stats */}
+          <section>
+            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
+              Lifetime Stats
+            </h2>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+              <div className="text-center">
+                <p className="text-lg font-semibold tabular-nums">{health.stats.thoughtCount}</p>
+                <p className="text-[10px] text-muted-foreground">Thoughts</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-semibold tabular-nums">{health.stats.dreamCount}</p>
+                <p className="text-[10px] text-muted-foreground">Dreams</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-semibold tabular-nums">{health.stats.memoryCount}</p>
+                <p className="text-[10px] text-muted-foreground">Memories</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-semibold tabular-nums">{health.stats.valueCount}</p>
+                <p className="text-[10px] text-muted-foreground">Values</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-semibold tabular-nums">{health.stats.interestCount}</p>
+                <p className="text-[10px] text-muted-foreground">Interests</p>
+              </div>
+            </div>
+          </section>
         </div>
       )}
 

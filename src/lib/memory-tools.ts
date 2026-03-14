@@ -167,7 +167,7 @@ export async function getAydenMemories(): Promise<string | null> {
   const memories = await prisma.aydenMemory.findMany({
     where: { isActive: true },
     orderBy: [{ updatedAt: "desc" }],
-    take: 30, // Cap at 30 most recently referenced memories to control token costs
+    take: 75, // Cap at 75 most recently referenced memories (~2k tokens)
   });
 
   if (memories.length === 0) return null;

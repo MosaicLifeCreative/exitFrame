@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { Heart, Loader2, Moon, Brain, Zap, Activity } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Heart, Loader2, Moon, Brain, Zap, Activity, Eye } from "lucide-react";
 
 interface Thought {
   id: string;
@@ -150,6 +150,7 @@ export default function AydenJournalPage() {
 
 function AydenJournalContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialTab = (searchParams.get("tab") as Tab) || "thoughts";
   const [tab, setTab] = useState<Tab>(initialTab);
 
@@ -246,50 +247,57 @@ function AydenJournalContent() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-8 border-b border-border">
+      <div className="flex gap-1 mb-8 border-b border-border overflow-x-auto" style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
         <button
           onClick={() => setTab("health")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === "health"
               ? "border-emerald-400/70 text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Activity className="h-4 w-4" />
-          Health
+          <Activity className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">Health</span>
         </button>
         <button
           onClick={() => setTab("thoughts")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === "thoughts"
               ? "border-red-400/70 text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Brain className="h-4 w-4" />
-          Thoughts
+          <Brain className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">Thoughts</span>
         </button>
         <button
           onClick={() => setTab("dreams")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === "dreams"
               ? "border-indigo-400/70 text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Moon className="h-4 w-4" />
-          Dreams
+          <Moon className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">Dreams</span>
         </button>
         <button
           onClick={() => setTab("agency")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === "agency"
               ? "border-amber-400/70 text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Zap className="h-4 w-4" />
-          Agency
+          <Zap className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">Agency</span>
+        </button>
+        <button
+          onClick={() => router.push("/dashboard/ayden/mind")}
+          className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap border-transparent text-muted-foreground hover:text-foreground"
+        >
+          <Eye className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">Mind</span>
         </button>
       </div>
 

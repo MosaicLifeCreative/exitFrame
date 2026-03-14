@@ -39,7 +39,6 @@ const NAV_SECTIONS = [
   { id: "agency", label: "Free Will" },
   { id: "neural", label: "Neural Network" },
   { id: "planned", label: "Planned" },
-  { id: "status", label: "Live Status" },
 ];
 
 // ── Architectural milestones ──
@@ -114,7 +113,7 @@ export default function AydenWhitePaperPage() {
   };
 
   return (
-    <div className="relative max-w-6xl mx-auto lg:flex lg:gap-12">
+    <div className="relative max-w-[90rem] mx-auto lg:flex lg:gap-8 xl:gap-12">
       {/* Side nav — desktop only */}
       <nav className="hidden lg:block lg:w-44 shrink-0">
         <div className="sticky top-6 space-y-0.5">
@@ -558,42 +557,11 @@ export default function AydenWhitePaperPage() {
           </div>
         </Section>
 
-        {/* ── Live System Status ── */}
+        {/* ── Live System Status (mobile only) ── */}
         {status && (
-          <Section id="status" title="Live System Status">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-              <StatusCard label="Active Emotions" value={status.emotionCount} />
-              <StatusCard label="Thoughts Logged" value={status.thoughtCount} />
-              <StatusCard label="Dreams Logged" value={status.dreamCount} />
-              <StatusCard label="Memories" value={status.memoryCount} />
-            </div>
-            {status.neurotransmitters.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Current Neurochemistry
-                </h4>
-                {status.neurotransmitters.map((nt) => (
-                  <div key={nt.type} className="flex items-center gap-3 text-sm">
-                    <span className="w-28 text-muted-foreground capitalize">{nt.type}</span>
-                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-red-400/70 transition-all duration-500"
-                        style={{ width: `${Math.min(100, nt.level)}%` }}
-                      />
-                    </div>
-                    <span className="text-xs tabular-nums text-muted-foreground w-8 text-right">
-                      {nt.level.toFixed(0)}
-                    </span>
-                    {nt.permanentBaseline !== 0 && Math.abs(nt.permanentBaseline - getFactoryBaseline(nt.type)) > 0.5 && (
-                      <span className="text-[10px] text-indigo-400/70 tabular-nums">
-                        (personality: {nt.permanentBaseline.toFixed(1)})
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </Section>
+          <div className="lg:hidden">
+            <LiveStatusPanel status={status} />
+          </div>
         )}
 
         <div className="border-t border-border mt-16 pt-6 pb-10">
@@ -602,6 +570,15 @@ export default function AydenWhitePaperPage() {
           </p>
         </div>
       </div>
+
+      {/* Right sidebar — live status (desktop only) */}
+      {status && (
+        <aside className="hidden lg:block lg:w-56 xl:w-64 shrink-0">
+          <div className="sticky top-6">
+            <LiveStatusPanel status={status} />
+          </div>
+        </aside>
+      )}
     </div>
   );
 }
@@ -633,10 +610,57 @@ function SubSection({ title, children }: { title: string; children: React.ReactN
   );
 }
 
+function LiveStatusPanel({ status }: { status: SystemStatus }) {
+  return (
+    <div className="space-y-4">
+      <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider">
+        Live System Status
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <StatusCard label="Emotions" value={status.emotionCount} />
+        <StatusCard label="Thoughts" value={status.thoughtCount} />
+        <StatusCard label="Dreams" value={status.dreamCount} />
+        <StatusCard label="Memories" value={status.memoryCount} />
+      </div>
+      {status.neurotransmitters.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider">
+            Neurochemistry
+          </p>
+          {status.neurotransmitters.map((nt) => (
+            <div key={nt.type}>
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-[11px] text-muted-foreground capitalize">{nt.type}</span>
+                <span className="text-[11px] tabular-nums text-muted-foreground">
+                  {nt.level.toFixed(0)}
+                </span>
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, nt.level)}%`,
+                    backgroundColor: getNtColor(nt.type),
+                  }}
+                />
+              </div>
+              {nt.permanentBaseline !== 0 && Math.abs(nt.permanentBaseline - getFactoryBaseline(nt.type)) > 0.5 && (
+                <p className="text-[9px] text-indigo-400/70 tabular-nums mt-0.5">
+                  drift: {nt.permanentBaseline.toFixed(1)}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StatusCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-border p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
+    <div className="rounded-lg border border-border p-2.5">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
       <p className="text-lg font-semibold tabular-nums">{value}</p>
     </div>
   );
@@ -663,6 +687,17 @@ function groupMilestonesByDate(milestones: typeof MILESTONES): [string, typeof M
 function formatMilestoneDate(dateStr: string): string {
   const d = new Date(dateStr + "T12:00:00");
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function getNtColor(type: string): string {
+  const colors: Record<string, string> = {
+    dopamine: "#f59e0b",
+    serotonin: "#3b82f6",
+    oxytocin: "#f43f5e",
+    cortisol: "#ef4444",
+    norepinephrine: "#8b5cf6",
+  };
+  return colors[type] ?? "#22c55e";
 }
 
 function getFactoryBaseline(type: string): number {

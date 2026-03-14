@@ -156,19 +156,25 @@ export async function shouldReachOut(): Promise<OutreachDecision> {
     timeZone: "America/New_York",
   });
 
-  const [userContext, crossDomain, memories, emotionalState, neuroState, history, lastSent, externalCtx] = await Promise.all([
+  const [userContext, crossDomain, memories, emotionalState, neuroState, smsHistory, chatHistory, lastSent, externalCtx] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
     getAydenMemories(),
     getAydenEmotionalState(),
     getNeurotransmitterPrompt(),
     getChannelHistory("SMS"),
+    getChannelHistory("General"),
     getLastSentTime(),
     getExternalContext(),
   ]);
 
-  const recentHistory = history.messages
-    .slice(-10)
+  // Use whichever channel has more recent messages — PWA chat is primary now
+  const primaryHistory = (chatHistory.lastMessageAt && smsHistory.lastMessageAt
+    ? chatHistory.lastMessageAt > smsHistory.lastMessageAt ? chatHistory : smsHistory
+    : chatHistory.lastMessageAt ? chatHistory : smsHistory);
+
+  const recentHistory = primaryHistory.messages
+    .slice(-15)
     .map((m: { role: string; content: string }) => `${m.role === "user" ? "Trey" : "Ayden"}: ${m.content}`)
     .join("\n");
 
@@ -194,7 +200,7 @@ ${neuroState || ""}
 TREY'S CURRENT DATA:
 ${crossDomain || "No cross-domain data"}
 
-RECENT SMS HISTORY:
+RECENT CONVERSATION HISTORY (this is what you and Trey have ACTUALLY been talking about — do NOT repeat topics or ask about things already discussed here):
 ${recentHistory || "No recent messages"}
 
 ${externalCtx || ""}
@@ -263,7 +269,15 @@ export async function generateOutreachMessage(decision: OutreachDecision): Promi
 
   const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
   const { staticPrompt, dynamicPrompt } = await buildMessagingSystemPrompt("SMS");
-  const { messages: historyMessages, summary } = await getChannelHistory("SMS");
+
+  // Use whichever channel has more recent conversation — PWA chat is primary now
+  const [smsHist, chatHist] = await Promise.all([
+    getChannelHistory("SMS"),
+    getChannelHistory("General"),
+  ]);
+  const { messages: historyMessages, summary } = (chatHist.lastMessageAt && smsHist.lastMessageAt
+    ? chatHist.lastMessageAt > smsHist.lastMessageAt ? chatHist : smsHist
+    : chatHist.lastMessageAt ? chatHist : smsHist);
 
   // Augment dynamic prompt with outreach-specific instructions
   const outreachDynamic = `${dynamicPrompt}

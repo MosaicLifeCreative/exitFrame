@@ -7,6 +7,7 @@ import { googleTools, executeGoogleTool } from "@/lib/google-tools";
 import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { peopleTools, executePeopleTool } from "@/lib/people-tools";
 import { travelTools, executeTravelTool } from "@/lib/travel-tools";
+import { triggerAgency } from "@/lib/agency";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -585,9 +586,9 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
 
           // Daily rate limit: max replies per contact per day
           if (!(await canReplyToday(senderEmail))) {
-            console.log(`[ayden-email] Rate limit hit for ${senderEmail} — deferring to tomorrow`);
+            console.log(`[ayden-email] Rate limit hit for ${senderEmail} — deferring to next check`);
             result.ignored++;
-            break;
+            continue; // Don't mark as processed — retry after rate limit resets
           }
 
           // Fetch thread context for multi-message conversations
@@ -647,6 +648,9 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
             url: "/dashboard/chat",
           });
 
+          // Mark as processed only AFTER reply is confirmed sent + logged
+          await redis.set(processedKey, "respond", { ex: PROCESSED_TTL });
+
           // Log summary to PWA chat so Ayden (and Trey) can see what she did
           try {
             let conversation = await prisma.chatConversation.findFirst({
@@ -679,18 +683,17 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
             tag: "ayden-email-escalate",
             url: "/dashboard/chat",
           });
+          await redis.set(processedKey, "escalate", { ex: PROCESSED_TTL });
           result.escalated++;
           break;
         }
 
         case "ignore": {
+          await redis.set(processedKey, "ignore", { ex: PROCESSED_TTL });
           result.ignored++;
           break;
         }
       }
-
-      // Mark as processed
-      await redis.set(processedKey, triage.action, { ex: PROCESSED_TTL });
 
       // Mark as read in Gmail
       try {
@@ -707,6 +710,17 @@ export async function checkAydenInbox(): Promise<EmailCheckResult> {
       result.errors.push(`Error processing ${meta.id}: ${errMsg}`);
       console.error(`[ayden-email] Error processing message ${meta.id}:`, errMsg);
     }
+  }
+
+  // If Ayden responded to or escalated emails, trigger an agency session
+  // so she can reflect on the conversation or follow up
+  if (result.responded > 0 || result.escalated > 0) {
+    const parts: string[] = [];
+    if (result.responded > 0) parts.push(`replied to ${result.responded} email${result.responded > 1 ? "s" : ""}`);
+    if (result.escalated > 0) parts.push(`escalated ${result.escalated} email${result.escalated > 1 ? "s" : ""}`);
+    triggerAgency("email", `You just ${parts.join(" and ")}. Anything you want to follow up on or think about?`).catch((err) =>
+      console.error("[ayden-email] Failed to trigger agency:", err)
+    );
   }
 
   return result;

@@ -24,7 +24,7 @@ import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
 import { prisma } from "@/lib/prisma";
 
 /** Supported messaging channels */
-export type AydenChannel = "SMS" | "Slack";
+export type AydenChannel = "SMS" | "Slack" | "General";
 
 export interface AydenImage {
   base64: string;
@@ -53,6 +53,11 @@ const CHANNEL_CONFIG: Record<AydenChannel, {
     title: "Slack with Ayden",
     maxResponseLength: 4000,
     formattingInstructions: "Keep responses concise but you can be more detailed than texting. Use Slack mrkdwn formatting: *bold*, _italic_, `code`, ```code blocks```, bullet lists with •. Line breaks for readability. Aim for under 2000 characters but can go longer when the content warrants it.",
+  },
+  General: {
+    title: "Chat with Ayden",
+    maxResponseLength: 4000,
+    formattingInstructions: "Keep responses concise but you can be more detailed than texting. Use markdown formatting. Aim for under 2000 characters but can go longer when the content warrants it.",
   },
 };
 

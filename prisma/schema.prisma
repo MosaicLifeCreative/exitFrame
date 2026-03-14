@@ -1184,6 +1184,21 @@ model AydenAgencyAction {
   @@map("ayden_agency_actions")
 }
 
+// Self-scheduled tasks — things Ayden wants to remember to do later.
+// Checked at the start of each agency session. One-shot by default.
+model AydenScheduledTask {
+  id          String    @id @default(uuid()) @db.Uuid
+  task        String    @db.Text // What she wants to do
+  reason      String?   @db.Text // Why she scheduled it
+  triggerAt   DateTime  @map("trigger_at") // When to surface this task
+  fired       Boolean   @default(false) // Whether it's been delivered to an agency session
+  firedAt     DateTime? @map("fired_at") // When it was delivered
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([fired, triggerAt])
+  @@map("ayden_scheduled_tasks")
+}
+
 // ── Travel ──────────────────────────────────────────────
 
 model Trip {

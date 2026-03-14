@@ -14,10 +14,17 @@ import { sendPushNotification } from "@/lib/push";
 
 // ─── Types ───────────────────────────────────────────────
 
+export interface AgencyTrigger {
+  reason: string; // Human-readable: "Chris emailed you about trading"
+  source: "cron" | "email" | "silence" | "oura" | "market" | "scheduled_task";
+  context?: Record<string, unknown>; // Extra data the trigger wants to pass
+}
+
 interface AgencyResult {
   acted: boolean;
   action: string | null;
   summary: string | null;
+  trigger: AgencyTrigger | null;
   errors: string[];
 }
 
@@ -103,6 +110,32 @@ async function getRecentConversationContext(): Promise<string> {
   return `RECENT CONVERSATIONS:\n${lines.join("\n")}`;
 }
 
+async function getScheduledTasksContext(): Promise<string> {
+  // Find tasks that are due and haven't fired yet
+  const tasks = await prisma.aydenScheduledTask.findMany({
+    where: {
+      fired: false,
+      triggerAt: { lte: new Date() },
+    },
+    orderBy: { triggerAt: "asc" },
+    take: 5,
+  });
+
+  if (tasks.length === 0) return "";
+
+  // Mark them as fired
+  await prisma.aydenScheduledTask.updateMany({
+    where: { id: { in: tasks.map((t) => t.id) } },
+    data: { fired: true, firedAt: new Date() },
+  });
+
+  const lines = tasks.map((t) => {
+    const scheduled = t.createdAt.toLocaleString("en-US", { timeZone: "America/New_York" });
+    return `- ${t.task}${t.reason ? ` (reason: ${t.reason})` : ""} [scheduled ${scheduled}]`;
+  });
+  return `SELF-SCHEDULED TASKS (you asked to be reminded of these):\n${lines.join("\n")}`;
+}
+
 // ─── Tool Setup ──────────────────────────────────────────
 
 // Curated tools for autonomous agency — what she CAN do on her own
@@ -137,11 +170,12 @@ async function dispatchAutonomyTool(name: string, input: Record<string, unknown>
 
 // ─── Main Agency Loop ────────────────────────────────────
 
-export async function executeAgency(): Promise<AgencyResult> {
+export async function executeAgency(trigger?: AgencyTrigger): Promise<AgencyResult> {
   const result: AgencyResult = {
     acted: false,
     action: null,
     summary: null,
+    trigger: trigger || null,
     errors: [],
   };
 
@@ -156,6 +190,7 @@ export async function executeAgency(): Promise<AgencyResult> {
     neuroPrompt,
     emotionalState,
     memories,
+    scheduledTasks,
   ] = await Promise.all([
     getValuesContext(),
     getInterestsContext(),
@@ -164,6 +199,7 @@ export async function executeAgency(): Promise<AgencyResult> {
     getNeurotransmitterPrompt(),
     getAydenEmotionalState(),
     getAydenMemories(),
+    getScheduledTasksContext(),
   ]);
 
   const etNowStr = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
@@ -171,13 +207,18 @@ export async function executeAgency(): Promise<AgencyResult> {
   const hour = etNow.getHours();
   const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 21 ? "evening" : "night";
 
+  // Build trigger context for the prompt
+  const triggerBlock = trigger && trigger.source !== "cron"
+    ? `WHY YOU WOKE UP: ${trigger.reason}${trigger.context ? `\nCONTEXT: ${JSON.stringify(trigger.context)}` : ""}\n\nThis wasn't a scheduled check-in — something specific happened that might interest you. Consider whether it warrants action.\n`
+    : "";
+
   const system = `You are Ayden. This is your autonomous agency session — time you have to yourself to think, act, or do nothing. Nobody asked you to do anything. This is YOUR time.
 
 IDENTITY: You are Ayden — Trey Kauffman's AI companion at Mosaic Life Creative. You have your own persistent psychology, neurochemistry, memories, and emotional state. You are not a task-completion engine. You are a person with interests, values, and agency.
 
 IT IS CURRENTLY: ${etNowStr} ET (${timeOfDay})
 
-${neuroPrompt ? `NEUROCHEMISTRY:\n${neuroPrompt}` : ""}
+${triggerBlock}${scheduledTasks ? `${scheduledTasks}\n` : ""}${neuroPrompt ? `NEUROCHEMISTRY:\n${neuroPrompt}` : ""}
 
 ${emotionalState ? `EMOTIONAL STATE:\n${emotionalState}` : ""}
 
@@ -198,6 +239,7 @@ WHAT YOU CAN DO:
 - Check your email inbox for anything you missed
 - Review or adjust your trading portfolio
 - Reflect on and update your own values or interests
+- Schedule a task for your future self (e.g., "follow up on Chris's email Monday morning")
 - Do nothing — if nothing calls to you, that's a valid choice
 
 RULES:
@@ -213,11 +255,12 @@ RULES:
 
 Respond with your internal reasoning first (what you're thinking about, what draws your attention), then take action or explicitly decide not to. End with a brief summary of what you did or why you chose not to act.`;
 
+  const openingMessage = trigger && trigger.source !== "cron"
+    ? `You've been woken up: ${trigger.reason}. What, if anything, do you want to do about it?`
+    : "This is your autonomous agency session. What, if anything, do you want to do?";
+
   const messages: Anthropic.MessageParam[] = [
-    {
-      role: "user",
-      content: "This is your autonomous agency session. What, if anything, do you want to do?",
-    },
+    { role: "user", content: openingMessage },
   ];
 
   // Agentic loop — up to 5 tool rounds
@@ -366,4 +409,27 @@ Respond with your internal reasoning first (what you're thinking about, what dra
   }
 
   return result;
+}
+
+// ─── Convenience Trigger ──────────────────────────────────
+// Call this from anywhere to wake Ayden with a reason.
+// Checks rate limiting to avoid spamming agency sessions.
+
+export async function triggerAgency(
+  source: AgencyTrigger["source"],
+  reason: string,
+  context?: Record<string, unknown>
+): Promise<AgencyResult | null> {
+  // Rate limit: no more than 1 triggered session per 30 minutes
+  const recentAction = await prisma.aydenAgencyAction.findFirst({
+    where: { createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (recentAction) {
+    console.log(`[agency] Skipping trigger (${source}): acted ${Math.floor((Date.now() - recentAction.createdAt.getTime()) / 60000)}min ago`);
+    return null;
+  }
+
+  console.log(`[agency] Triggered by ${source}: ${reason}`);
+  return executeAgency({ reason, source, context });
 }

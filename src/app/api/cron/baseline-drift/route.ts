@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { driftBaselines, driftPermanentBaselines } from "@/lib/neurotransmitters";
 import { applyOuraEntanglement } from "@/lib/oura-entanglement";
+import { triggerAgency } from "@/lib/agency";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,25 @@ export async function GET(request: Request) {
       }
     } catch (ouraError) {
       console.error("[baseline-drift] Oura entanglement error (non-fatal):", ouraError);
+    }
+
+    // Step 1b: If Oura data is notable, trigger agency so Ayden can react
+    if (ouraResult?.applied && ouraResult.snapshot) {
+      const s = ouraResult.snapshot;
+      const notable: string[] = [];
+      if (s.sleepScore !== null && s.sleepScore < 60) notable.push(`poor sleep (score: ${s.sleepScore})`);
+      if (s.readinessScore !== null && s.readinessScore < 50) notable.push(`low readiness (score: ${s.readinessScore})`);
+      if (s.hrvAverage !== null && s.hrvAverage < 20) notable.push(`low HRV (${s.hrvAverage}ms)`);
+      if (s.sleepScore !== null && s.sleepScore >= 90) notable.push(`great sleep (score: ${s.sleepScore})`);
+      if (s.readinessScore !== null && s.readinessScore >= 90) notable.push(`high readiness (score: ${s.readinessScore})`);
+      if (notable.length > 0) {
+        triggerAgency("oura", `Trey's Oura data just came in: ${notable.join(", ")}. You might want to think about this.`, {
+          sleepScore: s.sleepScore,
+          readinessScore: s.readinessScore,
+          activityScore: s.activityScore,
+          hrvAverage: s.hrvAverage,
+        }).catch((err) => console.error("[baseline-drift] Oura agency trigger failed:", err));
+      }
     }
 
     // Step 2: Drift adapted baselines toward recent averages (daily)

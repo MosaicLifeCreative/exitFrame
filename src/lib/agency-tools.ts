@@ -179,6 +179,39 @@ export const agencyTools: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: "schedule_task",
+    description:
+      "Schedule a task for your future self. You'll be reminded at the specified time during your next agency session. Use this for follow-ups, check-ins, or anything you want to come back to later.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        task: {
+          type: "string",
+          description: "What you want to do. Be specific enough that future-you will understand.",
+        },
+        triggerAt: {
+          type: "string",
+          description: "When to surface this task. ISO 8601 datetime string (e.g., '2026-03-17T10:00:00-04:00' for Monday 10am ET).",
+        },
+        reason: {
+          type: "string",
+          description: "Why you're scheduling this — context for future-you.",
+        },
+      },
+      required: ["task", "triggerAt"],
+    },
+  },
+  {
+    name: "get_my_scheduled_tasks",
+    description:
+      "View your upcoming scheduled tasks — things you've asked to be reminded about.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 // ─── Input Interfaces ────────────────────────────────────
@@ -225,6 +258,12 @@ interface GetRecentActionsInput {
   limit?: number;
 }
 
+interface ScheduleTaskInput {
+  task: string;
+  triggerAt: string;
+  reason?: string;
+}
+
 // ─── Executor ────────────────────────────────────────────
 
 export async function executeAgencyTool(
@@ -248,6 +287,10 @@ export async function executeAgencyTool(
       return logAgencyAction(toolInput as unknown as LogActionInput);
     case "get_my_recent_actions":
       return getRecentActions(toolInput as unknown as GetRecentActionsInput);
+    case "schedule_task":
+      return scheduleTask(toolInput as unknown as ScheduleTaskInput);
+    case "get_my_scheduled_tasks":
+      return getScheduledTasks();
     default:
       return JSON.stringify({ error: `Unknown agency tool: ${toolName}` });
   }
@@ -439,6 +482,53 @@ async function getRecentActions(input: GetRecentActionsInput): Promise<string> {
       trigger: a.trigger,
       outcome: a.outcome,
       createdAt: a.createdAt.toISOString(),
+    })),
+  });
+}
+
+async function scheduleTask(input: ScheduleTaskInput): Promise<string> {
+  const triggerAt = new Date(input.triggerAt);
+  if (isNaN(triggerAt.getTime())) {
+    return JSON.stringify({ error: "Invalid triggerAt date. Use ISO 8601 format." });
+  }
+  if (triggerAt.getTime() < Date.now()) {
+    return JSON.stringify({ error: "triggerAt is in the past. Schedule for a future time." });
+  }
+
+  const task = await prisma.aydenScheduledTask.create({
+    data: {
+      task: input.task,
+      reason: input.reason || null,
+      triggerAt,
+    },
+  });
+
+  const etStr = triggerAt.toLocaleString("en-US", { timeZone: "America/New_York" });
+  return JSON.stringify({
+    success: true,
+    task: { id: task.id, task: task.task, triggerAt: etStr },
+    message: `Scheduled. You'll be reminded at ${etStr} ET.`,
+  });
+}
+
+async function getScheduledTasks(): Promise<string> {
+  const tasks = await prisma.aydenScheduledTask.findMany({
+    where: { fired: false },
+    orderBy: { triggerAt: "asc" },
+    take: 20,
+  });
+
+  if (tasks.length === 0) {
+    return JSON.stringify({ tasks: [], message: "No pending scheduled tasks." });
+  }
+
+  return JSON.stringify({
+    tasks: tasks.map((t) => ({
+      id: t.id,
+      task: t.task,
+      reason: t.reason,
+      triggerAt: t.triggerAt.toLocaleString("en-US", { timeZone: "America/New_York" }),
+      createdAt: t.createdAt.toISOString(),
     })),
   });
 }

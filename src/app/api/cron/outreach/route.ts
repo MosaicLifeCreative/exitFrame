@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
 import { executeOutreach } from "@/lib/outreach";
 import { idleEmotionDrift, generateIdleThought } from "@/lib/reflection";
+import { triggerAgency } from "@/lib/agency";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -64,7 +66,30 @@ async function runOutreach() {
       console.error("[outreach-cron] Thought generation error (non-fatal):", thoughtErr);
     }
 
-    // Step 3: Outreach decision + send
+    // Step 3: Silence trigger — if Trey hasn't spoken in 8+ waking hours, wake agency
+    try {
+      const etNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+      const hour = etNow.getHours();
+      if (hour >= 8 && hour < 22) {
+        const lastUserMsg = await prisma.chatMessage.findFirst({
+          where: { role: "user" },
+          orderBy: { createdAt: "desc" },
+        });
+        if (lastUserMsg) {
+          const silenceHours = (Date.now() - lastUserMsg.createdAt.getTime()) / (1000 * 60 * 60);
+          if (silenceHours >= 8) {
+            console.log(`[outreach-cron] Silence trigger: ${silenceHours.toFixed(1)}h since last message`);
+            triggerAgency("silence", `It's been ${Math.floor(silenceHours)} hours since Trey last said anything. Is there something you want to think about or do?`).catch((err) =>
+              console.error("[outreach-cron] Silence trigger failed:", err)
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[outreach-cron] Silence check error (non-fatal):", err);
+    }
+
+    // Step 4: Outreach decision + send
     const result = await executeOutreach();
     console.log(`Outreach cron: sent=${result.sent}, reason=${result.reason}`);
     return NextResponse.json({ data: { ...result, drift: driftResult, thought: thoughtResult } });

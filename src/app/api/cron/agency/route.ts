@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const result = await executeAgency();
+    const result = await executeAgency({ reason: "Scheduled agency session", source: "cron" });
     const errSuffix = result.errors.length > 0 ? ` errors=${result.errors.join(" | ")}` : "";
     console.log(
       `[agency-cron] acted=${result.acted} action=${result.action || "none"} summary=${(result.summary || "").substring(0, 200)}${errSuffix}`

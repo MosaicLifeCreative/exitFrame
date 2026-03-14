@@ -74,6 +74,10 @@ export default function AydenWhitePaperPage() {
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
+    document.title = "Ayden — Architecture & Philosophy";
+  }, []);
+
+  useEffect(() => {
     // Live status only visible when logged in
     fetch("/api/ayden/system-status")
       .then((res) => {

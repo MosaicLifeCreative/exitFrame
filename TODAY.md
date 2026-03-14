@@ -26,6 +26,6 @@
 ## Bugs
 - Her proactive reach outs still aren't context aware. References things we've already talked about. Like today, asked how I was going to work out when I already told her I'm taking a rest day. --Monitoring
 - Isn't reliably responding to emails. --Monitoring
-- She needs to be better at proactively remembering things. Had to share her architecture page with her again.
-- Inconsistent with confirming when she's completed a task.
-- Along those lines, she gets stuck in her action loop. She just emailed my friend twice. Once when I asked, and again when I asked her something completely different.
+- She needs to be better at proactively remembering things. Had to share her architecture page with her again. --Fixed: added PROACTIVE RECALL prompt instruction
+- Inconsistent with confirming when she's completed a task. --Fixed: added TASK CONFIRMATION prompt instruction
+- Along those lines, she gets stuck in her action loop. She just emailed my friend twice. Once when I asked, and again when I asked her something completely different. --Fixed: 15-min Redis dedup on ayden_send_email

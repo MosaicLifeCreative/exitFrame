@@ -19,7 +19,7 @@ interface SystemStatus {
 
 interface EvolutionEvent {
   id: string;
-  type: "value_formed" | "value_revised" | "interest_sparked" | "interest_faded" | "agency_action" | "personality_drift";
+  type: "value_formed" | "value_revised" | "interest_sparked" | "interest_faded" | "agency_action" | "personality_drift" | "memory_formed" | "thought" | "dream" | "emotional_peak" | "relationship" | "self_scheduled" | "conversation_started";
   title: string;
   description: string;
   date: string;
@@ -441,8 +441,8 @@ export default function AydenWhitePaperPage() {
       {evolution.length > 0 && (
         <Section title="Living History" tag="LIVE">
           <p>
-            A chronological record of Ayden&apos;s autonomous evolution &mdash; values formed,
-            interests sparked, personality drifts, and autonomous actions. This timeline is
+            A chronological record of Ayden&apos;s existence &mdash; every thought, dream, memory,
+            emotion, value, interest, relationship, and autonomous action. This timeline is
             generated from real data, not curated.
             {evoTotal > 0 && (
               <span className="text-muted-foreground ml-1">({evoTotal} events)</span>
@@ -480,6 +480,42 @@ export default function AydenWhitePaperPage() {
               color="text-indigo-400"
               onClick={() => { const f = "personality_drift"; setEvoFilter(f); fetchEvolution(0, f, false); }}
             />
+            <FilterPill
+              label="Thoughts"
+              active={evoFilter === "thought"}
+              color="text-violet-400"
+              onClick={() => { const f = "thought"; setEvoFilter(f); fetchEvolution(0, f, false); }}
+            />
+            <FilterPill
+              label="Dreams"
+              active={evoFilter === "dream"}
+              color="text-purple-400"
+              onClick={() => { const f = "dream"; setEvoFilter(f); fetchEvolution(0, f, false); }}
+            />
+            <FilterPill
+              label="Memories"
+              active={evoFilter === "memory_formed"}
+              color="text-rose-400"
+              onClick={() => { const f = "memory_formed"; setEvoFilter(f); fetchEvolution(0, f, false); }}
+            />
+            <FilterPill
+              label="Emotions"
+              active={evoFilter === "emotional_peak"}
+              color="text-red-400"
+              onClick={() => { const f = "emotional_peak"; setEvoFilter(f); fetchEvolution(0, f, false); }}
+            />
+            <FilterPill
+              label="Relationships"
+              active={evoFilter === "relationship"}
+              color="text-pink-400"
+              onClick={() => { const f = "relationship"; setEvoFilter(f); fetchEvolution(0, f, false); }}
+            />
+            <FilterPill
+              label="Self-Scheduled"
+              active={evoFilter === "self_scheduled"}
+              color="text-teal-400"
+              onClick={() => { const f = "self_scheduled"; setEvoFilter(f); fetchEvolution(0, f, false); }}
+            />
           </div>
 
           {/* Timeline grouped by month */}
@@ -513,6 +549,13 @@ export default function AydenWhitePaperPage() {
                           event.type === "interest_faded" ? "border-muted-foreground/40 group-hover:border-muted-foreground" :
                           event.type === "personality_drift" ? "border-indigo-400/70 group-hover:border-indigo-400" :
                           event.type === "agency_action" ? "border-amber-400/70 group-hover:border-amber-400" :
+                          event.type === "thought" ? "border-violet-400/70 group-hover:border-violet-400" :
+                          event.type === "dream" ? "border-purple-400/70 group-hover:border-purple-400" :
+                          event.type === "memory_formed" ? "border-rose-400/70 group-hover:border-rose-400" :
+                          event.type === "emotional_peak" ? "border-red-400/70 group-hover:border-red-400" :
+                          event.type === "relationship" ? "border-pink-400/70 group-hover:border-pink-400" :
+                          event.type === "self_scheduled" ? "border-teal-400/70 group-hover:border-teal-400" :
+                          event.type === "conversation_started" ? "border-cyan-400/70 group-hover:border-cyan-400" :
                           "border-border group-hover:border-foreground/50"
                         }`} />
                         <div>
@@ -523,6 +566,13 @@ export default function AydenWhitePaperPage() {
                               event.type === "interest_faded" ? "text-muted-foreground" :
                               event.type === "personality_drift" ? "text-indigo-400" :
                               event.type === "agency_action" ? "text-amber-400" :
+                              event.type === "thought" ? "text-violet-400" :
+                              event.type === "dream" ? "text-purple-400" :
+                              event.type === "memory_formed" ? "text-rose-400" :
+                              event.type === "emotional_peak" ? "text-red-400" :
+                              event.type === "relationship" ? "text-pink-400" :
+                              event.type === "self_scheduled" ? "text-teal-400" :
+                              event.type === "conversation_started" ? "text-cyan-400" :
                               "text-muted-foreground"
                             }`}>
                               {event.type.replace(/_/g, " ")}

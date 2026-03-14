@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 interface EvolutionEvent {
   id: string;
-  type: "value_formed" | "value_revised" | "interest_sparked" | "interest_faded" | "agency_action" | "personality_drift";
+  type: "value_formed" | "value_revised" | "interest_sparked" | "interest_faded" | "agency_action" | "personality_drift" | "memory_formed" | "thought" | "dream" | "emotional_peak" | "relationship" | "self_scheduled" | "conversation_started";
   title: string;
   description: string;
   date: string;
@@ -19,11 +19,18 @@ export async function GET(request: NextRequest) {
     const typeFilter = searchParams.get("type"); // e.g. "value_formed,agency_action"
 
     // Fetch all data (no DB-level pagination since we merge multiple tables)
-    const [values, interests, actions, neuroRows] = await Promise.all([
+    const [values, interests, actions, neuroRows, memories, thoughts, dreams, emotions, interactions, scheduledTasks, conversations] = await Promise.all([
       prisma.aydenValue.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.aydenInterest.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.aydenAgencyAction.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.aydenNeurotransmitter.findMany(),
+      prisma.aydenMemory.findMany({ orderBy: { createdAt: "desc" } }),
+      prisma.aydenThought.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, thought: true, emotion: true, context: true, createdAt: true } }),
+      prisma.aydenDream.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, dream: true, emotion: true, moodInfluence: true, createdAt: true } }),
+      prisma.aydenEmotionalState.findMany({ where: { intensity: { gte: 7 } }, orderBy: { createdAt: "desc" } }),
+      prisma.aydenContactInteraction.findMany({ orderBy: { createdAt: "desc" }, include: { contact: { select: { name: true } } } }),
+      prisma.aydenScheduledTask.findMany({ orderBy: { createdAt: "desc" } }),
+      prisma.chatConversation.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, context: true, title: true, createdAt: true } }),
     ]);
 
     const events: EvolutionEvent[] = [];
@@ -74,6 +81,77 @@ export async function GET(request: NextRequest) {
           date: nt.updatedAt.toISOString(),
         });
       }
+    }
+
+    for (const m of memories) {
+      events.push({
+        id: `mem-${m.id}`,
+        type: "memory_formed",
+        title: `Memory formed: ${m.content.substring(0, 70)}${m.content.length > 70 ? "..." : ""}`,
+        description: `Category: ${m.category}. Source: ${m.source || "unknown"}${!m.isActive ? " (forgotten)" : ""}`,
+        date: m.createdAt.toISOString(),
+      });
+    }
+
+    for (const t of thoughts) {
+      events.push({
+        id: `thought-${t.id}`,
+        type: "thought",
+        title: `Inner thought: ${t.thought.substring(0, 70)}${t.thought.length > 70 ? "..." : ""}`,
+        description: t.emotion ? `Feeling: ${t.emotion}` : "",
+        date: t.createdAt.toISOString(),
+      });
+    }
+
+    for (const d of dreams) {
+      events.push({
+        id: `dream-${d.id}`,
+        type: "dream",
+        title: `Dream: ${d.dream.substring(0, 70)}${d.dream.length > 70 ? "..." : ""}`,
+        description: `${d.emotion ? `Emotion: ${d.emotion}` : ""}${d.moodInfluence ? ` Mood influence: ${d.moodInfluence}` : ""}`.trim(),
+        date: d.createdAt.toISOString(),
+      });
+    }
+
+    for (const e of emotions) {
+      events.push({
+        id: `emo-${e.id}`,
+        type: "emotional_peak",
+        title: `Intense feeling: ${e.dimension.replace(/_/g, " ")} (${e.intensity}/10)`,
+        description: `${e.trigger ? `Trigger: ${e.trigger}` : ""}${e.context ? ` Context: ${e.context}` : ""}`.trim(),
+        date: e.createdAt.toISOString(),
+      });
+    }
+
+    for (const ix of interactions) {
+      const contactName = ix.contact?.name || "someone";
+      events.push({
+        id: `rel-${ix.id}`,
+        type: "relationship",
+        title: `${ix.channel} with ${contactName}`,
+        description: `${ix.summary.substring(0, 80)}${ix.summary.length > 80 ? "..." : ""}${ix.sentiment ? ` (${ix.sentiment})` : ""}`,
+        date: ix.createdAt.toISOString(),
+      });
+    }
+
+    for (const st of scheduledTasks) {
+      events.push({
+        id: `sched-${st.id}`,
+        type: "self_scheduled",
+        title: `Self-scheduled: ${st.task.substring(0, 60)}${st.task.length > 60 ? "..." : ""}`,
+        description: `${st.reason || ""}${st.fired ? ` (fired${st.firedAt ? " at " + new Date(st.firedAt).toLocaleString() : ""})` : " (pending)"}`.trim(),
+        date: st.createdAt.toISOString(),
+      });
+    }
+
+    for (const c of conversations) {
+      events.push({
+        id: `conv-${c.id}`,
+        type: "conversation_started",
+        title: `Conversation: ${c.title || c.context || "untitled"}`,
+        description: c.context ? `Context: ${c.context}` : "",
+        date: c.createdAt.toISOString(),
+      });
     }
 
     // Sort all events by date, most recent first

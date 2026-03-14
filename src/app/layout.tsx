@@ -13,9 +13,15 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "exitFrame",
+  title: "Mosaic Life OS",
   description: "Restricted Access Terminal",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/api/ayden/favicon", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

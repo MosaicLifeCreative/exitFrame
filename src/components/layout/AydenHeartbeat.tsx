@@ -51,6 +51,13 @@ export default function AydenHeartbeat() {
     };
   }, []);
 
+  // Dynamic page title reflecting Ayden's mood
+  useEffect(() => {
+    if (hr?.emotion) {
+      document.title = `Mosaic Life OS \u2014 ${hr.emotion.replace(/_/g, " ")}`;
+    }
+  }, [hr?.emotion]);
+
   // Close thought bubble on outside click
   useEffect(() => {
     if (!showThought) return;

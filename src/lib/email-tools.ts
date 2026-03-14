@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { gmailFetch, getGoogleAccessToken } from "@/lib/google";
 import { prisma } from "@/lib/prisma";
+import { redis } from "@/lib/redis";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -312,6 +313,13 @@ export async function executeEmailTool(
         const to = input.to as string;
         const toEmail = to.includes("<") ? (to.match(/<([^>]+)>/) || [])[1] || to : to;
 
+        // Dedup guard: prevent re-sending to same recipient within 15 minutes
+        const dedupKey = `ayden-email:sent:${toEmail.toLowerCase()}`;
+        const recentSend = await redis.get(dedupKey);
+        if (recentSend) {
+          return `Email to ${toEmail} was already sent ${recentSend}. Skipping duplicate send. (This is a dedup guard — the email was already delivered.)`;
+        }
+
         // Guardrail: check if recipient is a known contact
         const contact = await prisma.aydenContact.findFirst({
           where: {
@@ -364,6 +372,10 @@ export async function executeEmailTool(
             date: new Date(),
           },
         });
+
+        // Set dedup key (15 min TTL) to prevent duplicate sends
+        const timeStr = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+        await redis.set(dedupKey, `at ${timeStr}`, { ex: 900 });
 
         return `Email sent from ayden@mosaiclifecreative.com to ${contact.name} (${toEmail}). Message ID: ${sent.id}`;
       }

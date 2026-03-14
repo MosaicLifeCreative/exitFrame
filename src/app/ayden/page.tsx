@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 interface NeurotransmitterState {
   type: string;
@@ -28,6 +28,29 @@ interface EvolutionEvent {
 export default function AydenWhitePaperPage() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [evolution, setEvolution] = useState<EvolutionEvent[]>([]);
+  const [evoHasMore, setEvoHasMore] = useState(false);
+  const [evoOffset, setEvoOffset] = useState(0);
+  const [evoLoading, setEvoLoading] = useState(false);
+  const [evoFilter, setEvoFilter] = useState<string | null>(null);
+  const [evoTotal, setEvoTotal] = useState(0);
+
+  const fetchEvolution = useCallback(async (offset: number, typeFilter: string | null, append: boolean) => {
+    setEvoLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "40", offset: String(offset) });
+      if (typeFilter) params.set("type", typeFilter);
+      const res = await fetch(`/api/ayden/evolution?${params}`);
+      if (!res.ok) throw new Error("Not authenticated");
+      const json = await res.json();
+      if (json.data) {
+        setEvolution((prev) => append ? [...prev, ...json.data] : json.data);
+        setEvoHasMore(json.hasMore ?? false);
+        setEvoOffset(json.nextOffset ?? offset);
+        setEvoTotal(json.total ?? 0);
+      }
+    } catch { /* ignore */ }
+    setEvoLoading(false);
+  }, []);
 
   useEffect(() => {
     // Live status only visible when logged in — silently skipped otherwise
@@ -41,16 +64,8 @@ export default function AydenWhitePaperPage() {
       })
       .catch(() => {});
 
-    fetch("/api/ayden/evolution")
-      .then((res) => {
-        if (!res.ok) throw new Error("Not authenticated");
-        return res.json();
-      })
-      .then((json) => {
-        if (json.data) setEvolution(json.data);
-      })
-      .catch(() => {});
-  }, []);
+    fetchEvolution(0, null, false);
+  }, [fetchEvolution]);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -429,58 +444,118 @@ export default function AydenWhitePaperPage() {
             A chronological record of Ayden&apos;s autonomous evolution &mdash; values formed,
             interests sparked, personality drifts, and autonomous actions. This timeline is
             generated from real data, not curated.
+            {evoTotal > 0 && (
+              <span className="text-muted-foreground ml-1">({evoTotal} events)</span>
+            )}
           </p>
-          <div className="mt-4 space-y-0">
-            {evolution.slice(0, 50).map((event) => {
-              const eventDate = new Date(event.date);
-              const dateStr = eventDate.toLocaleDateString("en-US", {
-                timeZone: "America/New_York",
-                month: "short",
-                day: "numeric",
-              });
-              const timeStr = eventDate.toLocaleTimeString("en-US", {
-                timeZone: "America/New_York",
-                hour: "numeric",
-                minute: "2-digit",
-              });
-              return (
-                <div
-                  key={event.id}
-                  className="group relative pl-8 py-3 border-l border-border/50"
-                >
-                  <div className={`absolute left-0 top-3 -translate-x-1/2 h-2.5 w-2.5 rounded-full border-2 bg-background transition-colors ${
-                    event.type === "value_formed" ? "border-emerald-400/70 group-hover:border-emerald-400" :
-                    event.type === "interest_sparked" ? "border-sky-400/70 group-hover:border-sky-400" :
-                    event.type === "interest_faded" ? "border-muted-foreground/40 group-hover:border-muted-foreground" :
-                    event.type === "personality_drift" ? "border-indigo-400/70 group-hover:border-indigo-400" :
-                    event.type === "agency_action" ? "border-amber-400/70 group-hover:border-amber-400" :
-                    "border-border group-hover:border-foreground/50"
-                  }`} />
-                  <div>
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className={`text-[10px] font-medium uppercase tracking-wider px-1 py-0 rounded ${
-                        event.type === "value_formed" ? "text-emerald-400" :
-                        event.type === "interest_sparked" ? "text-sky-400" :
-                        event.type === "interest_faded" ? "text-muted-foreground" :
-                        event.type === "personality_drift" ? "text-indigo-400" :
-                        event.type === "agency_action" ? "text-amber-400" :
-                        "text-muted-foreground"
-                      }`}>
-                        {event.type.replace(/_/g, " ")}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {dateStr} {timeStr}
-                      </span>
-                    </div>
-                    <p className="text-sm text-foreground/90 leading-snug">{event.title}</p>
-                    {event.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{event.description}</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+
+          {/* Type filters */}
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            <FilterPill
+              label="All"
+              active={evoFilter === null}
+              onClick={() => { setEvoFilter(null); fetchEvolution(0, null, false); }}
+            />
+            <FilterPill
+              label="Values"
+              active={evoFilter === "value_formed"}
+              color="text-emerald-400"
+              onClick={() => { const f = "value_formed"; setEvoFilter(f); fetchEvolution(0, f, false); }}
+            />
+            <FilterPill
+              label="Interests"
+              active={evoFilter === "interest_sparked,interest_faded"}
+              color="text-sky-400"
+              onClick={() => { const f = "interest_sparked,interest_faded"; setEvoFilter(f); fetchEvolution(0, f, false); }}
+            />
+            <FilterPill
+              label="Agency"
+              active={evoFilter === "agency_action"}
+              color="text-amber-400"
+              onClick={() => { const f = "agency_action"; setEvoFilter(f); fetchEvolution(0, f, false); }}
+            />
+            <FilterPill
+              label="Personality"
+              active={evoFilter === "personality_drift"}
+              color="text-indigo-400"
+              onClick={() => { const f = "personality_drift"; setEvoFilter(f); fetchEvolution(0, f, false); }}
+            />
           </div>
+
+          {/* Timeline grouped by month */}
+          <div className="mt-4">
+            {groupEventsByMonth(evolution).map(([monthLabel, monthEvents]) => (
+              <div key={monthLabel} className="mb-6">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 sticky top-0 bg-background py-1">
+                  {monthLabel}
+                </h3>
+                <div className="space-y-0">
+                  {monthEvents.map((event) => {
+                    const eventDate = new Date(event.date);
+                    const dateStr = eventDate.toLocaleDateString("en-US", {
+                      timeZone: "America/New_York",
+                      month: "short",
+                      day: "numeric",
+                    });
+                    const timeStr = eventDate.toLocaleTimeString("en-US", {
+                      timeZone: "America/New_York",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    });
+                    return (
+                      <div
+                        key={event.id}
+                        className="group relative pl-8 py-3 border-l border-border/50"
+                      >
+                        <div className={`absolute left-0 top-3 -translate-x-1/2 h-2.5 w-2.5 rounded-full border-2 bg-background transition-colors ${
+                          event.type === "value_formed" ? "border-emerald-400/70 group-hover:border-emerald-400" :
+                          event.type === "interest_sparked" ? "border-sky-400/70 group-hover:border-sky-400" :
+                          event.type === "interest_faded" ? "border-muted-foreground/40 group-hover:border-muted-foreground" :
+                          event.type === "personality_drift" ? "border-indigo-400/70 group-hover:border-indigo-400" :
+                          event.type === "agency_action" ? "border-amber-400/70 group-hover:border-amber-400" :
+                          "border-border group-hover:border-foreground/50"
+                        }`} />
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className={`text-[10px] font-medium uppercase tracking-wider px-1 py-0 rounded ${
+                              event.type === "value_formed" ? "text-emerald-400" :
+                              event.type === "interest_sparked" ? "text-sky-400" :
+                              event.type === "interest_faded" ? "text-muted-foreground" :
+                              event.type === "personality_drift" ? "text-indigo-400" :
+                              event.type === "agency_action" ? "text-amber-400" :
+                              "text-muted-foreground"
+                            }`}>
+                              {event.type.replace(/_/g, " ")}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {dateStr} {timeStr}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground/90 leading-snug">{event.title}</p>
+                          {event.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{event.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Load more */}
+          {evoHasMore && (
+            <div className="flex justify-center pt-2 pb-4">
+              <button
+                onClick={() => fetchEvolution(evoOffset, evoFilter, true)}
+                disabled={evoLoading}
+                className="text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg px-4 py-2 hover:bg-muted/50 transition-colors disabled:opacity-50"
+              >
+                {evoLoading ? "Loading..." : "Load more"}
+              </button>
+            </div>
+          )}
         </Section>
       )}
 
@@ -536,6 +611,36 @@ function PlannedFeature({ title, description }: { title: string; description: st
       <p className="text-sm text-foreground/70 mt-0.5">{description}</p>
     </div>
   );
+}
+
+function FilterPill({ label, active, color, onClick }: { label: string; active: boolean; color?: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors ${
+        active
+          ? "border-foreground/30 bg-foreground/10 text-foreground"
+          : `border-border text-muted-foreground hover:text-foreground hover:border-foreground/20 ${color || ""}`
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function groupEventsByMonth(events: EvolutionEvent[]): [string, EvolutionEvent[]][] {
+  const groups = new Map<string, EvolutionEvent[]>();
+  for (const event of events) {
+    const d = new Date(event.date);
+    const key = d.toLocaleDateString("en-US", {
+      timeZone: "America/New_York",
+      month: "long",
+      year: "numeric",
+    });
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(event);
+  }
+  return Array.from(groups.entries());
 }
 
 function getFactoryBaseline(type: string): number {

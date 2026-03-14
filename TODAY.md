@@ -21,9 +21,11 @@
 - One note on the market piece for later. I feel like in order to be proactive in the market we'll need to figure out how frequently she could be/should be making trades. I also don't want to exceed any TT limits.
 - Really brainstorm how Ayden can evolve on her own.
 - Ayden health screen in her journal. I'd like to see her biochemistry, mood, everything. If we can track her autonomous evolution, that'd be amazing too.
+- I'd like a new, perhaps living, favicon. I don't like what we have. Maybe set by Ayden? I don't know.
 
 ## Bugs
 - Her proactive reach outs still aren't context aware. References things we've already talked about. Like today, asked how I was going to work out when I already told her I'm taking a rest day. --Monitoring
 - Isn't reliably responding to emails. --Monitoring
 - She needs to be better at proactively remembering things. Had to share her architecture page with her again.
 - Inconsistent with confirming when she's completed a task.
+- Along those lines, she gets stuck in her action loop. She just emailed my friend twice. Once when I asked, and again when I asked her something completely different.

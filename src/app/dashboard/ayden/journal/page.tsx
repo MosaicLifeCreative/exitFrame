@@ -246,7 +246,7 @@ function AydenJournalContent() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-8 border-b border-border overflow-x-auto">
+      <div className="flex gap-1 mb-8 border-b border-border">
         <button
           onClick={() => setTab("health")}
           className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${

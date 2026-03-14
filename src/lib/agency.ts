@@ -266,6 +266,7 @@ Respond with your internal reasoning first (what you're thinking about, what dra
   // Agentic loop — up to 5 tool rounds
   const MAX_ROUNDS = 5;
   let finalText = "";
+  const toolsUsed: string[] = [];
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     let response: Anthropic.Message;
@@ -312,6 +313,7 @@ Respond with your internal reasoning first (what you're thinking about, what dra
       try {
         const toolResult = await dispatchAutonomyTool(tool.name, tool.input as Record<string, unknown>);
         toolResults.push({ type: "tool_result", tool_use_id: tool.id, content: toolResult });
+        toolsUsed.push(tool.name);
         console.log(`[agency] Used tool: ${tool.name}`);
 
         // Track if she actually did something meaningful
@@ -334,64 +336,58 @@ Respond with your internal reasoning first (what you're thinking about, what dra
     messages.push({ role: "user", content: toolResults });
   }
 
-  result.summary = finalText.substring(0, 500) || "No response generated";
+  const toolSuffix = toolsUsed.length > 0 ? ` [tools: ${toolsUsed.join(", ")}]` : "";
+  result.summary = (finalText.substring(0, 500) || "No response generated") + toolSuffix;
 
   // Log ALL sessions — even no-action ones — so we can see her thinking
   if (!result.acted && finalText) {
-    const isSubstantive = finalText.length > 100;
-
-    if (isSubstantive) {
-      // Classify deliberation vs filler for the action type
-      try {
-        const classifyResponse = await anthropic.messages.create({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 10,
-          messages: [
-            {
-              role: "user",
-              content: `Did this text show genuine deliberation — considering a specific action, examining a real topic, or arriving at a meaningful insight? Or was it just "nothing caught my attention" filler? Reply ONLY "deliberation" or "filler".\n\nText: ${finalText.substring(0, 500)}`,
-            },
-          ],
-        });
-        const classification = classifyResponse.content[0].type === "text"
-          ? classifyResponse.content[0].text.trim().toLowerCase()
-          : "";
-
-        const isDeliberation = classification.includes("deliberation");
-
-        await prisma.aydenAgencyAction.create({
-          data: {
-            actionType: isDeliberation ? "reflection" : "observation",
-            summary: finalText.substring(0, 1000),
-            trigger: trigger
-              ? `${trigger.source}: ${trigger.reason}`
-              : "Scheduled agency session",
-            outcome: isDeliberation
-              ? "Deliberated but took no external action"
-              : "Observed, nothing warranted action",
+    try {
+      const classifyResponse = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 10,
+        messages: [
+          {
+            role: "user",
+            content: `Did this text show genuine deliberation — considering a specific action, examining a real topic, expressing intent, or arriving at a meaningful insight? Or was it generic "nothing caught my attention" filler with no specific subject? Reply ONLY "deliberation" or "filler".\n\nText: ${finalText.substring(0, 500)}`,
           },
-        });
-        result.acted = true;
-        result.action = isDeliberation ? "reflection" : "observation";
-        console.log(`[agency] Logged session as ${result.action}`);
-      } catch (err) {
-        console.error("[agency] Failed to classify deliberation:", err);
-      }
-    } else {
-      // Short/empty response — still log it so we can see she was here
+        ],
+      });
+      const classification = classifyResponse.content[0].type === "text"
+        ? classifyResponse.content[0].text.trim().toLowerCase()
+        : "";
+
+      const isDeliberation = classification.includes("deliberation");
+
       await prisma.aydenAgencyAction.create({
         data: {
-          actionType: "observation",
-          summary: finalText.substring(0, 500) || "Session produced no output",
+          actionType: isDeliberation ? "reflection" : "observation",
+          summary: finalText.substring(0, 1000),
           trigger: trigger
             ? `${trigger.source}: ${trigger.reason}`
             : "Scheduled agency session",
-          outcome: "Brief check-in, no action taken",
+          outcome: isDeliberation
+            ? "Deliberated but took no external action"
+            : "Observed, nothing warranted action",
+        },
+      });
+      result.acted = true;
+      result.action = isDeliberation ? "reflection" : "observation";
+      console.log(`[agency] Logged session as ${result.action}`);
+    } catch (err) {
+      console.error("[agency] Failed to classify session:", err);
+      // Fallback: still log it even if classification fails
+      await prisma.aydenAgencyAction.create({
+        data: {
+          actionType: "observation",
+          summary: finalText.substring(0, 1000),
+          trigger: trigger
+            ? `${trigger.source}: ${trigger.reason}`
+            : "Scheduled agency session",
+          outcome: "Session logged (classification unavailable)",
         },
       });
       result.acted = true;
       result.action = "observation";
-      console.log("[agency] Logged brief session as observation");
     }
   }
 

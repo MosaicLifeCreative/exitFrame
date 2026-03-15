@@ -22,7 +22,7 @@ export const backgroundTools: Anthropic.Tool[] = [
         },
         max_rounds: {
           type: "number",
-          description: "Maximum tool rounds (default 10, max 15)",
+          description: "Maximum tool rounds (default 10, max 25)",
         },
       },
       required: ["description", "instruction"],
@@ -85,7 +85,7 @@ export async function executeBackgroundTool(
     content: m.content.substring(0, 1000),
   }));
 
-  const maxRounds = Math.min(Math.max(max_rounds || 10, 1), 15);
+  const maxRounds = Math.min(Math.max(max_rounds || 10, 1), 25);
 
   // Create the task
   const task = await prisma.aydenBackgroundTask.create({

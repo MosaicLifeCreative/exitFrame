@@ -85,7 +85,7 @@ export async function executeBackgroundTask(taskId: string): Promise<void> {
 
   // Build system prompt using Ayden's full personality + context
   const { staticPrompt, dynamicPrompt } = await buildMessagingSystemPrompt("General");
-  const system = `${staticPrompt}\n\n${dynamicPrompt}\n\nBACKGROUND TASK MODE: You are working on a background task that Trey requested. He may not be watching — complete the work thoroughly and provide a clear summary when done. Use as many tool rounds as needed (up to ${task.maxRounds}). Be thorough but efficient.`;
+  const system = `${staticPrompt}\n\n${dynamicPrompt}\n\nBACKGROUND TASK MODE: You are working on a background task that Trey requested. He may not be watching — complete the work thoroughly and provide a clear summary when done. You have up to ${task.maxRounds} tool rounds. IMPORTANT: Budget your rounds. Reserve the last 2-3 rounds for saving your output (e.g. creating a note) and producing a final summary. Don't spend all rounds on research — leave room to deliver results.`;
 
   // Build messages: inject context messages then the instruction
   const contextMsgs = (task.contextMessages as Array<{ role: string; content: string }>) || [];

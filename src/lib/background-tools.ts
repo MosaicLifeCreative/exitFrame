@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isBackgroundTaskRunning } from "@/lib/background-task";
+import { waitUntil } from "@vercel/functions";
+import { isBackgroundTaskRunning, executeBackgroundTask } from "@/lib/background-task";
 
 export const backgroundTools: Anthropic.Tool[] = [
   {
@@ -97,26 +98,13 @@ export async function executeBackgroundTool(
     },
   });
 
-  // Trigger the execute endpoint — await to ensure the request is sent
-  // The endpoint returns 202 immediately (uses waitUntil for actual execution)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL
-    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-
-  try {
-    const triggerRes = await fetch(`${appUrl}/api/background-tasks/execute`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.CRON_SECRET}`,
-      },
-      body: JSON.stringify({ taskId: task.id }),
-    });
-    if (!triggerRes.ok) {
-      console.error(`[bg-tool] Execute endpoint returned ${triggerRes.status}: ${await triggerRes.text()}`);
-    }
-  } catch (err) {
-    console.error("[bg-tool] Failed to trigger execution:", err);
-  }
+  // Execute directly via waitUntil — no HTTP self-invocation needed
+  // waitUntil keeps the Vercel function alive after the response is sent
+  waitUntil(
+    executeBackgroundTask(task.id).catch((err) => {
+      console.error("[bg-tool] Background execution failed:", err);
+    })
+  );
 
   return JSON.stringify({
     success: true,

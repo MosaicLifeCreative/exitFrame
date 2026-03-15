@@ -16,6 +16,17 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: {
+        id: true,
+        actionType: true,
+        summary: true,
+        trigger: true,
+        outcome: true,
+        emotion: true,
+        bpm: true,
+        createdAt: true,
+        sessionId: true,
+      },
     });
 
     const hasMore = actions.length > limit;

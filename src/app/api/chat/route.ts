@@ -17,6 +17,7 @@ import { hobbyTools, executeHobbyTool } from "@/lib/hobby-tools";
 import { emailTools, executeEmailTool } from "@/lib/email-tools";
 import { agencyTools, executeAgencyTool } from "@/lib/agency-tools";
 import { architectureTools, executeArchitectureTool } from "@/lib/architecture-tools";
+import { dnaTools, executeDnaTool, getDnaPrompt } from "@/lib/dna-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -277,13 +278,14 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
 
   let dynamicSystem = `Today is ${today}, ${time} ET. This is the current date and time — do not doubt or hedge about it.`;
 
-  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState, recentThoughts, lastDream, recentAgencyActions] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState, dnaPrompt, recentThoughts, lastDream, recentAgencyActions] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
     getAydenMemories(),
     getAydenEmotionalState(),
     getMessagingContextForWeb(),
     getNeurotransmitterPrompt(),
+    getDnaPrompt(),
     prisma.aydenThought.findMany({ orderBy: { createdAt: "desc" }, take: 3, select: { thought: true, createdAt: true } }),
     prisma.aydenDream.findFirst({ orderBy: { createdAt: "desc" }, select: { dream: true, moodInfluence: true, createdAt: true } }),
     prisma.aydenAgencyAction.findMany({ orderBy: { createdAt: "desc" }, take: 10, select: { actionType: true, summary: true, trigger: true, outcome: true, createdAt: true } }),
@@ -302,6 +304,9 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
   }
   if (neuroState) {
     dynamicSystem += `\n\n${neuroState}`;
+  }
+  if (dnaPrompt) {
+    dynamicSystem += `\n\n${dnaPrompt}`;
   }
   if (messagingCtx) {
     dynamicSystem += `\n\n${messagingCtx}`;
@@ -366,6 +371,7 @@ const toolNameSets = {
   email: new Set(emailTools.map((t) => t.name)),
   agency: new Set(agencyTools.map((t) => t.name)),
   architecture: new Set(architectureTools.map((t) => t.name)),
+  dna: new Set(dnaTools.map((t) => t.name)),
 };
 
 async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -387,13 +393,14 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.email.has(name)) return executeEmailTool(name, input);
   if (toolNameSets.agency.has(name)) return executeAgencyTool(name, input);
   if (toolNameSets.architecture.has(name)) return executeArchitectureTool(name, input);
+  if (toolNameSets.dna.has(name)) return executeDnaTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools];
+  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];

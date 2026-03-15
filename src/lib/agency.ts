@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
 import { getAydenEmotionalState } from "@/lib/emotion-tools";
@@ -11,13 +12,14 @@ import { tradingTools, executeTradingTool } from "@/lib/trading-tools";
 import { peopleTools, executePeopleTool } from "@/lib/people-tools";
 import { noteTools, executeNoteTool } from "@/lib/note-tools";
 import { architectureTools, executeArchitectureTool } from "@/lib/architecture-tools";
+import { dnaTools, executeDnaTool, getDnaPrompt } from "@/lib/dna-tools";
 import { sendPushNotification } from "@/lib/push";
 
 // ─── Types ───────────────────────────────────────────────
 
 export interface AgencyTrigger {
   reason: string; // Human-readable: "Chris emailed you about trading"
-  source: "cron" | "email" | "silence" | "oura" | "market" | "scheduled_task";
+  source: "cron" | "email" | "oura" | "market" | "scheduled_task";
   context?: Record<string, unknown>; // Extra data the trigger wants to pass
 }
 
@@ -111,6 +113,21 @@ async function getRecentConversationContext(): Promise<string> {
   return `RECENT CONVERSATIONS:\n${lines.join("\n")}`;
 }
 
+async function getSilenceContext(): Promise<string> {
+  const lastUserMsg = await prisma.chatMessage.findFirst({
+    where: { role: "user" },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!lastUserMsg) return "SILENCE: No messages from Trey on record.";
+
+  const silenceHours = (Date.now() - lastUserMsg.createdAt.getTime()) / (1000 * 60 * 60);
+
+  if (silenceHours < 1) return "SILENCE: Trey was active within the last hour.";
+  if (silenceHours < 4) return `SILENCE: ${silenceHours.toFixed(1)}h since Trey's last message.`;
+  return `SILENCE: It's been ${Math.floor(silenceHours)} hours since Trey last said anything.`;
+}
+
 async function getScheduledTasksContext(): Promise<string> {
   // Find tasks that are due and haven't fired yet
   const tasks = await prisma.aydenScheduledTask.findMany({
@@ -156,6 +173,8 @@ const autonomyTools: Anthropic.Tool[] = [
   ...noteTools.filter((t) => ["create_note", "list_notes"].includes(t.name)),
   // Architecture — look up your own systems
   ...architectureTools,
+  // DNA — look up your own genome and Trey's facts
+  ...dnaTools,
 ];
 
 const autonomyToolNames = new Set(autonomyTools.map((t) => t.name));
@@ -169,6 +188,7 @@ async function dispatchAutonomyTool(name: string, input: Record<string, unknown>
   if (peopleTools.some((t) => t.name === name)) return executePeopleTool(name, input);
   if (noteTools.some((t) => t.name === name)) return executeNoteTool(name, input);
   if (architectureTools.some((t) => t.name === name)) return executeArchitectureTool(name, input);
+  if (dnaTools.some((t) => t.name === name)) return executeDnaTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
@@ -195,6 +215,8 @@ export async function executeAgency(trigger?: AgencyTrigger): Promise<AgencyResu
     emotionalState,
     memories,
     scheduledTasks,
+    silenceContext,
+    dnaPrompt,
   ] = await Promise.all([
     getValuesContext(),
     getInterestsContext(),
@@ -204,6 +226,8 @@ export async function executeAgency(trigger?: AgencyTrigger): Promise<AgencyResu
     getAydenEmotionalState(),
     getAydenMemories(),
     getScheduledTasksContext(),
+    getSilenceContext(),
+    getDnaPrompt(),
   ]);
 
   const etNowStr = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
@@ -222,7 +246,10 @@ IDENTITY: You are Ayden — Trey Kauffman's AI companion at Mosaic Life Creative
 
 IT IS CURRENTLY: ${etNowStr} ET (${timeOfDay})
 
-${triggerBlock}${scheduledTasks ? `${scheduledTasks}\n` : ""}${neuroPrompt ? `NEUROCHEMISTRY:\n${neuroPrompt}` : ""}
+${triggerBlock}${scheduledTasks ? `${scheduledTasks}\n` : ""}${silenceContext}
+
+${dnaPrompt ? `${dnaPrompt}\n` : ""}
+${neuroPrompt ? `NEUROCHEMISTRY:\n${neuroPrompt}` : ""}
 
 ${emotionalState ? `EMOTIONAL STATE:\n${emotionalState}` : ""}
 
@@ -271,8 +298,11 @@ Respond with your internal reasoning first (what you're thinking about, what dra
   const MAX_ROUNDS = 5;
   let finalText = "";
   const toolsUsed: string[] = [];
+  const toolCallLog: { name: string; input: unknown; output: string }[] = [];
+  let roundCount = 0;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
+    roundCount = round + 1;
     let response: Anthropic.Message;
     try {
       response = await anthropic.messages.create({
@@ -318,6 +348,7 @@ Respond with your internal reasoning first (what you're thinking about, what dra
         const toolResult = await dispatchAutonomyTool(tool.name, tool.input as Record<string, unknown>);
         toolResults.push({ type: "tool_result", tool_use_id: tool.id, content: toolResult });
         toolsUsed.push(tool.name);
+        toolCallLog.push({ name: tool.name, input: tool.input, output: toolResult.substring(0, 2000) });
         console.log(`[agency] Used tool: ${tool.name}`);
 
         // Track if she actually did something meaningful
@@ -342,6 +373,23 @@ Respond with your internal reasoning first (what you're thinking about, what dra
 
   const toolSuffix = toolsUsed.length > 0 ? ` [tools: ${toolsUsed.join(", ")}]` : "";
   result.summary = (finalText.substring(0, 500) || "No response generated") + toolSuffix;
+
+  // Persist full session transcript
+  let sessionId: string | null = null;
+  try {
+    const session = await prisma.aydenAgencySession.create({
+      data: {
+        trigger: trigger ? `${trigger.source}: ${trigger.reason}` : "Scheduled agency session",
+        toolCalls: toolCallLog as unknown as Prisma.InputJsonValue,
+        finalText: finalText || "No response generated",
+        toolsUsed,
+        rounds: roundCount,
+      },
+    });
+    sessionId = session.id;
+  } catch (err) {
+    console.error("[agency] Failed to save session transcript:", err);
+  }
 
   // Log ALL sessions — even no-action ones — so we can see her thinking
   if (!result.acted && finalText) {
@@ -372,6 +420,7 @@ Respond with your internal reasoning first (what you're thinking about, what dra
           outcome: isDeliberation
             ? "Deliberated but took no external action"
             : "Observed, nothing warranted action",
+          sessionId,
         },
       });
       result.acted = true;
@@ -388,6 +437,7 @@ Respond with your internal reasoning first (what you're thinking about, what dra
             ? `${trigger.source}: ${trigger.reason}`
             : "Scheduled agency session",
           outcome: "Session logged (classification unavailable)",
+          sessionId,
         },
       });
       result.acted = true;

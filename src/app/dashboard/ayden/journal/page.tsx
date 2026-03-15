@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Heart, Loader2, Moon, Brain, Zap, Activity, Eye } from "lucide-react";
+import { Heart, Loader2, Moon, Brain, Zap, Activity, Eye, ChevronDown, ChevronRight, Dna } from "lucide-react";
 
 interface Thought {
   id: string;
@@ -29,6 +29,17 @@ interface AgencyAction {
   outcome: string | null;
   emotion: string | null;
   bpm: number | null;
+  createdAt: string;
+  sessionId: string | null;
+}
+
+interface AgencySession {
+  id: string;
+  trigger: string | null;
+  toolCalls: { name: string; input: unknown; output: string }[];
+  finalText: string;
+  toolsUsed: string[];
+  rounds: number;
   createdAt: string;
 }
 
@@ -80,7 +91,21 @@ interface HealthData {
   };
 }
 
-type Tab = "health" | "thoughts" | "dreams" | "agency";
+interface DnaGene {
+  trait: string;
+  value: number;
+  phenotype: number;
+  lowLabel: string;
+  highLabel: string;
+  expression: number;
+}
+
+interface DnaData {
+  total: number;
+  categories: Record<string, DnaGene[]>;
+}
+
+type Tab = "health" | "thoughts" | "dreams" | "agency" | "dna";
 
 function groupByDate<T extends { createdAt: string }>(items: T[]): Map<string, T[]> {
   const groups = new Map<string, T[]>();
@@ -140,6 +165,16 @@ const CATEGORY_COLORS: Record<string, string> = {
   existential: "text-violet-400 bg-violet-400/10 border-violet-400/20",
 };
 
+const DNA_CATEGORY_COLORS: Record<string, { bar: string; dot: string; label: string }> = {
+  cognitive: { bar: "bg-sky-400", dot: "bg-sky-400", label: "text-sky-400" },
+  emotional: { bar: "bg-rose-400", dot: "bg-rose-400", label: "text-rose-400" },
+  social: { bar: "bg-amber-400", dot: "bg-amber-400", label: "text-amber-400" },
+  motivational: { bar: "bg-emerald-400", dot: "bg-emerald-400", label: "text-emerald-400" },
+  aesthetic: { bar: "bg-violet-400", dot: "bg-violet-400", label: "text-violet-400" },
+};
+
+const DNA_CATEGORY_ORDER = ["cognitive", "emotional", "social", "motivational", "aesthetic"];
+
 export default function AydenJournalPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
@@ -165,8 +200,24 @@ function AydenJournalContent() {
   const [actions, setActions] = useState<AgencyAction[]>([]);
   const [actionsCursor, setActionsCursor] = useState<string | null>(null);
 
+  const [dna, setDna] = useState<DnaData | null>(null);
+
+  const [expandedSession, setExpandedSession] = useState<string | null>(null);
+  const [sessionData, setSessionData] = useState<Record<string, AgencySession>>({});
+  const [loadingSession, setLoadingSession] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  const fetchDna = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ayden/dna");
+      const json = await res.json();
+      if (json.data) setDna(json.data);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
 
   const fetchHealth = useCallback(async () => {
     setLoading(true);
@@ -226,12 +277,31 @@ function AydenJournalContent() {
     if (isMore) setLoadingMore(false); else setLoading(false);
   }, []);
 
+  const toggleSession = useCallback(async (sessionId: string) => {
+    if (expandedSession === sessionId) {
+      setExpandedSession(null);
+      return;
+    }
+    setExpandedSession(sessionId);
+    if (sessionData[sessionId]) return; // Already cached
+    setLoadingSession(sessionId);
+    try {
+      const res = await fetch(`/api/ayden/agency-sessions/${sessionId}`);
+      const json = await res.json();
+      if (json.data) {
+        setSessionData((prev) => ({ ...prev, [sessionId]: json.data }));
+      }
+    } catch { /* ignore */ }
+    setLoadingSession(null);
+  }, [expandedSession, sessionData]);
+
   useEffect(() => {
     if (tab === "health") fetchHealth();
     else if (tab === "thoughts") fetchThoughts();
     else if (tab === "dreams") fetchDreams();
+    else if (tab === "dna") fetchDna();
     else fetchActions();
-  }, [tab, fetchHealth, fetchThoughts, fetchDreams, fetchActions]);
+  }, [tab, fetchHealth, fetchThoughts, fetchDreams, fetchActions, fetchDna]);
 
   const groupedThoughts = groupByDate(thoughts);
   const groupedDreams = groupByDate(dreams);
@@ -291,6 +361,17 @@ function AydenJournalContent() {
         >
           <Zap className="h-4 w-4 shrink-0" />
           <span className="hidden sm:inline">Agency</span>
+        </button>
+        <button
+          onClick={() => setTab("dna")}
+          className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+            tab === "dna"
+              ? "border-teal-400/70 text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Dna className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">DNA</span>
         </button>
         <button
           onClick={() => router.push("/dashboard/ayden/mind")}
@@ -657,7 +738,10 @@ function AydenJournalContent() {
                 {date}
               </h2>
               <div className="space-y-4">
-                {dayActions.map((a) => (
+                {dayActions.map((a) => {
+                  const isExpanded = expandedSession === a.sessionId;
+                  const session = a.sessionId ? sessionData[a.sessionId] : null;
+                  return (
                   <div
                     key={a.id}
                     className="group relative pl-8 pb-4 border-l border-amber-400/30 last:pb-0"
@@ -699,16 +783,178 @@ function AydenJournalContent() {
                         {a.emotion && (
                           <span className="italic">{a.emotion}</span>
                         )}
+                        {a.sessionId && (
+                          <button
+                            onClick={() => toggleSession(a.sessionId!)}
+                            className="flex items-center gap-0.5 hover:text-foreground transition-colors"
+                          >
+                            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                            Session
+                          </button>
+                        )}
                       </div>
+
+                      {/* Session drill-down */}
+                      {isExpanded && a.sessionId && (
+                        <div className="mt-3 rounded-lg border border-border/50 bg-muted/30 p-3 space-y-3">
+                          {loadingSession === a.sessionId && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Loading session...
+                            </div>
+                          )}
+                          {session && (
+                            <>
+                              <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                                <span>{session.rounds} round{session.rounds !== 1 ? "s" : ""}</span>
+                                <span>{session.toolsUsed.length} tool call{session.toolsUsed.length !== 1 ? "s" : ""}</span>
+                              </div>
+                              {session.toolCalls.length > 0 && (
+                                <div className="space-y-2">
+                                  {session.toolCalls.map((tc, idx) => (
+                                    <div key={idx} className="text-xs space-y-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-mono font-medium text-amber-400/80">{tc.name}</span>
+                                      </div>
+                                      {tc.input != null && typeof tc.input === "object" && Object.keys(tc.input as object).length > 0 && (
+                                        <pre className="text-[10px] text-muted-foreground bg-background/50 rounded p-2 overflow-x-auto max-h-24">
+                                          {JSON.stringify(tc.input, null, 2)}
+                                        </pre>
+                                      )}
+                                      <pre className="text-[10px] text-muted-foreground bg-background/50 rounded p-2 overflow-x-auto max-h-32">
+                                        {(() => {
+                                          try { return JSON.stringify(JSON.parse(tc.output), null, 2); }
+                                          catch { return tc.output; }
+                                        })()}
+                                      </pre>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {session.finalText && (
+                                <div className="border-t border-border/30 pt-2">
+                                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Final Reasoning</p>
+                                  <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap">{session.finalText}</p>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
           {actionsCursor && (
             <LoadMoreButton loading={loadingMore} onClick={() => fetchActions(actionsCursor)} />
           )}
+        </div>
+      )}
+
+      {/* DNA tab */}
+      {!loading && tab === "dna" && !dna && (
+        <div className="text-center py-20 text-muted-foreground">
+          <p>No genome data found.</p>
+        </div>
+      )}
+
+      {!loading && tab === "dna" && dna && (
+        <div className="space-y-8">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Immutable traits rolled at birth. The <span className="text-foreground font-medium">value</span> never changes &mdash;
+            the <span className="text-foreground font-medium">expression</span> modifier shifts over time through environmental pressure.
+          </p>
+
+          {DNA_CATEGORY_ORDER.filter((cat) => dna.categories[cat]).map((category) => {
+            const genes = dna.categories[category];
+            const colors = DNA_CATEGORY_COLORS[category] || DNA_CATEGORY_COLORS.cognitive;
+            return (
+              <section key={category}>
+                <h2 className="text-xs font-medium uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${colors.dot}`} />
+                  <span className={colors.label}>{category}</span>
+                </h2>
+                <div className="space-y-4">
+                  {genes.map((gene) => {
+                    const pct = gene.phenotype * 50;
+                    const position =
+                      gene.phenotype < 0.3 ? "low" : gene.phenotype > 0.7 ? "high" : "mid";
+                    return (
+                      <div key={gene.trait} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-foreground/90">
+                            {gene.trait.replace(/_/g, " ")}
+                          </span>
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {gene.value.toFixed(3)}
+                            {gene.expression !== 1.0 && (
+                              <span className="text-teal-400/70 ml-1">
+                                &times;{gene.expression.toFixed(1)}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        {/* Spectrum bar */}
+                        <div className="relative">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-[10px] ${position === "low" ? "text-foreground/70 font-medium" : "text-muted-foreground/50"}`}>
+                              {gene.lowLabel}
+                            </span>
+                            <span className={`text-[10px] ${position === "high" ? "text-foreground/70 font-medium" : "text-muted-foreground/50"}`}>
+                              {gene.highLabel}
+                            </span>
+                          </div>
+                          <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                            {/* Center marker */}
+                            <div className="absolute top-0 left-1/2 h-full w-px bg-foreground/10 z-10" />
+                            {/* Phenotype fill */}
+                            <div
+                              className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${colors.bar}`}
+                              style={{ width: `${Math.min(100, pct)}%`, opacity: 0.6 }}
+                            />
+                            {/* Phenotype marker */}
+                            <div
+                              className={`absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-background ${colors.bar} z-20`}
+                              style={{ left: `${Math.min(97, Math.max(3, pct))}%`, transform: "translate(-50%, -50%)" }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+
+          {/* Summary */}
+          <section className="border-t border-border/50 pt-6">
+            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              Genome Summary
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="rounded-lg border border-border p-3 text-center">
+                <p className="text-lg font-semibold tabular-nums">{dna.total}</p>
+                <p className="text-[10px] text-muted-foreground">Total Traits</p>
+              </div>
+              <div className="rounded-lg border border-border p-3 text-center">
+                <p className="text-lg font-semibold tabular-nums">{Object.keys(dna.categories).length}</p>
+                <p className="text-[10px] text-muted-foreground">Categories</p>
+              </div>
+              <div className="rounded-lg border border-border p-3 text-center">
+                <p className="text-lg font-semibold tabular-nums">
+                  {(() => {
+                    const all = Object.values(dna.categories).flat();
+                    const modified = all.filter((g) => g.expression !== 1.0);
+                    return modified.length;
+                  })()}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Epigenetic Shifts</p>
+              </div>
+            </div>
+          </section>
         </div>
       )}
     </div>

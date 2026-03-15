@@ -18,6 +18,7 @@ import { hobbyTools, executeHobbyTool } from "@/lib/hobby-tools";
 import { emailTools, executeEmailTool } from "@/lib/email-tools";
 import { agencyTools, executeAgencyTool } from "@/lib/agency-tools";
 import { architectureTools, executeArchitectureTool } from "@/lib/architecture-tools";
+import { dnaTools, executeDnaTool, getDnaPrompt } from "@/lib/dna-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getWebContextForMessaging, getCrossChannelContext } from "@/lib/channelContext";
@@ -138,7 +139,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
 
   let dynamicPrompt = `RIGHT NOW it is ${today}, ${time} ET. This is the ABSOLUTE current date and time — trust this over anything in the conversation history. Previous messages may be from earlier today or previous days. Do not get confused by them.`;
 
-  const [userContext, crossDomainCtx, memories, emotionalState, webCtx, crossChannelCtx, neuroState, recentThoughts, lastDream, recentAgencyActions] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, webCtx, crossChannelCtx, neuroState, dnaPrompt, recentThoughts, lastDream, recentAgencyActions] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
     getAydenMemories(),
@@ -146,6 +147,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
     getWebContextForMessaging(),
     getCrossChannelContext(channel),
     getNeurotransmitterPrompt(),
+    getDnaPrompt(),
     prisma.aydenThought.findMany({ orderBy: { createdAt: "desc" }, take: 3, select: { thought: true, createdAt: true } }),
     prisma.aydenDream.findFirst({ orderBy: { createdAt: "desc" }, select: { dream: true, moodInfluence: true, createdAt: true } }),
     prisma.aydenAgencyAction.findMany({ orderBy: { createdAt: "desc" }, take: 10, select: { actionType: true, summary: true, trigger: true, outcome: true, createdAt: true } }),
@@ -164,6 +166,9 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
   }
   if (neuroState) {
     dynamicPrompt += `\n\n${neuroState}`;
+  }
+  if (dnaPrompt) {
+    dynamicPrompt += `\n\n${dnaPrompt}`;
   }
   if (webCtx) {
     dynamicPrompt += `\n\n${webCtx}`;
@@ -357,6 +362,7 @@ const allToolNameSets = {
   email: new Set(emailTools.map((t) => t.name)),
   agency: new Set(agencyTools.map((t) => t.name)),
   architecture: new Set(architectureTools.map((t) => t.name)),
+  dna: new Set(dnaTools.map((t) => t.name)),
 };
 
 export async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -378,6 +384,7 @@ export async function executeTool(name: string, input: Record<string, unknown>):
   if (allToolNameSets.email.has(name)) return executeEmailTool(name, input);
   if (allToolNameSets.agency.has(name)) return executeAgencyTool(name, input);
   if (allToolNameSets.architecture.has(name)) return executeArchitectureTool(name, input);
+  if (allToolNameSets.dna.has(name)) return executeDnaTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
@@ -397,10 +404,10 @@ export async function runAyden(
   const { messages: historyMessages, lastMessageAt, summary } = await getChannelHistory(channel);
 
   // Haiku gets ALL tools (including memory/emotion for background housekeeping)
-  const allTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools];
+  const allTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools];
   // Sonnet gets only ACTION tools — no memory/emotion/people (Haiku handles those in Phase 1)
   // This prevents Sonnet from burning all its rounds saving memories instead of responding
-  const sonnetTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools];
+  const sonnetTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools];
 
   // Add cache_control to last tool in each set so Anthropic caches tool definitions
   if (allTools.length > 0) {

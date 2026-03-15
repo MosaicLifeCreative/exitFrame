@@ -1181,7 +1181,26 @@ model AydenAgencyAction {
   bpm         Int?     // Heart rate at the time
   createdAt   DateTime @default(now()) @map("created_at")
 
+  sessionId   String?  @unique @map("session_id") @db.Uuid
+  session     AydenAgencySession? @relation(fields: [sessionId], references: [id])
+
   @@map("ayden_agency_actions")
+}
+
+// Full session transcript for agency sessions.
+// Stores the complete tool call chain so we can see exactly what Ayden researched/did.
+model AydenAgencySession {
+  id          String   @id @default(uuid()) @db.Uuid
+  trigger     String?  @db.Text // What woke her up
+  toolCalls   Json     @default("[]") @map("tool_calls") // Array of {name, input, output}
+  finalText   String   @db.Text @map("final_text") // Her final reasoning/summary
+  toolsUsed   String[] @default([]) @map("tools_used") // Simple list of tool names
+  rounds      Int      @default(0) // Number of API rounds used
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  action      AydenAgencyAction?
+
+  @@map("ayden_agency_sessions")
 }
 
 // Self-scheduled tasks — things Ayden wants to remember to do later.
@@ -1194,6 +1213,7 @@ model AydenScheduledTask {
   fired       Boolean   @default(false) // Whether it's been delivered to an agency session
   firedAt     DateTime? @map("fired_at") // When it was delivered
   createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@index([fired, triggerAt])
   @@map("ayden_scheduled_tasks")
@@ -1209,6 +1229,35 @@ model AydenArchitecture {
 
   @@unique([system])
   @@map("ayden_architecture")
+}
+
+// ── Trey Facts (structured objective data Ayden can look up) ──
+
+model TreyFact {
+  id        String   @id @default(uuid()) @db.Uuid
+  category  String   // physical, family, personal, professional, preferences
+  key       String   @unique // e.g. "date_of_birth", "height_inches"
+  value     String   // the fact value
+  detail    String?  @db.Text // optional elaboration
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("trey_facts")
+}
+
+// ── Ayden DNA (immutable genome — randomly generated, never modified) ──
+
+model AydenDna {
+  id         String   @id @default(uuid()) @db.Uuid
+  category   String   // cognitive, emotional, social, motivational, aesthetic
+  trait      String   @unique // e.g. "analytical_intuitive"
+  value      Float    // 0.0-1.0, randomly rolled at birth
+  lowLabel   String   @map("low_label") // human-readable label for 0.0 end
+  highLabel  String   @map("high_label") // human-readable label for 1.0 end
+  expression Float    @default(1.0) // epigenetic modifier (0.0-2.0), adjusted by REM cycle
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("ayden_dna")
 }
 
 // ── Travel ──────────────────────────────────────────────

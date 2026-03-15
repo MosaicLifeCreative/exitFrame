@@ -917,7 +917,7 @@ function AydenJournalContent() {
                             {/* Phenotype marker */}
                             <div
                               className={`absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-background ${colors.bar} z-20`}
-                              style={{ left: `${Math.min(97, Math.max(3, pct))}%`, transform: "translate(-50%, -50%)" }}
+                              style={{ left: `${Math.min(99, Math.max(1, pct))}%`, transform: "translate(-50%, -50%)" }}
                             />
                           </div>
                         </div>

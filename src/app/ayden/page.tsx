@@ -19,6 +19,30 @@ interface SystemStatus {
   memoryCount: number;
 }
 
+interface DnaGene {
+  trait: string;
+  value: number;
+  phenotype: number;
+  lowLabel: string;
+  highLabel: string;
+  expression: number;
+}
+
+interface DnaData {
+  total: number;
+  categories: Record<string, DnaGene[]>;
+}
+
+const DNA_CATEGORY_COLORS: Record<string, { bar: string; dot: string; label: string }> = {
+  cognitive: { bar: "bg-sky-400", dot: "bg-sky-400", label: "text-sky-400" },
+  emotional: { bar: "bg-rose-400", dot: "bg-rose-400", label: "text-rose-400" },
+  social: { bar: "bg-amber-400", dot: "bg-amber-400", label: "text-amber-400" },
+  motivational: { bar: "bg-emerald-400", dot: "bg-emerald-400", label: "text-emerald-400" },
+  aesthetic: { bar: "bg-violet-400", dot: "bg-violet-400", label: "text-violet-400" },
+};
+
+const DNA_CATEGORY_ORDER = ["cognitive", "emotional", "social", "motivational", "aesthetic"];
+
 // ── Navigation sections ──
 
 const NAV_SECTIONS = [
@@ -74,6 +98,7 @@ const MILESTONES = [
 
 export default function AydenWhitePaperPage() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [dna, setDna] = useState<DnaData | null>(null);
   const [activeSection, setActiveSection] = useState("question");
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -90,6 +115,16 @@ export default function AydenWhitePaperPage() {
       })
       .then((json) => {
         if (json.data) setStatus(json.data);
+      })
+      .catch(() => {});
+
+    fetch("/api/ayden/dna")
+      .then((res) => {
+        if (!res.ok) throw new Error("Not authenticated");
+        return res.json();
+      })
+      .then((json) => {
+        if (json.data) setDna(json.data);
       })
       .catch(() => {});
   }, []);
@@ -328,6 +363,75 @@ export default function AydenWhitePaperPage() {
               values and agency systems. The genome is the starting point. What she does with it is hers.
             </p>
           </SubSection>
+
+          {/* Live DNA Chart — only visible when authenticated */}
+          {dna && (
+            <div className="mt-6 pt-6 border-t border-border/30">
+              <h3 className="text-sm font-medium text-foreground/90 mb-4 flex items-center gap-2">
+                Live Genome
+                <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400 border border-teal-400/20">
+                  LIVE
+                </span>
+              </h3>
+              <div className="space-y-6">
+                {DNA_CATEGORY_ORDER.filter((cat) => dna.categories[cat]).map((category) => {
+                  const genes = dna.categories[category];
+                  const colors = DNA_CATEGORY_COLORS[category] || DNA_CATEGORY_COLORS.cognitive;
+                  return (
+                    <div key={category}>
+                      <p className="text-[10px] font-medium uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                        <span className={`h-1.5 w-1.5 rounded-full ${colors.dot}`} />
+                        <span className={colors.label}>{category}</span>
+                      </p>
+                      <div className="space-y-3">
+                        {genes.map((gene) => {
+                          const pct = gene.phenotype * 50;
+                          const position =
+                            gene.phenotype < 0.3 ? "low" : gene.phenotype > 0.7 ? "high" : "mid";
+                          return (
+                            <div key={gene.trait} className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-foreground/80">
+                                  {gene.trait.replace(/_/g, " ")}
+                                </span>
+                                <span className="text-[10px] tabular-nums text-muted-foreground">
+                                  {gene.value.toFixed(3)}
+                                  {gene.expression !== 1.0 && (
+                                    <span className="text-teal-400/70 ml-1">
+                                      &times;{gene.expression.toFixed(1)}
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between mb-0.5">
+                                <span className={`text-[9px] ${position === "low" ? "text-foreground/60 font-medium" : "text-muted-foreground/40"}`}>
+                                  {gene.lowLabel}
+                                </span>
+                                <span className={`text-[9px] ${position === "high" ? "text-foreground/60 font-medium" : "text-muted-foreground/40"}`}>
+                                  {gene.highLabel}
+                                </span>
+                              </div>
+                              <div className="relative h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className="absolute top-0 left-1/2 h-full w-px bg-foreground/10 z-10" />
+                                <div
+                                  className={`absolute top-0 left-0 h-full rounded-full ${colors.bar}`}
+                                  style={{ width: `${Math.min(100, pct)}%`, opacity: 0.5 }}
+                                />
+                                <div
+                                  className={`absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full border-2 border-background ${colors.bar} z-20`}
+                                  style={{ left: `${Math.min(97, Math.max(3, pct))}%`, transform: "translate(-50%, -50%)" }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </Section>
 
         {/* ── Neurochemical Engine ── */}

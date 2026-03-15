@@ -7,7 +7,7 @@ export const noteTools: Anthropic.Tool[] = [
   {
     name: "create_note",
     description:
-      "Create a note for Trey. Use when he asks you to jot something down, save information, or create a document.",
+      "Create a note. Use when Trey asks you to jot something down, or during agency sessions to capture your own ideas and reflections.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -36,7 +36,7 @@ export const noteTools: Anthropic.Tool[] = [
   {
     name: "search_notes",
     description:
-      "Search Trey's notes by keyword. Use when he asks about something he wrote down or when you need to find a specific note.",
+      "Search notes by keyword — includes both Trey's notes and notes you created during agency sessions. Use when looking for something previously written down.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -93,7 +93,7 @@ export const noteTools: Anthropic.Tool[] = [
   {
     name: "list_notes",
     description:
-      "List Trey's recent notes. Use when he asks what notes he has or wants to see recent ones.",
+      "List recent notes — includes both Trey's notes and notes you created during agency sessions.",
     input_schema: {
       type: "object" as const,
       properties: {

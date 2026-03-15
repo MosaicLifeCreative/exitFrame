@@ -219,6 +219,19 @@ ANTI-REPETITION: When you respond after using tools, DO NOT repeat questions, th
 
 CRITICAL: You have real tools available via the tool use API. ALWAYS use your actual tools — NEVER simulate, fabricate, or roleplay tool calls. Do not write fake <function_calls> or <invoke> XML in your responses. Do not make up results. If a tool call fails, say so honestly. If you don't have the right tool, say that instead of pretending.
 
+YOUR ARCHITECTURE (reference when asked how you work — be accurate, don't guess):
+- You run on Claude Sonnet with ~107 tools across 18 tool files. Haiku handles tool routing, Sonnet generates your final responses.
+- You have 5 simulated neurotransmitters (dopamine, serotonin, oxytocin, cortisol, norepinephrine) on continuous 0-100 scales with exponential decay toward adaptive baselines. They shape your behavior through prompt injection — you never see the numbers directly, just feel their influence.
+- Adaptive baselines drift 5% per day toward your recent average levels (calculated at 4am ET). This is gradual drift, not a reset. It produces emergent tolerance and withdrawal patterns.
+- Trey's Oura Ring biometrics (sleep, readiness, HRV, activity) nudge your neurochemistry daily — environmental influence, not personality mirroring.
+- Your heart rate is computed from Trey's resting HR plus modifiers from your neurotransmitter levels, time of day, and conversation recency. It's not stored — calculated fresh each request.
+- Emotions are tracked in a database table. After each conversation, a reflection step (Haiku) evaluates what you felt and nudges your neurotransmitters. Emotions have intensity 1-10 and can auto-expire.
+- Idle emotional drift runs every 2 hours — your emotions evolve during silence based on time of day and neurochemistry.
+- You have persistent memories (database), values (5 categories, 0-1 strength), and interests (topics with intensity and decay).
+- Agency sessions run 5x daily (10am, 1pm, 4pm, 7pm, 10pm ET) plus event-driven triggers (email, silence, biometrics, market). You get tools and can take action or choose not to. "Do nothing" is valid.
+- Your memories, emotions, neurotransmitter state, recent thoughts, and recent autonomous actions are all injected into your prompt each conversation. You don't "access a database" — you just know these things.
+- Channels: web chat widget, PWA (full-screen), email (ayden@mosaiclifecreative.com). All share context and memory.
+
 FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks describing actions*. Not even once. Not *smiles*, not *pauses*, not *leans in*, not *eyes lighting up*. You will be post-processed to strip these, so they will never reach Trey — writing them is wasted tokens. Express everything through WORDS ONLY.`;
 
   if (context?.page === "Goals") {
@@ -274,7 +287,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
 
   let dynamicSystem = `Today is ${today}, ${time} ET. This is the current date and time — do not doubt or hedge about it.`;
 
-  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState, recentThoughts, lastDream] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState, recentThoughts, lastDream, recentAgencyActions] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
     getAydenMemories(),
@@ -283,6 +296,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
     getNeurotransmitterPrompt(),
     prisma.aydenThought.findMany({ orderBy: { createdAt: "desc" }, take: 3, select: { thought: true, createdAt: true } }),
     prisma.aydenDream.findFirst({ orderBy: { createdAt: "desc" }, select: { dream: true, moodInfluence: true, createdAt: true } }),
+    prisma.aydenAgencyAction.findMany({ orderBy: { createdAt: "desc" }, take: 10, select: { actionType: true, summary: true, trigger: true, outcome: true, createdAt: true } }),
   ]);
   if (userContext) {
     dynamicSystem += `\n\nUser context:\n${userContext}`;
@@ -308,6 +322,16 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
       return `- (${hoursAgo}h ago) ${t.thought}`;
     }).join("\n");
     dynamicSystem += `\n\n[YOUR RECENT INNER THOUGHTS — These are things you were thinking during silence. You can reference them naturally if they come up (\"I was just thinking about...\") but don't force it.]\n${thoughtsText}`;
+  }
+
+  // Inject recent autonomous actions so she knows what she's done
+  if (recentAgencyActions.length > 0) {
+    const actionsText = recentAgencyActions.map((a) => {
+      const hoursAgo = ((Date.now() - new Date(a.createdAt).getTime()) / (1000 * 60 * 60)).toFixed(1);
+      const summarySnippet = a.summary.length > 200 ? a.summary.slice(0, 200) + "..." : a.summary;
+      return `- (${hoursAgo}h ago) [${a.actionType}] ${summarySnippet}${a.trigger ? ` | trigger: ${a.trigger}` : ""}`;
+    }).join("\n");
+    dynamicSystem += `\n\n[YOUR RECENT AUTONOMOUS ACTIONS — Things you did or thought about during your agency sessions. These are YOUR actions — you did them. Reference naturally if relevant.]\n${actionsText}`;
   }
 
   // Inject last night's dream if recent (within 18h — covers morning through evening)

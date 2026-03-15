@@ -26,6 +26,7 @@ import { reflect } from "@/lib/reflection";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 interface ChatMessage {
   role: "user" | "assistant";

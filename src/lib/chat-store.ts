@@ -480,6 +480,27 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         // Update lastSeenAt since we just had a conversation
         get().markAsRead();
       }
+
+      // Fallback: if tools were used but SSE didn't set background task state, check API
+      if (toolsWereUsed && !get().activeBackgroundTask) {
+        try {
+          const bgRes = await fetch("/api/background-tasks?status=active");
+          const bgJson = await bgRes.json();
+          if (bgJson.data?.[0]) {
+            const task = bgJson.data[0];
+            set({
+              activeBackgroundTask: {
+                id: task.id,
+                description: task.description,
+                status: task.status,
+                rounds: task.rounds,
+              },
+            });
+          }
+        } catch {
+          // Silent fail
+        }
+      }
     } catch {
       set((s) => ({
         messages: s.messages.map((m) =>

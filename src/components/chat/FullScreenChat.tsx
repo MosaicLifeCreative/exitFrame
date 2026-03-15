@@ -101,6 +101,23 @@ export default function FullScreenChat() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && !isStreaming) {
         loadConversation("General");
+        // Also check for active background tasks on refocus
+        fetch("/api/background-tasks?status=active")
+          .then((res) => res.json())
+          .then((json) => {
+            if (json.data?.[0]) {
+              const task = json.data[0];
+              useChatStore.setState({
+                activeBackgroundTask: {
+                  id: task.id,
+                  description: task.description,
+                  status: task.status,
+                  rounds: task.rounds,
+                },
+              });
+            }
+          })
+          .catch(() => {});
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);

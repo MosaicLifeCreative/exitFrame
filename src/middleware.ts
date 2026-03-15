@@ -15,6 +15,7 @@ export async function middleware(request: NextRequest) {
     "/auth/verify-totp",
     "/api/auth/check-trust",
     "/api/cron/",
+    "/api/background-tasks/execute",
     "/api/twilio/",
     "/api/slack/",
     "/api/google/callback",

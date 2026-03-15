@@ -436,6 +436,7 @@ export async function GET() {
       { name: "ayden_dna_shifts", fn: () => prisma.aydenDnaShift.count() },
       { name: "ayden_neurotransmitters", fn: () => prisma.aydenNeurotransmitter.count() },
       { name: "trey_facts", fn: () => prisma.treyFact.count() },
+      { name: "ayden_background_tasks", fn: () => prisma.aydenBackgroundTask.count() },
       { name: "push_subscriptions", fn: () => prisma.pushSubscription.count() },
     ];
 

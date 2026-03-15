@@ -51,6 +51,7 @@ const TOOL_LABELS: Record<string, string> = {
   fetch_url: "Reading page",
   save_memory: "Saving memory",
   update_emotional_state: "Processing emotions",
+  start_background_task: "Starting background task",
 };
 
 function formatToolName(name: string): string {
@@ -74,6 +75,9 @@ export default function FullScreenChat() {
     loadMoreMessages,
     loadConversation,
     setPageContext,
+    activeBackgroundTask,
+    cancelBackgroundTask,
+    pollBackgroundTask,
   } = useChatStore();
 
   const [input, setInput] = useState("");
@@ -102,6 +106,33 @@ export default function FullScreenChat() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [loadConversation, isStreaming]);
+
+  // Poll background task status every 10s
+  useEffect(() => {
+    if (!activeBackgroundTask || !["pending", "running"].includes(activeBackgroundTask.status)) return;
+    const interval = setInterval(pollBackgroundTask, 10_000);
+    return () => clearInterval(interval);
+  }, [activeBackgroundTask, pollBackgroundTask]);
+
+  // Check for active background task on mount
+  useEffect(() => {
+    fetch("/api/background-tasks?status=active")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data?.[0]) {
+          const task = json.data[0];
+          useChatStore.setState({
+            activeBackgroundTask: {
+              id: task.id,
+              description: task.description,
+              status: task.status,
+              rounds: task.rounds,
+            },
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Check push notification status
   useEffect(() => {
@@ -337,6 +368,25 @@ export default function FullScreenChat() {
       </div>
 
       {/* Messages */}
+      {/* Background task status bar */}
+      {activeBackgroundTask && ["pending", "running"].includes(activeBackgroundTask.status) && (
+        <div className="px-4 py-2 bg-indigo-950/50 border-b border-indigo-500/20 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-indigo-300">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <span className="truncate">Working in background: {activeBackgroundTask.description}</span>
+            {activeBackgroundTask.rounds !== undefined && activeBackgroundTask.rounds > 0 && (
+              <span className="text-xs text-indigo-400/60">({activeBackgroundTask.rounds} rounds)</span>
+            )}
+          </div>
+          <button
+            onClick={cancelBackgroundTask}
+            className="text-xs text-indigo-400 hover:text-indigo-200 transition-colors shrink-0 ml-2"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4">
         <div className="max-w-2xl mx-auto space-y-4">
           {isLoadingMore && (

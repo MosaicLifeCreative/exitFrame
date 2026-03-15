@@ -61,6 +61,9 @@ export default function ChatPanel() {
     clearMessages,
     loadMoreMessages,
     pageContext,
+    activeBackgroundTask,
+    cancelBackgroundTask,
+    pollBackgroundTask,
   } = useChatStore();
 
   const pathname = usePathname();
@@ -79,6 +82,13 @@ export default function ChatPanel() {
     }
     prevPathnameRef.current = pathname;
   }, [pathname, isOpen, closeChat]);
+
+  // Poll background task status every 10s
+  useEffect(() => {
+    if (!activeBackgroundTask || !["pending", "running"].includes(activeBackgroundTask.status)) return;
+    const interval = setInterval(pollBackgroundTask, 10_000);
+    return () => clearInterval(interval);
+  }, [activeBackgroundTask, pollBackgroundTask]);
 
   // Auto-scroll to bottom on initial load and new messages (not when loading older via scroll-up)
   const isLoadingMoreRef = useRef(false);
@@ -197,6 +207,22 @@ export default function ChatPanel() {
             </Button>
           </div>
         </div>
+
+        {/* Background task status bar */}
+        {activeBackgroundTask && ["pending", "running"].includes(activeBackgroundTask.status) && (
+          <div className="px-3 py-1.5 bg-indigo-950/50 border-b border-indigo-500/20 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs text-indigo-300 truncate">
+              <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+              <span className="truncate">{activeBackgroundTask.description}</span>
+            </div>
+            <button
+              onClick={cancelBackgroundTask}
+              className="text-[10px] text-indigo-400 hover:text-indigo-200 transition-colors shrink-0 ml-1"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
 
         {/* Messages */}
         <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">

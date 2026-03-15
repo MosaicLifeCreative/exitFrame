@@ -243,7 +243,7 @@ export default function ScheduledTasksPage() {
         <div>
           <h1 className="text-2xl font-bold">Scheduled Tasks</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Tasks scheduled by you or Ayden for future execution
+            Agency fires at 10am, 1pm, 4pm, 7pm, 10pm ET — tasks execute at the next session after their trigger time
           </p>
         </div>
         <Button onClick={openCreate} size="sm">

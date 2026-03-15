@@ -76,6 +76,13 @@ export function getPageFromPathname(pathname: string): string {
 
 // ─── Store ──────────────────────────────────────────────
 
+interface BackgroundTaskStatus {
+  id: string;
+  description: string;
+  status: "pending" | "running" | "completed" | "failed" | "timed_out";
+  rounds?: number;
+}
+
 interface ChatStore {
   isOpen: boolean;
   messages: ChatMessage[];
@@ -90,6 +97,7 @@ interface ChatStore {
   workoutDraft: WorkoutDraft | null;
   unreadCount: number;
   lastSeenAt: number; // timestamp ms
+  activeBackgroundTask: BackgroundTaskStatus | null;
 
   toggleChat: () => void;
   openChat: () => void;
@@ -104,6 +112,8 @@ interface ChatStore {
   setUnreadCount: (count: number) => void;
   markAsRead: () => void;
   checkUnread: () => Promise<void>;
+  cancelBackgroundTask: () => Promise<void>;
+  pollBackgroundTask: () => Promise<void>;
 }
 
 function generateId(): string {
@@ -153,6 +163,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   workoutDraft: null,
   unreadCount: 0,
   lastSeenAt: getLastSeenAt(),
+  activeBackgroundTask: null,
 
   toggleChat: () => {
     const { isOpen } = get();
@@ -409,6 +420,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               if (parsed.workoutDraft) {
                 set({ workoutDraft: parsed.workoutDraft as WorkoutDraft });
               }
+              if (parsed.backgroundTask) {
+                set({ activeBackgroundTask: parsed.backgroundTask as BackgroundTaskStatus });
+              }
               if (parsed.error) {
                 accumulated += `\n\nError: ${parsed.error}`;
                 set((s) => ({
@@ -480,6 +494,50 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         isStreaming: false,
         toolExecutedFlag: toolsWereUsed ? s.toolExecutedFlag + 1 : s.toolExecutedFlag,
       }));
+    }
+  },
+
+  cancelBackgroundTask: async () => {
+    const { activeBackgroundTask } = get();
+    if (!activeBackgroundTask) return;
+
+    try {
+      const res = await fetch(`/api/background-tasks/${activeBackgroundTask.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        set({ activeBackgroundTask: null });
+      }
+    } catch {
+      // Silent fail
+    }
+  },
+
+  pollBackgroundTask: async () => {
+    const { activeBackgroundTask } = get();
+    if (!activeBackgroundTask || !["pending", "running"].includes(activeBackgroundTask.status)) return;
+
+    try {
+      const res = await fetch(`/api/background-tasks/${activeBackgroundTask.id}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      const task = json.data;
+
+      if (task.status === "completed" || task.status === "failed" || task.status === "timed_out") {
+        set({ activeBackgroundTask: null });
+        // Reload conversation to pick up the result message
+        get().loadConversation("General");
+      } else {
+        set({
+          activeBackgroundTask: {
+            ...activeBackgroundTask,
+            status: task.status,
+            rounds: task.rounds,
+          },
+        });
+      }
+    } catch {
+      // Silent fail
     }
   },
 }));

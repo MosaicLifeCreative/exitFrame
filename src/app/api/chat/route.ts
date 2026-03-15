@@ -18,6 +18,7 @@ import { emailTools, executeEmailTool } from "@/lib/email-tools";
 import { agencyTools, executeAgencyTool } from "@/lib/agency-tools";
 import { architectureTools, executeArchitectureTool } from "@/lib/architecture-tools";
 import { dnaTools, executeDnaTool, getDnaPrompt } from "@/lib/dna-tools";
+import { backgroundTools, executeBackgroundTool } from "@/lib/background-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -375,6 +376,7 @@ const toolNameSets = {
   agency: new Set(agencyTools.map((t) => t.name)),
   architecture: new Set(architectureTools.map((t) => t.name)),
   dna: new Set(dnaTools.map((t) => t.name)),
+  background: new Set(backgroundTools.map((t) => t.name)),
 };
 
 async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -397,13 +399,14 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.agency.has(name)) return executeAgencyTool(name, input);
   if (toolNameSets.architecture.has(name)) return executeArchitectureTool(name, input);
   if (toolNameSets.dna.has(name)) return executeDnaTool(name, input);
+  if (toolNameSets.background.has(name)) return executeBackgroundTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools];
+  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools, ...backgroundTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
@@ -611,6 +614,13 @@ export async function POST(request: Request) {
                     })}\n\n`;
                     controller.enqueue(encoder.encode(draftChunk));
                   }
+                  // Notify client of background task start
+                  if (tool.name === "start_background_task" && parsed.success && parsed.taskId) {
+                    const bgChunk = `data: ${JSON.stringify({
+                      backgroundTask: { id: parsed.taskId, description: parsed.description, status: "running" },
+                    })}\n\n`;
+                    controller.enqueue(encoder.encode(bgChunk));
+                  }
                 } catch {
                   // Not JSON or no draft — ignore
                 }
@@ -723,6 +733,18 @@ export async function POST(request: Request) {
                   tool_use_id: tool.id,
                   content: result,
                 });
+                // Notify client of background task start
+                if (tool.name === "start_background_task") {
+                  try {
+                    const parsed = JSON.parse(result);
+                    if (parsed.success && parsed.taskId) {
+                      const bgChunk = `data: ${JSON.stringify({
+                        backgroundTask: { id: parsed.taskId, description: parsed.description, status: "running" },
+                      })}\n\n`;
+                      controller.enqueue(encoder.encode(bgChunk));
+                    }
+                  } catch { /* ignore */ }
+                }
                 const doneChunk = `data: ${JSON.stringify({
                   toolUse: { name: tool.name, status: "done" },
                 })}\n\n`;

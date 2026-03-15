@@ -1017,7 +1017,8 @@ model ChatConversation {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  messages ChatMessage[]
+  messages        ChatMessage[]
+  backgroundTasks AydenBackgroundTask[]
 
   @@map("chat_conversations")
 }
@@ -1497,6 +1498,28 @@ model HobbyResource {
   hobby Hobby @relation(fields: [hobbyId], references: [id], onDelete: Cascade)
 
   @@map("hobby_resources")
+}
+
+model AydenBackgroundTask {
+  id              String   @id @default(uuid()) @db.Uuid
+  conversationId  String   @map("conversation_id") @db.Uuid
+  status          String   @default("pending") // "pending", "running", "completed", "failed", "timed_out"
+  description     String   @db.Text // What Ayden told the user she'd do
+  instruction     String   @db.Text // Internal instruction for the background executor
+  contextMessages Json     @default("[]") @map("context_messages")
+  toolCalls       Json     @default("[]") @map("tool_calls")
+  rounds          Int      @default(0)
+  maxRounds       Int      @default(10) @map("max_rounds")
+  result          String?  @db.Text
+  error           String?  @db.Text
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id])
+
+  @@map("ayden_background_tasks")
 }
 
 model PushSubscription {

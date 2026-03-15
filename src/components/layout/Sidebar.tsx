@@ -67,6 +67,7 @@ const navSections: NavSection[] = [
       { label: "All Projects", href: "/dashboard/projects", icon: FolderOpen },
       { label: "All Tasks", href: "/dashboard/tasks", icon: CheckSquare },
       { label: "All Notes", href: "/dashboard/notes", icon: StickyNote },
+      { label: "Scheduled Tasks", href: "/dashboard/scheduled-tasks", icon: CalendarDays },
       { label: "Time Report", href: "/dashboard/time", icon: Clock },
     ],
   },

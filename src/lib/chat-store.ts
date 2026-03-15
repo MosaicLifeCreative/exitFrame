@@ -431,6 +431,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         }
       }
 
+      // If stream ended with no text (e.g. Vercel timeout after tool calls), show error
+      if (!accumulated) {
+        accumulated = "Something went wrong — I finished my tool calls but the response was cut off. Try sending your message again.";
+        set((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === assistantMsg.id ? { ...m, content: accumulated } : m
+          ),
+        }));
+      }
+
       // Persist completed exchange to DB
       if (accumulated) {
         try {

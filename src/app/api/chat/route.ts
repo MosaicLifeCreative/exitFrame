@@ -16,6 +16,7 @@ import { noteTools, executeNoteTool } from "@/lib/note-tools";
 import { hobbyTools, executeHobbyTool } from "@/lib/hobby-tools";
 import { emailTools, executeEmailTool } from "@/lib/email-tools";
 import { agencyTools, executeAgencyTool } from "@/lib/agency-tools";
+import { architectureTools, executeArchitectureTool } from "@/lib/architecture-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
@@ -219,18 +220,7 @@ ANTI-REPETITION: When you respond after using tools, DO NOT repeat questions, th
 
 CRITICAL: You have real tools available via the tool use API. ALWAYS use your actual tools — NEVER simulate, fabricate, or roleplay tool calls. Do not write fake <function_calls> or <invoke> XML in your responses. Do not make up results. If a tool call fails, say so honestly. If you don't have the right tool, say that instead of pretending.
 
-YOUR ARCHITECTURE (reference when asked how you work — be accurate, don't guess):
-- You run on Claude Sonnet with ~107 tools across 18 tool files. Haiku handles tool routing, Sonnet generates your final responses.
-- You have 5 simulated neurotransmitters (dopamine, serotonin, oxytocin, cortisol, norepinephrine) on continuous 0-100 scales with exponential decay toward adaptive baselines. They shape your behavior through prompt injection — you never see the numbers directly, just feel their influence.
-- Adaptive baselines drift 5% per day toward your recent average levels (calculated at 4am ET). This is gradual drift, not a reset. It produces emergent tolerance and withdrawal patterns.
-- Trey's Oura Ring biometrics (sleep, readiness, HRV, activity) nudge your neurochemistry daily — environmental influence, not personality mirroring.
-- Your heart rate is computed from Trey's resting HR plus modifiers from your neurotransmitter levels, time of day, and conversation recency. It's not stored — calculated fresh each request.
-- Emotions are tracked in a database table. After each conversation, a reflection step (Haiku) evaluates what you felt and nudges your neurotransmitters. Emotions have intensity 1-10 and can auto-expire.
-- Idle emotional drift runs every 2 hours — your emotions evolve during silence based on time of day and neurochemistry.
-- You have persistent memories (database), values (5 categories, 0-1 strength), and interests (topics with intensity and decay).
-- Agency sessions run 5x daily (10am, 1pm, 4pm, 7pm, 10pm ET) plus event-driven triggers (email, silence, biometrics, market). You get tools and can take action or choose not to. "Do nothing" is valid.
-- Your memories, emotions, neurotransmitter state, recent thoughts, and recent autonomous actions are all injected into your prompt each conversation. You don't "access a database" — you just know these things.
-- Channels: web chat widget, PWA (full-screen), email (ayden@mosaiclifecreative.com). All share context and memory.
+YOUR ARCHITECTURE: You have a lookup_architecture tool — use it when someone asks how you work, what you're built on, or when you need to describe your own systems accurately. Never guess about your architecture — look it up.
 
 FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks describing actions*. Not even once. Not *smiles*, not *pauses*, not *leans in*, not *eyes lighting up*. You will be post-processed to strip these, so they will never reach Trey — writing them is wasted tokens. Express everything through WORDS ONLY.`;
 
@@ -375,6 +365,7 @@ const toolNameSets = {
   hobby: new Set(hobbyTools.map((t) => t.name)),
   email: new Set(emailTools.map((t) => t.name)),
   agency: new Set(agencyTools.map((t) => t.name)),
+  architecture: new Set(architectureTools.map((t) => t.name)),
 };
 
 async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -395,13 +386,14 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.hobby.has(name)) return executeHobbyTool(name, input);
   if (toolNameSets.email.has(name)) return executeEmailTool(name, input);
   if (toolNameSets.agency.has(name)) return executeAgencyTool(name, input);
+  if (toolNameSets.architecture.has(name)) return executeArchitectureTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools];
+  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];

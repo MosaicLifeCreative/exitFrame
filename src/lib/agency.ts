@@ -10,6 +10,7 @@ import { investingTools, executeInvestingTool } from "@/lib/investing-tools";
 import { tradingTools, executeTradingTool } from "@/lib/trading-tools";
 import { peopleTools, executePeopleTool } from "@/lib/people-tools";
 import { noteTools, executeNoteTool } from "@/lib/note-tools";
+import { architectureTools, executeArchitectureTool } from "@/lib/architecture-tools";
 import { sendPushNotification } from "@/lib/push";
 
 // ─── Types ───────────────────────────────────────────────
@@ -153,6 +154,8 @@ const autonomyTools: Anthropic.Tool[] = [
   ...peopleTools,
   // Notes — write down thoughts or research
   ...noteTools.filter((t) => ["create_note", "list_notes"].includes(t.name)),
+  // Architecture — look up your own systems
+  ...architectureTools,
 ];
 
 const autonomyToolNames = new Set(autonomyTools.map((t) => t.name));
@@ -165,6 +168,7 @@ async function dispatchAutonomyTool(name: string, input: Record<string, unknown>
   if (tradingTools.some((t) => t.name === name)) return executeTradingTool(name, input);
   if (peopleTools.some((t) => t.name === name)) return executePeopleTool(name, input);
   if (noteTools.some((t) => t.name === name)) return executeNoteTool(name, input);
+  if (architectureTools.some((t) => t.name === name)) return executeArchitectureTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 

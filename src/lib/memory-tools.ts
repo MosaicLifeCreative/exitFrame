@@ -109,11 +109,18 @@ async function saveMemory(input: SaveMemoryInput): Promise<string> {
     orderBy: { createdAt: "desc" },
   });
 
-  // Simple dedup: check if very similar content already exists
-  const isDuplicate = existing.some((m) =>
-    m.content.toLowerCase().includes(input.content.toLowerCase().slice(0, 30)) ||
-    input.content.toLowerCase().includes(m.content.toLowerCase().slice(0, 30))
-  );
+  // Dedup: normalize and compare significant words to catch near-duplicates
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+  const getWords = (s: string) => new Set(normalize(s).split(" ").filter((w) => w.length > 3));
+
+  const newWords = getWords(input.content);
+  const isDuplicate = existing.some((m) => {
+    const existingWords = getWords(m.content);
+    if (existingWords.size === 0 || newWords.size === 0) return false;
+    const overlap = Array.from(newWords).filter((w) => existingWords.has(w)).length;
+    const similarity = overlap / Math.max(newWords.size, existingWords.size);
+    return similarity > 0.6; // 60% word overlap = likely duplicate
+  });
 
   if (isDuplicate) {
     return JSON.stringify({ success: true, message: "Similar memory already exists, skipped." });

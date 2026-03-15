@@ -97,26 +97,32 @@ export async function executeBackgroundTool(
     },
   });
 
-  // Fire and forget — trigger the execute endpoint
+  // Trigger the execute endpoint — await to ensure the request is sent
+  // The endpoint returns 202 immediately (uses waitUntil for actual execution)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL
     || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
-  fetch(`${appUrl}/api/background-tasks/execute`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.CRON_SECRET}`,
-    },
-    body: JSON.stringify({ taskId: task.id }),
-  }).catch((err) => {
+  try {
+    const triggerRes = await fetch(`${appUrl}/api/background-tasks/execute`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.CRON_SECRET}`,
+      },
+      body: JSON.stringify({ taskId: task.id }),
+    });
+    if (!triggerRes.ok) {
+      console.error(`[bg-tool] Execute endpoint returned ${triggerRes.status}: ${await triggerRes.text()}`);
+    }
+  } catch (err) {
     console.error("[bg-tool] Failed to trigger execution:", err);
-  });
+  }
 
   return JSON.stringify({
     success: true,
     taskId: task.id,
     description,
     maxRounds,
-    message: "Background task started. The user will see a status indicator and get a push notification when complete.",
+    message: "Background task started. Do NOT share the task ID with the user — just confirm you're working on it in the background and they'll get a notification when it's done.",
   });
 }

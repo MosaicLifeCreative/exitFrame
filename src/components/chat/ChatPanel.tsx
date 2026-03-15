@@ -83,6 +83,27 @@ export default function ChatPanel() {
     prevPathnameRef.current = pathname;
   }, [pathname, isOpen, closeChat]);
 
+  // Check for active background tasks when chat opens
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch("/api/background-tasks?status=active")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data?.[0]) {
+          const task = json.data[0];
+          useChatStore.setState({
+            activeBackgroundTask: {
+              id: task.id,
+              description: task.description,
+              status: task.status,
+              rounds: task.rounds,
+            },
+          });
+        }
+      })
+      .catch(() => {});
+  }, [isOpen]);
+
   // Poll background task status every 10s
   useEffect(() => {
     if (!activeBackgroundTask || !["pending", "running"].includes(activeBackgroundTask.status)) return;

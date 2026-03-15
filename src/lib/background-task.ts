@@ -209,6 +209,32 @@ export async function executeBackgroundTask(taskId: string): Promise<void> {
       });
     }
 
+    // If loop ended at max rounds or timeout while still in tool-calling mode,
+    // make one final API call (no tools) to get a summary of everything gathered
+    if (!timedOut && roundCount >= task.maxRounds && messages.length > 1) {
+      try {
+        messages.push({
+          role: "user",
+          content: "You've used all your tool rounds. Based on everything you've gathered, provide your complete analysis and results now. No more tool calls — just deliver the final output.",
+        });
+        const summaryResponse = await anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 4000,
+          system,
+          messages,
+        });
+        const summaryText = summaryResponse.content
+          .filter((b): b is Anthropic.TextBlock => b.type === "text")
+          .map((b) => b.text)
+          .join("\n");
+        if (summaryText) {
+          finalText = summaryText;
+        }
+      } catch (err) {
+        console.error(`[bg-task] Summary call failed:`, err);
+      }
+    }
+
     // Save final result
     const status = timedOut ? "timed_out" : "completed";
     const resultText = finalText || "Task completed but no summary was generated.";

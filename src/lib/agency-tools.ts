@@ -495,6 +495,33 @@ async function scheduleTask(input: ScheduleTaskInput): Promise<string> {
     return JSON.stringify({ error: "triggerAt is in the past. Schedule for a future time." });
   }
 
+  // Dedup: check for similar unfired task within 1 hour of the same trigger time
+  const oneHourMs = 3_600_000;
+  const existing = await prisma.aydenScheduledTask.findFirst({
+    where: {
+      fired: false,
+      triggerAt: {
+        gte: new Date(triggerAt.getTime() - oneHourMs),
+        lte: new Date(triggerAt.getTime() + oneHourMs),
+      },
+    },
+  });
+  if (existing) {
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+    const words = (s: string) => new Set(normalize(s).split(" ").filter((w) => w.length > 3));
+    const newWords = words(input.task);
+    const existingWords = words(existing.task);
+    const overlap = Array.from(newWords).filter((w) => existingWords.has(w)).length;
+    const similarity = newWords.size > 0 ? overlap / Math.max(newWords.size, existingWords.size) : 0;
+    if (similarity > 0.5) {
+      return JSON.stringify({
+        success: true,
+        task: { id: existing.id, task: existing.task },
+        message: "Similar task already scheduled — skipped duplicate.",
+      });
+    }
+  }
+
   const task = await prisma.aydenScheduledTask.create({
     data: {
       task: input.task,

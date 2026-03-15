@@ -29,6 +29,7 @@ interface Note {
   domain: string;
   domainRefId: string | null;
   noteType: string;
+  createdBy: string;
   isPinned: boolean;
   hasPendingActions: boolean;
   createdAt: string;
@@ -144,6 +145,11 @@ export default function NotesPage() {
                 <Badge variant="outline" className="capitalize text-[10px]">
                   {note.domain}
                 </Badge>
+                {note.createdBy === "ayden" && (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-pink-500/10 text-pink-400">
+                    Ayden
+                  </span>
+                )}
                 <span className="text-xs text-muted-foreground">
                   {timeAgo(note.updatedAt)}
                 </span>

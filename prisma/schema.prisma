@@ -323,6 +323,7 @@ model Note {
   noteType          String    @map("note_type") @default("general")
   title             String
   content           String    @db.Text
+  createdBy         String    @default("trey") @map("created_by")
   isPinned          Boolean   @default(false) @map("is_pinned")
   hasPendingActions Boolean   @default(false) @map("has_pending_actions")
   importedFrom      String?   @map("imported_from")

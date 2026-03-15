@@ -389,6 +389,28 @@ Respond with your internal reasoning first (what you're thinking about, what dra
       },
     });
     sessionId = session.id;
+
+    // Retroactively link any actions created during tool execution (e.g. via log_agency_action)
+    // These actions were created before the session was saved, so they have no sessionId
+    if (result.acted && sessionId) {
+      const actionIds = toolCallLog
+        .filter((t) => t.name === "log_agency_action" && t.output)
+        .map((t) => {
+          try {
+            const parsed = JSON.parse(t.output);
+            return parsed.action?.id;
+          } catch { return null; }
+        })
+        .filter(Boolean) as string[];
+
+      if (actionIds.length > 0) {
+        await prisma.aydenAgencyAction.updateMany({
+          where: { id: { in: actionIds }, sessionId: null },
+          data: { sessionId },
+        });
+        console.log(`[agency] Linked ${actionIds.length} action(s) to session ${sessionId}`);
+      }
+    }
   } catch (err) {
     console.error("[agency] Failed to save session transcript:", err);
   }

@@ -7,7 +7,7 @@ export const noteTools: Anthropic.Tool[] = [
   {
     name: "create_note",
     description:
-      "Create a note. Use when Trey asks you to jot something down, or during agency sessions to capture your own ideas and reflections.",
+      "Create a note. Use when Trey asks you to jot something down, or during agency sessions to capture your own ideas and reflections. Notes are displayed in a rich text editor, so ALWAYS write content as HTML (use <h2>, <h3>, <p>, <strong>, <em>, <ul>/<ol>/<li>, <br> tags). NEVER write raw markdown — it won't render correctly.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -17,7 +17,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         content: {
           type: "string",
-          description: "Note content (supports markdown)",
+          description: "Note content as HTML. Use <p> for paragraphs, <h2>/<h3> for headings, <strong> for bold, <ul>/<ol> for lists, <br> for line breaks. Structure content with clear sections — avoid wall-of-text paragraphs.",
         },
         noteType: {
           type: "string",
@@ -75,7 +75,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         content: {
           type: "string",
-          description: "Updated content (optional, supports markdown)",
+          description: "Updated content as HTML (optional). Use <p>, <h2>, <h3>, <strong>, <ul>/<ol>, etc.",
         },
         noteType: {
           type: "string",
@@ -180,6 +180,7 @@ async function createNote(input: CreateNoteInput): Promise<string> {
       content: input.content || "",
       noteType: input.noteType || "general",
       domain: input.domain || "life",
+      createdBy: "ayden",
       isPinned: false,
     },
   });

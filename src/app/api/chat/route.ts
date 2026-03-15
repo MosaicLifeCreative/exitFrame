@@ -628,6 +628,11 @@ export async function POST(request: Request) {
                   content: JSON.stringify({ error: `Tool execution failed: ${err}` }),
                   is_error: true,
                 });
+                // Still notify client so spinner clears
+                const errDoneChunk = `data: ${JSON.stringify({
+                  toolUse: { name: tool.name, status: "done" },
+                })}\n\n`;
+                controller.enqueue(encoder.encode(errDoneChunk));
               }
             }
 
@@ -730,6 +735,10 @@ export async function POST(request: Request) {
                   content: JSON.stringify({ error: `Tool execution failed: ${err}` }),
                   is_error: true,
                 });
+                const errDoneChunk = `data: ${JSON.stringify({
+                  toolUse: { name: tool.name, status: "done" },
+                })}\n\n`;
+                controller.enqueue(encoder.encode(errDoneChunk));
               }
             }
 

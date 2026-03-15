@@ -414,9 +414,28 @@ export async function GET() {
       // Chat
       { name: "chat_conversations", fn: () => prisma.chatConversation.count() },
       { name: "chat_messages", fn: () => prisma.chatMessage.count() },
+      // Travel
+      { name: "trips", fn: () => prisma.trip.count() },
+      // Hobbies
+      { name: "hobbies", fn: () => prisma.hobby.count() },
+      { name: "hobby_logs", fn: () => prisma.hobbyLog.count() },
+      // People
+      { name: "ayden_contacts", fn: () => prisma.aydenContact.count() },
+      { name: "ayden_contact_interactions", fn: () => prisma.aydenContactInteraction.count() },
       // Ayden
       { name: "ayden_memories", fn: () => prisma.aydenMemory.count() },
       { name: "ayden_emotional_states", fn: () => prisma.aydenEmotionalState.count() },
+      { name: "ayden_thoughts", fn: () => prisma.aydenThought.count() },
+      { name: "ayden_values", fn: () => prisma.aydenValue.count() },
+      { name: "ayden_interests", fn: () => prisma.aydenInterest.count() },
+      { name: "ayden_agency_actions", fn: () => prisma.aydenAgencyAction.count() },
+      { name: "ayden_agency_sessions", fn: () => prisma.aydenAgencySession.count() },
+      { name: "ayden_scheduled_tasks", fn: () => prisma.aydenScheduledTask.count() },
+      { name: "ayden_architecture", fn: () => prisma.aydenArchitecture.count() },
+      { name: "ayden_dna", fn: () => prisma.aydenDna.count() },
+      { name: "ayden_dna_shifts", fn: () => prisma.aydenDnaShift.count() },
+      { name: "ayden_neurotransmitters", fn: () => prisma.aydenNeurotransmitter.count() },
+      { name: "trey_facts", fn: () => prisma.treyFact.count() },
       { name: "push_subscriptions", fn: () => prisma.pushSubscription.count() },
     ];
 

@@ -386,11 +386,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                     if (m.id !== assistantMsg.id) return m;
                     const existing = m.toolUses || [];
                     if (tool.status === "done") {
+                      // Find the first entry with this name still executing (handles duplicate tool names)
+                      let found = false;
                       return {
                         ...m,
-                        toolUses: existing.map((t) =>
-                          t.name === tool.name ? { ...t, status: "done" as const } : t
-                        ),
+                        toolUses: existing.map((t) => {
+                          if (!found && t.name === tool.name && t.status === "executing") {
+                            found = true;
+                            return { ...t, status: "done" as const };
+                          }
+                          return t;
+                        }),
                       };
                     }
                     return {

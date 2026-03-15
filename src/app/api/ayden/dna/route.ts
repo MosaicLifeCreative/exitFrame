@@ -5,9 +5,15 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const genes = await prisma.aydenDna.findMany({
-      orderBy: [{ category: "asc" }, { trait: "asc" }],
-    });
+    const [genes, recentShifts] = await Promise.all([
+      prisma.aydenDna.findMany({
+        orderBy: [{ category: "asc" }, { trait: "asc" }],
+      }),
+      prisma.aydenDnaShift.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+    ]);
 
     const grouped: Record<
       string,
@@ -38,6 +44,14 @@ export async function GET() {
       data: {
         total: genes.length,
         categories: grouped,
+        shifts: recentShifts.map((s) => ({
+          trait: s.trait,
+          oldExpression: s.oldExpression,
+          newExpression: s.newExpression,
+          delta: s.delta,
+          reason: s.reason,
+          createdAt: s.createdAt.toISOString(),
+        })),
       },
     });
   } catch (err) {

@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/agency",
       "schedule": "0 14,17,20,23,2 * * *"
+    },
+    {
+      "path": "/api/cron/rem",
+      "schedule": "30 8 * * *"
     }
   ]
 }

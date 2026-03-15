@@ -28,9 +28,19 @@ interface DnaGene {
   expression: number;
 }
 
+interface DnaShift {
+  trait: string;
+  oldExpression: number;
+  newExpression: number;
+  delta: number;
+  reason: string;
+  createdAt: string;
+}
+
 interface DnaData {
   total: number;
   categories: Record<string, DnaGene[]>;
+  shifts: DnaShift[];
 }
 
 const DNA_CATEGORY_COLORS: Record<string, { bar: string; dot: string; label: string }> = {
@@ -430,6 +440,33 @@ export default function AydenWhitePaperPage() {
                   );
                 })}
               </div>
+
+              {/* Epigenetic Shift History */}
+              {dna.shifts.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-border/20">
+                  <h4 className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider mb-3">
+                    Recent Epigenetic Shifts
+                  </h4>
+                  <div className="space-y-2">
+                    {dna.shifts.map((shift, i) => (
+                      <div
+                        key={i}
+                        className="flex items-start gap-2 text-[11px]"
+                      >
+                        <span className={`shrink-0 tabular-nums font-medium ${shift.delta > 0 ? "text-emerald-400/80" : "text-rose-400/80"}`}>
+                          {shift.delta > 0 ? "+" : ""}{shift.delta.toFixed(3)}
+                        </span>
+                        <span className="text-foreground/70">
+                          {shift.trait.replace(/_/g, " ")}
+                        </span>
+                        <span className="text-muted-foreground/40 ml-auto shrink-0">
+                          {new Date(shift.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </Section>

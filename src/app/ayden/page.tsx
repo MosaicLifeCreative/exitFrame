@@ -847,7 +847,7 @@ function SubSection({ title, children }: { title: string; children: React.ReactN
   return (
     <div className="mt-3">
       <h3 className="text-sm font-medium text-foreground/90 mb-1">{title}</h3>
-      {children}
+      <div className="space-y-3">{children}</div>
     </div>
   );
 }

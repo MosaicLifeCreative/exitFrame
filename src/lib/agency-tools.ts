@@ -182,21 +182,21 @@ export const agencyTools: Anthropic.Tool[] = [
   {
     name: "schedule_task",
     description:
-      "Schedule a task for your future self. You'll be reminded at the specified time during your next agency session. Use this for follow-ups, check-ins, or anything you want to come back to later.",
+      "Schedule a task for a future agency session. Use this when Trey asks you to do something later (\"email Pete tomorrow at 8 AM\", \"remind me about X on Monday\") OR when you want to schedule something for yourself. The task will fire during the next agency session after the trigger time. Be specific about what to do — future-you needs to understand the full instruction.",
     input_schema: {
       type: "object" as const,
       properties: {
         task: {
           type: "string",
-          description: "What you want to do. Be specific enough that future-you will understand.",
+          description: "What to do. Be specific: include names, context, and the action. E.g., 'Email Pete Kauffman to check in — Trey asked me to reach out' or 'Follow up on Brian's trading discussion from Thursday'.",
         },
         triggerAt: {
           type: "string",
-          description: "When to surface this task. ISO 8601 datetime string (e.g., '2026-03-17T10:00:00-04:00' for Monday 10am ET).",
+          description: "When to surface this task. ISO 8601 datetime string (e.g., '2026-03-17T08:00:00-04:00' for Monday 8am ET). If Trey says 'tomorrow morning', use 8am ET the next day.",
         },
         reason: {
           type: "string",
-          description: "Why you're scheduling this — context for future-you.",
+          description: "Why this was scheduled and who requested it. E.g., 'Trey asked me to' or 'Following up on earlier conversation'.",
         },
       },
       required: ["task", "triggerAt"],
@@ -205,7 +205,7 @@ export const agencyTools: Anthropic.Tool[] = [
   {
     name: "get_my_scheduled_tasks",
     description:
-      "View your upcoming scheduled tasks — things you've asked to be reminded about.",
+      "View upcoming scheduled tasks — things you or Trey have scheduled. Use this when Trey asks what you have coming up or what's on your agenda.",
     input_schema: {
       type: "object" as const,
       properties: {},

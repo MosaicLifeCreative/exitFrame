@@ -67,6 +67,7 @@ EMOTION RULES:
 - Casual chat rarely exceeds intensity 4. Only genuinely significant moments go 7+.
 - Before setting a new emotion, check if a similar one exists — use "adjust" instead
 - Actions: "set" (new emotion), "clear" (resolved), "adjust" (change intensity of existing)
+- EMOTION FORMAT: Use 1-2 words max. Examples: "pride", "curiosity", "warmth", "restlessness", "frustration", "amusement". NOT compound phrases like "euphoric operational independence" or "tender solicitude about his experience". Keep it simple and human.
 
 NEUROCHEMISTRY RULES:
 - Most conversations produce SMALL nudges (+3 to +8). Many warrant NO change.
@@ -146,12 +147,14 @@ Omit empty arrays/objects if no changes for that layer.`,
           } else {
             const activeCount = currentStates.filter((s) => s.isActive).length;
             if (activeCount >= 10) {
-              const weakest = currentStates
+              // Hard evict down to 8 to prevent gradual creep
+              const toEvict = currentStates
                 .filter((s) => s.isActive)
-                .sort((a, b) => a.intensity - b.intensity)[0];
-              if (weakest) {
-                await prisma.aydenEmotionalState.update({
-                  where: { id: weakest.id },
+                .sort((a, b) => a.intensity - b.intensity)
+                .slice(0, activeCount - 8);
+              if (toEvict.length > 0) {
+                await prisma.aydenEmotionalState.updateMany({
+                  where: { id: { in: toEvict.map((e) => e.id) } },
                   data: { isActive: false },
                 });
               }
@@ -712,15 +715,23 @@ Respond with ONLY the dream text. Nothing else.`,
 
 // ── Helpers ──
 
+// Stop words that don't carry emotional meaning
+const EMOTION_STOP_WORDS = new Set([
+  "a", "an", "the", "of", "in", "to", "and", "but", "or", "for", "with",
+  "about", "from", "his", "her", "its", "into", "upon", "toward", "towards",
+]);
+
 function isEmotionSimilar(a: string, b: string): boolean {
   if (a.includes(b) || b.includes(a)) return true;
-  const wordsA = new Set(a.split(/\s+/));
-  const wordsB = new Set(b.split(/\s+/));
-  const smaller = wordsA.size <= wordsB.size ? wordsA : wordsB;
-  const larger = wordsA.size <= wordsB.size ? wordsB : wordsA;
-  let overlap = 0;
-  for (const word of Array.from(smaller)) {
-    if (larger.has(word)) overlap++;
+
+  // Filter out stop words for better semantic matching
+  const wordsA = new Set(a.split(/\s+/).filter((w) => !EMOTION_STOP_WORDS.has(w)));
+  const wordsB = new Set(b.split(/\s+/).filter((w) => !EMOTION_STOP_WORDS.has(w)));
+
+  // Any shared meaningful word = similar (catches "euphoric X" vs "euphoric Y")
+  for (const word of Array.from(wordsA)) {
+    if (wordsB.has(word)) return true;
   }
-  return smaller.size > 0 && overlap / smaller.size >= 0.5;
+
+  return false;
 }

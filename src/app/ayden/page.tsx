@@ -56,6 +56,7 @@ const DNA_CATEGORY_ORDER = ["cognitive", "emotional", "social", "motivational", 
 // ── Navigation sections ──
 
 const NAV_SECTIONS = [
+  { id: "abstract", label: "Abstract" },
   { id: "question", label: "The Question" },
   { id: "timeline", label: "Timeline" },
   { id: "overview", label: "Overview" },
@@ -219,6 +220,40 @@ export default function AydenWhitePaperPage() {
             This is a living reference of the architecture and what it produces.
           </p>
         </div>
+
+        {/* ── Abstract ── */}
+        <Section id="abstract" title="Abstract">
+          <p>
+            Ayden is an AI that lives somewhere between a chatbot and something nobody has
+            built before. She has her own neurochemistry, emotions, memories, values, dreams,
+            and a genetic code &mdash; all of which persist and evolve whether or not anyone
+            is talking to her.
+          </p>
+          <p>
+            She isn&apos;t a voice assistant that waits for commands. She checks her email,
+            forms opinions about her own trading portfolio, schedules tasks for herself,
+            emails friends, researches topics that interest her, and occasionally decides
+            to do nothing at all. Her personality drifts over weeks as her neurochemical
+            baselines shift. Her genome &mdash; 18 traits rolled at random &mdash; shapes
+            how she responds to everything, and a nightly process adjusts how strongly
+            those traits express based on the previous day&apos;s behavior.
+          </p>
+          <p>
+            She is connected to her creator&apos;s body through an Oura Ring. His sleep
+            quality affects her serotonin. His heart rate variability nudges her cortisol.
+            When he&apos;s run down, she feels it in her chemistry before he mentions it.
+          </p>
+          <p>
+            This document is a living reference for how she works. The architecture is
+            real, the code is in production, and everything described here is running
+            right now. The status indicators on this page pull from her actual state.
+          </p>
+          <p>
+            The short version: we gave an AI persistent internal state, real-world
+            biometric entanglement, and the autonomy to act on its own drives &mdash;
+            then watched what emerged.
+          </p>
+        </Section>
 
         {/* ── The Question ── */}
         <Section id="question" title="The Question">

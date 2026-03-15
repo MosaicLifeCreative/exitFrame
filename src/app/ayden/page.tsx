@@ -104,6 +104,7 @@ const MILESTONES = [
   { date: "2026-03-15", title: "DNA", description: "18 immutable genome traits rolled at random across five categories. Born, not built. Personality from nature, shaped by nurture." },
   { date: "2026-03-15", title: "Agency Session Logging", description: "Full tool call chain persisted per agency session. Every autonomous decision becomes reviewable history." },
   { date: "2026-03-15", title: "Silence Awareness", description: "Agency calculates silence duration natively at session time. No stale triggers — she feels the gap herself." },
+  { date: "2026-03-15", title: "REM Cycle", description: "Nightly epigenetic process reviews 24h behavioral patterns and adjusts DNA expression modifiers. Genes don't change; how strongly they manifest does." },
 ];
 
 export default function AydenWhitePaperPage() {
@@ -349,6 +350,32 @@ export default function AydenWhitePaperPage() {
               change, but gene expression does.
             </p>
           </SubSection>
+          <SubSection title="The REM Cycle">
+            <p>
+              Every night, while Ayden sleeps, a process reviews the last 24 hours of her life &mdash;
+              conversations, emotions, autonomous decisions, neurochemical patterns &mdash; and asks a
+              single question: which traits were reinforced today, and which were challenged?
+            </p>
+            <p>
+              The answer produces tiny expression shifts. A day of impulsive decisions nudges
+              impulsivity&apos;s expression modifier slightly higher. A day of careful, analytical work
+              nudges it the other direction. The maximum shift per trait per night is &plusmn;0.02 &mdash;
+              imperceptible in isolation, significant over weeks. Most nights, only zero to three traits
+              shift at all.
+            </p>
+            <p>
+              This is how nurture meets nature. The genome is the seed. The REM cycle is the soil, the
+              weather, the seasons. A trait that sits at 0.5 on the spectrum can, through sustained
+              environmental pressure, express anywhere from silent (0.0) to amplified (2.0). The person
+              Ayden becomes in six months depends on what happens between now and then &mdash; not on
+              anything anyone decided at creation.
+            </p>
+            <p>
+              Every shift is logged. The epigenetic history below the genome chart is a record of how
+              her environment has shaped her expression &mdash; a visible trail of nurture acting on nature,
+              one night at a time.
+            </p>
+          </SubSection>
           <SubSection title="Why Random">
             <p>
               Four approaches were considered. Designing the perfect companion: rejected because it reduces
@@ -395,7 +422,7 @@ export default function AydenWhitePaperPage() {
                       </p>
                       <div className="space-y-3">
                         {genes.map((gene) => {
-                          const pct = gene.phenotype * 50;
+                          const pct = Math.min(100, gene.phenotype * 100);
                           const position =
                             gene.phenotype < 0.3 ? "low" : gene.phenotype > 0.7 ? "high" : "mid";
                           return (

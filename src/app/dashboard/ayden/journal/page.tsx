@@ -878,7 +878,7 @@ function AydenJournalContent() {
                 </h2>
                 <div className="space-y-4">
                   {genes.map((gene) => {
-                    const pct = gene.phenotype * 50;
+                    const pct = Math.min(100, gene.phenotype * 100);
                     const position =
                       gene.phenotype < 0.3 ? "low" : gene.phenotype > 0.7 ? "high" : "mid";
                     return (

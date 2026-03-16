@@ -132,7 +132,7 @@ export const agencyTools: Anthropic.Tool[] = [
     },
   },
   {
-    name: "set_goal",
+    name: "set_my_goal",
     description:
       "Set a new goal — something you want to accomplish over multiple sessions. Goals persist until completed or abandoned. Use for concrete objectives, not vague aspirations.",
     input_schema: {
@@ -176,7 +176,7 @@ export const agencyTools: Anthropic.Tool[] = [
     },
   },
   {
-    name: "update_goal",
+    name: "update_my_goal",
     description:
       "Update progress on a goal, change its priority, or mark it completed/abandoned.",
     input_schema: {
@@ -518,11 +518,11 @@ export async function executeAgencyTool(
       return setInterest(toolInput as unknown as SetInterestInput);
     case "revise_interest":
       return reviseInterest(toolInput as unknown as ReviseInterestInput);
-    case "set_goal":
+    case "set_my_goal":
       return setGoal(toolInput as unknown as SetGoalInput);
     case "get_my_goals":
       return getMyGoals(toolInput as unknown as GetGoalsInput);
-    case "update_goal":
+    case "update_my_goal":
       return updateGoal(toolInput as unknown as UpdateGoalInput);
     case "log_agency_action":
       return logAgencyAction(toolInput as unknown as LogActionInput);

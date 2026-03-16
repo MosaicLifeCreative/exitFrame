@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Heart, Loader2, Moon, Brain, Zap, Activity, Eye, ChevronDown, ChevronRight, Dna, Radio, Database, Cpu, Bell, Fingerprint, Split, EyeOff, Palette } from "lucide-react";
+import { Heart, Loader2, Moon, Brain, Zap, Activity, Eye, ChevronDown, ChevronRight, Dna, Radio, Database, Cpu, Bell, Fingerprint, Split, EyeOff, Palette, Target } from "lucide-react";
 
 interface Thought {
   id: string;
@@ -142,6 +142,14 @@ interface OpsData {
   } | null;
   pendingReminders: number;
   pendingScheduledTasks: number;
+  activeGoals: Array<{
+    id: string;
+    description: string;
+    category: string;
+    priority: number;
+    progress: string | null;
+    age: number;
+  }>;
   crons: Array<{
     name: string;
     schedule: string;
@@ -1312,6 +1320,37 @@ function AydenJournalContent() {
               </div>
             </div>
           </section>
+
+          {/* Active Goals */}
+          {ops.activeGoals && ops.activeGoals.length > 0 && (
+            <section>
+              <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                Active Goals
+              </h2>
+              <div className="space-y-2">
+                {ops.activeGoals.map((g) => (
+                  <div key={g.id} className="rounded-lg border border-border p-3 space-y-1">
+                    <div className="flex items-start gap-2">
+                      <Target className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{g.description}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground shrink-0">P{g.priority}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-muted-foreground uppercase">{g.category}</span>
+                          <span className="text-[10px] text-muted-foreground">{g.age}d old</span>
+                        </div>
+                        {g.progress && (
+                          <p className="text-xs text-muted-foreground mt-1">{g.progress}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Psychology Overlays */}
           <section>

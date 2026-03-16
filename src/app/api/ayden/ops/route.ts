@@ -30,6 +30,7 @@ export async function GET() {
       activeBackgroundTask,
       pendingReminders,
       pendingScheduledTasks,
+      activeGoals,
       // Feed items
       feedActions,
       feedEmotions,
@@ -107,6 +108,19 @@ export async function GET() {
       // Pending scheduled tasks
       prisma.aydenScheduledTask.count({
         where: { fired: false },
+      }),
+      // Active goals
+      prisma.aydenGoal.findMany({
+        where: { status: "active" },
+        orderBy: [{ priority: "asc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          description: true,
+          category: true,
+          priority: true,
+          progress: true,
+          createdAt: true,
+        },
       }),
       // --- FEED ITEMS (last 24h) ---
       prisma.aydenAgencyAction.findMany({
@@ -389,6 +403,14 @@ export async function GET() {
           : null,
         pendingReminders,
         pendingScheduledTasks,
+        activeGoals: activeGoals.map((g) => ({
+          id: g.id,
+          description: g.description,
+          category: g.category,
+          priority: g.priority,
+          progress: g.progress,
+          age: Math.floor((Date.now() - g.createdAt.getTime()) / (1000 * 60 * 60 * 24)),
+        })),
         crons,
         feed: feed.slice(0, 50),
         transference: {

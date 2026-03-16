@@ -1532,3 +1532,18 @@ model PushSubscription {
 
   @@map("push_subscriptions")
 }
+
+model Reminder {
+  id        String    @id @default(uuid()) @db.Uuid
+  title     String
+  remindAt  DateTime  @map("remind_at")
+  fired     Boolean   @default(false)
+  firedAt   DateTime? @map("fired_at")
+  recurring String?   // null = one-shot, "daily", "weekly"
+  createdBy String    @default("trey") @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([fired, remindAt])
+  @@map("reminders")
+}

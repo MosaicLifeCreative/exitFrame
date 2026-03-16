@@ -23,6 +23,7 @@ import { emailTools } from "@/lib/email-tools";
 import { agencyTools } from "@/lib/agency-tools";
 import { architectureTools } from "@/lib/architecture-tools";
 import { dnaTools } from "@/lib/dna-tools";
+import { reminderTools } from "@/lib/reminder-tools";
 
 const REDIS_LOCK_KEY = "bg-task:running";
 const LOCK_TTL_SECONDS = 180;
@@ -35,7 +36,7 @@ function getBackgroundTools(): Anthropic.Tool[] {
     ...tradingTools, ...memoryTools, ...emotionTools, ...googleTools,
     ...webTools, ...weatherTools, ...taskTools, ...travelTools,
     ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools,
-    ...agencyTools, ...architectureTools, ...dnaTools,
+    ...agencyTools, ...architectureTools, ...dnaTools, ...reminderTools,
   ];
 }
 

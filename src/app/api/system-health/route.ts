@@ -438,6 +438,7 @@ export async function GET() {
       { name: "trey_facts", fn: () => prisma.treyFact.count() },
       { name: "ayden_background_tasks", fn: () => prisma.aydenBackgroundTask.count() },
       { name: "push_subscriptions", fn: () => prisma.pushSubscription.count() },
+      { name: "reminders", fn: () => prisma.reminder.count() },
     ];
 
     for (const table of tables) {

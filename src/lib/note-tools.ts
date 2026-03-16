@@ -21,7 +21,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         noteType: {
           type: "string",
-          enum: ["general", "idea", "meeting_notes", "reference", "checklist"],
+          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "ayden"],
           description: "Type of note (default: general)",
         },
         domain: {
@@ -46,7 +46,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         noteType: {
           type: "string",
-          enum: ["general", "idea", "meeting_notes", "reference", "checklist"],
+          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "ayden"],
           description: "Filter by note type (optional)",
         },
         domain: {
@@ -79,7 +79,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         noteType: {
           type: "string",
-          enum: ["general", "idea", "meeting_notes", "reference", "checklist"],
+          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "ayden"],
           description: "Updated note type (optional)",
         },
         isPinned: {
@@ -103,7 +103,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         noteType: {
           type: "string",
-          enum: ["general", "idea", "meeting_notes", "reference", "checklist"],
+          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "ayden"],
           description: "Filter by note type (optional)",
         },
         domain: {

@@ -43,6 +43,7 @@ import {
   ScrollText,
   Plane,
   Guitar,
+  Bell,
   X,
 } from "lucide-react";
 
@@ -68,6 +69,7 @@ const navSections: NavSection[] = [
       { label: "All Tasks", href: "/dashboard/tasks", icon: CheckSquare },
       { label: "All Notes", href: "/dashboard/notes", icon: StickyNote },
       { label: "Scheduled Tasks", href: "/dashboard/scheduled-tasks", icon: CalendarDays },
+      { label: "Reminders", href: "/dashboard/reminders", icon: Bell },
       { label: "Time Report", href: "/dashboard/time", icon: Clock },
     ],
   },

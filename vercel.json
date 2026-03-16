@@ -39,6 +39,10 @@
     {
       "path": "/api/cron/rem",
       "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/cron/reminders",
+      "schedule": "* * * * *"
     }
   ]
 }

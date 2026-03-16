@@ -230,6 +230,7 @@ export default function NoteEditorPage() {
               <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
               <SelectItem value="reference">Reference</SelectItem>
               <SelectItem value="checklist">Checklist</SelectItem>
+              <SelectItem value="ayden">Ayden</SelectItem>
             </SelectContent>
           </Select>
           <Button

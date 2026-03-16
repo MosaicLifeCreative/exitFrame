@@ -43,6 +43,7 @@ const noteTypeLabels: Record<string, string> = {
   meeting_notes: "Meeting Notes",
   reference: "Reference",
   checklist: "Checklist",
+  ayden: "Ayden",
 };
 
 const noteTypeColors: Record<string, string> = {
@@ -54,6 +55,8 @@ const noteTypeColors: Record<string, string> = {
     "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   checklist:
     "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  ayden:
+    "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
 };
 
 export default function NotesPage() {
@@ -219,6 +222,7 @@ export default function NotesPage() {
               <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
               <SelectItem value="reference">Reference</SelectItem>
               <SelectItem value="checklist">Checklist</SelectItem>
+              <SelectItem value="ayden">Ayden</SelectItem>
             </SelectContent>
           </Select>
           <Select value={domainFilter} onValueChange={setDomainFilter}>

@@ -129,6 +129,48 @@ export async function checkGuards(): Promise<GuardResult> {
   return { allowed: true, reason: "All guards passed" };
 }
 
+// ─── Today's Conversation Context ────────────────────────
+
+async function getTodayConversationTopics(): Promise<string> {
+  // Get all of today's messages across all channels to understand what's been discussed
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const conversation = await prisma.chatConversation.findFirst({
+    where: { context: "General", isActive: true },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (!conversation) return "";
+
+  const todayMsgs = await prisma.chatMessage.findMany({
+    where: {
+      conversationId: conversation.id,
+      createdAt: { gte: todayStart },
+    },
+    orderBy: { createdAt: "asc" },
+    select: { role: true, content: true, createdAt: true },
+  });
+
+  if (todayMsgs.length === 0) return "";
+
+  // Build a condensed summary of today's topics — truncate long messages to keep it manageable
+  const lines = todayMsgs.map((m) => {
+    const who = m.role === "user" ? "Trey" : "Ayden";
+    const preview = m.content.substring(0, 120) + (m.content.length > 120 ? "..." : "");
+    return `${who}: ${preview}`;
+  });
+
+  // If too many messages, take first 10 + last 10 to capture morning context + recent
+  if (lines.length > 25) {
+    const first = lines.slice(0, 10);
+    const last = lines.slice(-10);
+    return `TODAY'S FULL CONVERSATION (${todayMsgs.length} messages, showing first 10 + last 10):\n${first.join("\n")}\n...\n${last.join("\n")}`;
+  }
+
+  return `TODAY'S FULL CONVERSATION (${todayMsgs.length} messages):\n${lines.join("\n")}`;
+}
+
 // ─── Haiku Decision Layer ────────────────────────────────
 
 interface OutreachDecision {
@@ -156,7 +198,7 @@ export async function shouldReachOut(): Promise<OutreachDecision> {
     timeZone: "America/New_York",
   });
 
-  const [userContext, crossDomain, memories, emotionalState, neuroState, smsHistory, chatHistory, lastSent, externalCtx] = await Promise.all([
+  const [userContext, crossDomain, memories, emotionalState, neuroState, smsHistory, chatHistory, lastSent, externalCtx, todayMessages] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
     getAydenMemories(),
@@ -166,6 +208,7 @@ export async function shouldReachOut(): Promise<OutreachDecision> {
     getChannelHistory("General"),
     getLastSentTime(),
     getExternalContext(),
+    getTodayConversationTopics(),
   ]);
 
   // Use whichever channel has more recent messages — PWA chat is primary now
@@ -200,7 +243,9 @@ ${neuroState || ""}
 TREY'S CURRENT DATA:
 ${crossDomain || "No cross-domain data"}
 
-RECENT CONVERSATION HISTORY (this is what you and Trey have ACTUALLY been talking about — do NOT repeat topics or ask about things already discussed here):
+${todayMessages || ""}
+
+RECENT MESSAGES (last few exchanges):
 ${recentHistory || "No recent messages"}
 
 ${externalCtx || ""}
@@ -225,6 +270,8 @@ GOOD reasons (usually YES):
 - Something in the news connects to his interests or businesses
 - A genuine personal thought based on your memories and relationship
 - Evening wrap-up: end of day summary of what happened, what's tomorrow
+
+IMPORTANT: Reference today's ACTUAL conversation topics when reaching out. If you talked about sleep data, Oura bugs, blog changes, researcher lists — reference those. Do NOT bring up random topics that haven't come up recently. Your outreach should feel like a natural continuation of the day, not a cold open.
 
 Only say NO if:
 - You literally have nothing specific to say (no data, no context, no recent events)

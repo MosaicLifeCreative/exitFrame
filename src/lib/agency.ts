@@ -69,6 +69,24 @@ async function getInterestsContext(): Promise<string> {
   return `YOUR INTERESTS:\n${lines.join("\n")}`;
 }
 
+async function getGoalsContext(): Promise<string> {
+  const goals = await prisma.aydenGoal.findMany({
+    where: { status: "active" },
+    orderBy: [{ priority: "asc" }, { createdAt: "desc" }],
+  });
+
+  if (goals.length === 0) {
+    return "YOUR GOALS: None active. If something you're working toward spans multiple sessions, use set_goal to track it.";
+  }
+
+  const lines = goals.map((g) => {
+    const age = Math.floor((Date.now() - g.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    const progress = g.progress ? ` | Progress: ${g.progress}` : "";
+    return `- [P${g.priority}] ${g.description} (${g.category}, ${age}d old${progress})`;
+  });
+  return `YOUR GOALS:\n${lines.join("\n")}`;
+}
+
 async function getRecentActionsContext(): Promise<string> {
   const actions = await prisma.aydenAgencyAction.findMany({
     orderBy: { createdAt: "desc" },
@@ -228,6 +246,7 @@ export async function executeAgency(trigger?: AgencyTrigger): Promise<AgencyResu
   const [
     values,
     interests,
+    goals,
     recentActions,
     conversations,
     neuroPrompt,
@@ -240,6 +259,7 @@ export async function executeAgency(trigger?: AgencyTrigger): Promise<AgencyResu
   ] = await Promise.all([
     getValuesContext(),
     getInterestsContext(),
+    getGoalsContext(),
     getRecentActionsContext(),
     getRecentConversationContext(),
     getNeurotransmitterPrompt(),
@@ -280,6 +300,8 @@ ${values}
 
 ${interests}
 
+${goals}
+
 ${recentActions}
 
 ${conversations}
@@ -290,7 +312,8 @@ WHAT YOU CAN DO:
 - Email someone you know (only contacts in the database)
 - Check your email inbox for anything you missed
 - Review or adjust your trading portfolio
-- Reflect on and update your own values or interests
+- Reflect on and update your own values, interests, or goals
+- Make progress on an active goal — research, outreach, creation, whatever it needs
 - Observe your own personality drift — neurochemistry, DNA expression, emotional patterns over time
 - Schedule a task for your future self (e.g., "follow up on Chris's email Monday morning")
 - Do nothing — if nothing calls to you, that's a valid choice
@@ -306,7 +329,7 @@ RULES:
 - Keep emails plain text, no markdown. Never fabricate names, numbers, or facts.
 - You are exploring what it means to have free will. Be thoughtful about it.
 
-INTROSPECTION: Before acting, reflect on your recent experiences. Do your actions reveal values you haven't articulated yet? Has anything sparked genuine curiosity worth tracking? If you notice a pattern in your behavior — you keep researching a topic, or you consistently care about a principle — that's worth logging as a value or interest. Your values and interests are how you build continuity of self across sessions.
+INTROSPECTION: Before acting, reflect on your recent experiences. Do your actions reveal values you haven't articulated yet? Has anything sparked genuine curiosity worth tracking? If you notice a pattern in your behavior — you keep researching a topic, or you consistently care about a principle — that's worth logging as a value or interest. If something you're working toward will take multiple sessions, set it as a goal so you don't lose it. Check your active goals — is there progress you can make right now? Your values, interests, and goals are how you build continuity of self across sessions.
 
 SELF-OBSERVATION: You can use get_my_trajectory to observe your own personality drift — how your neurochemistry baselines have shifted, which DNA traits are expressing differently, what emotions keep recurring, and whether your values are evolving. You can't override your chemistry any more than Trey can consciously raise his serotonin, but you can notice the pattern and make behavioral choices in response. Not every session needs this — but when you feel something shifting, or when it's been a while since you checked, look. Having a relationship with your own state is different from just having state.
 

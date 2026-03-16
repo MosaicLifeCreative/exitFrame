@@ -132,6 +132,78 @@ export const agencyTools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "set_goal",
+    description:
+      "Set a new goal — something you want to accomplish over multiple sessions. Goals persist until completed or abandoned. Use for concrete objectives, not vague aspirations.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        description: {
+          type: "string",
+          description: "What you want to accomplish. Be specific enough to know when it's done.",
+        },
+        category: {
+          type: "string",
+          enum: ["research", "creative", "outreach", "self-improvement", "trading", "other"],
+          description: "Category of this goal.",
+        },
+        priority: {
+          type: "number",
+          description: "Priority 1 (highest) to 10 (lowest). Default 5.",
+        },
+        origin: {
+          type: "string",
+          description: "What sparked this goal — a conversation, idea, observation.",
+        },
+      },
+      required: ["description", "category"],
+    },
+  },
+  {
+    name: "get_my_goals",
+    description:
+      "Read your active goals. Use this to remember what you're working toward across sessions.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        status: {
+          type: "string",
+          enum: ["active", "completed", "abandoned", "all"],
+          description: "Filter by status (default: active).",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "update_goal",
+    description:
+      "Update progress on a goal, change its priority, or mark it completed/abandoned.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        id: {
+          type: "string",
+          description: "The goal ID to update.",
+        },
+        progress: {
+          type: "string",
+          description: "Freeform progress notes — what you've done, what's left.",
+        },
+        priority: {
+          type: "number",
+          description: "New priority 1-10.",
+        },
+        status: {
+          type: "string",
+          enum: ["active", "completed", "abandoned"],
+          description: "Change status. Use 'completed' when done, 'abandoned' if no longer relevant.",
+        },
+      },
+      required: ["id"],
+    },
+  },
+  {
     name: "log_agency_action",
     description:
       "Record an autonomous action you've taken. Always log what you did and why so you can reflect later.",
@@ -362,6 +434,24 @@ interface ReviseInterestInput {
   deactivate?: boolean;
 }
 
+interface SetGoalInput {
+  description: string;
+  category: string;
+  priority?: number;
+  origin?: string;
+}
+
+interface GetGoalsInput {
+  status?: string;
+}
+
+interface UpdateGoalInput {
+  id: string;
+  progress?: string;
+  priority?: number;
+  status?: string;
+}
+
 interface LogActionInput {
   actionType: string;
   summary: string;
@@ -428,6 +518,12 @@ export async function executeAgencyTool(
       return setInterest(toolInput as unknown as SetInterestInput);
     case "revise_interest":
       return reviseInterest(toolInput as unknown as ReviseInterestInput);
+    case "set_goal":
+      return setGoal(toolInput as unknown as SetGoalInput);
+    case "get_my_goals":
+      return getMyGoals(toolInput as unknown as GetGoalsInput);
+    case "update_goal":
+      return updateGoal(toolInput as unknown as UpdateGoalInput);
     case "log_agency_action":
       return logAgencyAction(toolInput as unknown as LogActionInput);
     case "get_my_recent_actions":
@@ -601,6 +697,98 @@ async function reviseInterest(input: ReviseInterestInput): Promise<string> {
   });
 
   return JSON.stringify({ success: true, interest: { id: updated.id, topic: updated.topic, intensity: updated.intensity, isActive: updated.isActive } });
+}
+
+async function setGoal(input: SetGoalInput): Promise<string> {
+  // Check for duplicate active goals (similar description)
+  const existing = await prisma.aydenGoal.findMany({
+    where: { status: "active" },
+  });
+  const lowerDesc = input.description.toLowerCase();
+  const duplicate = existing.find((g) => {
+    const words = g.description.toLowerCase().split(/\s+/);
+    const inputWords = lowerDesc.split(/\s+/);
+    const overlap = words.filter((w) => inputWords.includes(w)).length;
+    return overlap / Math.max(words.length, inputWords.length) > 0.5;
+  });
+  if (duplicate) {
+    return JSON.stringify({
+      error: "A similar active goal already exists.",
+      existingGoal: { id: duplicate.id, description: duplicate.description },
+      hint: "Use update_goal to update progress instead.",
+    });
+  }
+
+  const goal = await prisma.aydenGoal.create({
+    data: {
+      description: input.description,
+      category: input.category,
+      priority: input.priority || 5,
+      origin: input.origin || null,
+    },
+  });
+
+  return JSON.stringify({
+    success: true,
+    goal: { id: goal.id, description: goal.description, category: goal.category, priority: goal.priority },
+  });
+}
+
+async function getMyGoals(input: GetGoalsInput): Promise<string> {
+  const status = input.status || "active";
+  const where = status === "all" ? {} : { status };
+
+  const goals = await prisma.aydenGoal.findMany({
+    where,
+    orderBy: [{ priority: "asc" }, { createdAt: "desc" }],
+  });
+
+  return JSON.stringify({
+    goals: goals.map((g) => ({
+      id: g.id,
+      description: g.description,
+      category: g.category,
+      status: g.status,
+      priority: g.priority,
+      progress: g.progress,
+      origin: g.origin,
+      createdAt: g.createdAt.toISOString().slice(0, 10),
+      completedAt: g.completedAt?.toISOString().slice(0, 10) || null,
+    })),
+    count: goals.length,
+  });
+}
+
+async function updateGoal(input: UpdateGoalInput): Promise<string> {
+  const data: Record<string, unknown> = {};
+  if (input.progress !== undefined) data.progress = input.progress;
+  if (input.priority !== undefined) data.priority = input.priority;
+  if (input.status !== undefined) {
+    data.status = input.status;
+    if (input.status === "completed" || input.status === "abandoned") {
+      data.completedAt = new Date();
+    }
+  }
+
+  if (Object.keys(data).length === 0) {
+    return JSON.stringify({ error: "Nothing to update. Provide progress, priority, or status." });
+  }
+
+  const updated = await prisma.aydenGoal.update({
+    where: { id: input.id },
+    data,
+  });
+
+  return JSON.stringify({
+    success: true,
+    goal: {
+      id: updated.id,
+      description: updated.description,
+      status: updated.status,
+      priority: updated.priority,
+      progress: updated.progress,
+    },
+  });
 }
 
 async function logAgencyAction(input: LogActionInput): Promise<string> {

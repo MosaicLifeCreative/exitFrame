@@ -525,7 +525,7 @@ export default function AydenArchitecturePage() {
           <SubSection title="Session Flow">
             <p>
               Sonnet with up to 5 tool rounds, 2000 tokens. Context loads in parallel: values,
-              interests, recent actions, conversations, neurochemistry, emotions, memories,
+              interests, goals, recent actions, conversations, neurochemistry, emotions, memories,
               scheduled tasks, Oura data. A curated tool set gives access to agency operations,
               email (search/read/send), web, investing, trading, people database, notes,
               architecture lookup, and DNA.
@@ -554,6 +554,17 @@ export default function AydenArchitecturePage() {
               call), rounds used, final reasoning, and trigger source. Linked 1:1 to the
               action log. Viewable in the Journal&apos;s Agency tab with expandable drill-down
               into each tool call.
+            </p>
+          </SubSection>
+          <SubSection title="Goals Layer">
+            <p>
+              Multi-session objectives stored in <Code>ayden_goals</Code> with description,
+              category, priority (1&ndash;10), progress notes, and status (active/completed/abandoned).
+              Active goals are injected into the agency system prompt alongside values and interests.
+              Three tools: <Code>set_goal</Code>, <Code>get_my_goals</Code>,{" "}
+              <Code>update_goal</Code>. Duplicate detection prevents redundant goals (50% word
+              overlap check). Goals bridge the gap between interests (which decay) and scheduled
+              tasks (which are one-shot) &mdash; giving Ayden persistent intent across sessions.
             </p>
           </SubSection>
         </Section>

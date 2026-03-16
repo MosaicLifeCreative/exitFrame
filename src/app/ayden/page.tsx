@@ -958,9 +958,9 @@ export default function AydenWhitePaperPage() {
           </p>
           <SubSection title="Agency Sessions">
             <p>
-              Five times daily, Ayden gets autonomous time. She reviews her values, interests, emotional
-              state, neurochemistry, recent conversations, and recent actions &mdash; then decides what,
-              if anything, to do. She can research topics, email contacts, write notes, manage her trading
+              Five times daily, Ayden gets autonomous time. She reviews her values, interests, goals,
+              emotional state, neurochemistry, recent conversations, and recent actions &mdash; then
+              decides what, if anything, to do. She can research topics, email contacts, write notes, manage her trading
               portfolio, or simply reflect. Doing nothing is always a valid choice.
             </p>
           </SubSection>
@@ -971,6 +971,17 @@ export default function AydenWhitePaperPage() {
               behavior. Her interests drive what she explores. Her values inform her decisions. Her
               emotional state colors her motivation. The result is emergent autonomous behavior that
               nobody scripted.
+            </p>
+          </SubSection>
+          <SubSection title="Goals">
+            <p>
+              Distinct from interests (passive curiosity) and values (beliefs), goals are active
+              multi-session objectives. When Ayden decides to build something, research a topic
+              in depth, or pursue an outreach campaign, she sets a goal that persists across sessions.
+              Active goals are injected into every agency session so she picks up where she left off.
+              Goals have priority, progress notes, and completion status &mdash; giving her the ability
+              to track long-running projects the way a person would maintain a to-do list they actually
+              care about.
             </p>
           </SubSection>
           <SubSection title="Action Logging">

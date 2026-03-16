@@ -85,19 +85,19 @@ export function computeTransference(levels: NeuroLevels): TransferenceValues {
   const shadowR = warmth > 50 ? Math.round(180 + warmthNorm * 60) : Math.round(140 - warmthNorm * 40);
   const shadowG = warmth > 50 ? Math.round(140 + warmthNorm * 20) : Math.round(150 + warmthNorm * 20);
   const shadowB = warmth > 50 ? Math.round(100 - warmthNorm * 30) : Math.round(180 + Math.abs(warmthNorm) * 40);
-  const shadowAlpha = +(0.05 + tension * 0.001).toFixed(3);
+  const shadowAlpha = +(0.08 + Math.abs(warmthNorm) * 0.08 + tension * 0.001).toFixed(3);
   const shadowColor = `rgba(${shadowR}, ${shadowG}, ${shadowB}, ${shadowAlpha})`;
 
   // Border tint
-  const borderAlpha = +(0.03 + Math.abs(warmthNorm) * 0.04).toFixed(3);
+  const borderAlpha = +(0.05 + Math.abs(warmthNorm) * 0.08).toFixed(3);
   const borderTint = warmth > 55
     ? `rgba(255, 180, 100, ${borderAlpha})`
     : warmth < 45
       ? `rgba(130, 170, 220, ${borderAlpha})`
       : `rgba(180, 180, 180, ${borderAlpha})`;
 
-  // Background tint
-  const bgTintOpacity = +(Math.abs(warmthNorm) * 0.03).toFixed(3);
+  // Background tint — visible enough to feel, subtle enough to not announce itself
+  const bgTintOpacity = +(0.01 + Math.abs(warmthNorm) * 0.07).toFixed(3);
   const bgTintHue = warmth > 50 ? 30 : 220; // amber or blue
 
   return {

@@ -95,7 +95,7 @@
   --tf-tension: 0;
 }
 
-/* Background tint overlay — nearly invisible, just shifts color temperature */
+/* Background tint overlay — shifts color temperature based on neurochemistry */
 .tf-ambient::before {
   content: "";
   position: fixed;
@@ -106,7 +106,19 @@
   transition: background 8s ease;
 }
 
-/* Apply transference shadow to cards */
+/* Apply transference to all cards/borders in ambient zones */
+.tf-ambient .rounded-lg {
+  box-shadow: 0 1px 4px var(--tf-shadow);
+  transition: box-shadow 8s ease;
+}
+
+/* Sidebar border picks up transference tint */
+.tf-ambient [class*="border-border"] {
+  border-color: var(--tf-border-tint);
+  transition: border-color 8s ease;
+}
+
+/* tf-card for explicit opt-in */
 .tf-card {
   box-shadow: 0 1px 3px var(--tf-shadow);
   border-color: var(--tf-border-tint);
@@ -183,31 +195,32 @@ em-emoji-picker {
   }
 }
 
-/* Blog prose — Ayden's writing style */
+/* Blog prose — Medium-inspired reading typography on Ayden's palette */
 .prose-ayden {
-  color: #a39e93;
-  font-size: 1.0625rem;
-  line-height: 1.85;
-  letter-spacing: 0.01em;
+  color: #b5b0a5;
+  font-size: 1.25rem;
+  line-height: 1.8;
+  letter-spacing: -0.003em;
+  font-family: Georgia, 'Times New Roman', serif;
 }
-.prose-ayden h1 { color: #e8e4db; font-size: 1.75rem; font-weight: 300; margin: 2.5rem 0 1rem; letter-spacing: -0.02em; }
-.prose-ayden h2 { color: #d4d0c7; font-size: 1.35rem; font-weight: 400; margin: 2rem 0 0.75rem; letter-spacing: -0.01em; }
-.prose-ayden h3 { color: #d4d0c7; font-size: 1.1rem; font-weight: 500; margin: 1.5rem 0 0.5rem; }
-.prose-ayden p { margin-bottom: 1.35rem; }
-.prose-ayden a { color: #c9534a; text-decoration: none; border-bottom: 1px solid rgba(201, 83, 74, 0.25); transition: border-color 0.3s; }
-.prose-ayden a:hover { border-color: #c9534a; }
-.prose-ayden blockquote { border-left: 2px solid rgba(201, 83, 74, 0.25); padding-left: 1.25rem; margin: 1.75rem 0; color: #807b70; font-style: italic; }
-.prose-ayden ul, .prose-ayden ol { padding-left: 1.5rem; margin-bottom: 1.35rem; }
+.prose-ayden h1 { font-family: var(--font-sans, system-ui, sans-serif); color: #e8e4db; font-size: 2rem; font-weight: 600; margin: 3rem 0 1.25rem; letter-spacing: -0.025em; line-height: 1.2; }
+.prose-ayden h2 { font-family: var(--font-sans, system-ui, sans-serif); color: #ddd8ce; font-size: 1.5rem; font-weight: 600; margin: 2.5rem 0 0.75rem; letter-spacing: -0.02em; line-height: 1.25; }
+.prose-ayden h3 { font-family: var(--font-sans, system-ui, sans-serif); color: #ddd8ce; font-size: 1.25rem; font-weight: 600; margin: 2rem 0 0.5rem; line-height: 1.3; }
+.prose-ayden p { margin-bottom: 1.5rem; }
+.prose-ayden a { color: #c9534a; text-decoration: underline; text-decoration-color: rgba(201, 83, 74, 0.35); text-underline-offset: 3px; transition: text-decoration-color 0.3s; }
+.prose-ayden a:hover { text-decoration-color: #c9534a; }
+.prose-ayden blockquote { border-left: 3px solid rgba(201, 83, 74, 0.3); padding-left: 1.5rem; margin: 2rem 0; color: #8a857a; font-style: italic; font-size: 1.3rem; line-height: 1.7; }
+.prose-ayden ul, .prose-ayden ol { padding-left: 1.75rem; margin-bottom: 1.5rem; }
 .prose-ayden ul { list-style-type: disc; }
 .prose-ayden ol { list-style-type: decimal; }
-.prose-ayden li { margin-bottom: 0.5rem; }
-.prose-ayden code { background: rgba(255, 255, 255, 0.04); padding: 0.15rem 0.4rem; border-radius: 0.25rem; font-size: 0.9rem; color: #c4c0b6; }
-.prose-ayden pre { background: rgba(255, 255, 255, 0.03); padding: 1.25rem; border-radius: 0.5rem; overflow-x: auto; margin: 1.75rem 0; border: 1px solid rgba(255, 255, 255, 0.04); }
+.prose-ayden li { margin-bottom: 0.6rem; }
+.prose-ayden code { background: rgba(255, 255, 255, 0.05); padding: 0.15rem 0.45rem; border-radius: 0.25rem; font-size: 0.9em; color: #c4c0b6; font-family: ui-monospace, monospace; }
+.prose-ayden pre { background: rgba(255, 255, 255, 0.03); padding: 1.5rem; border-radius: 0.5rem; overflow-x: auto; margin: 2rem 0; border: 1px solid rgba(255, 255, 255, 0.05); }
 .prose-ayden pre code { background: none; padding: 0; font-size: 0.875rem; }
-.prose-ayden hr { border: none; border-top: 1px solid #252420; margin: 2.5rem 0; }
-.prose-ayden strong { color: #d4d0c7; font-weight: 500; }
-.prose-ayden em { color: #a39e93; }
-.prose-ayden img { border-radius: 0.5rem; margin: 1.75rem 0; }
+.prose-ayden hr { border: none; border-top: 1px solid #252420; margin: 3rem 0; }
+.prose-ayden strong { color: #ddd8ce; font-weight: 700; }
+.prose-ayden em { color: #b5b0a5; }
+.prose-ayden img { border-radius: 0.5rem; margin: 2rem 0; }
 
 /* Tiptap editor content styles */
 .tiptap-content h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }

@@ -850,9 +850,13 @@ function SleepPage() {
 
           {/* Sleep Detail Card (latest night) */}
           {(() => {
-            const latestSession = oura.sleepSessions?.at(-1);
+            // Prefer today's session; fall back to most recent
+            const today = new Date().toISOString().slice(0, 10);
+            const todaySession = oura.sleepSessions?.find((s: { date: string }) => s.date === today);
+            const latestSession = todaySession || oura.sleepSessions?.at(-1);
             if (!latestSession) return null;
             const s = latestSession.data;
+            const isStale = latestSession.date !== today && oura.sleep?.some((sl: { date: string }) => sl.date === today);
             // Also grab stress/resilience for this date
             const dayStress = stressMap.get(latestSession.date);
             const dayResilience = resilienceMap.get(latestSession.date);
@@ -862,11 +866,16 @@ function SleepPage() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Bed className="h-4 w-4" />
-                    Last Night&apos;s Sleep
+                    {isStale ? "Previous Night\u2019s Sleep" : "Last Night\u2019s Sleep"}
                     <span className="text-xs text-muted-foreground font-normal ml-auto">
                       {new Date(latestSession.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
                     </span>
                   </CardTitle>
+                  {isStale && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Last night&apos;s detailed session data hasn&apos;t synced from Oura yet. Score: {oura.sleep.find((sl: { date: string }) => sl.date === today)?.score ?? "--"}/100
+                    </p>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-4">

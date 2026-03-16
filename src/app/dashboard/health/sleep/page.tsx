@@ -362,7 +362,7 @@ function ScoreChart({
   domain?: [number, number];
 }) {
   const chartData = data.filter((d) => d.value !== null).map((d) => ({
-    date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    date: new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     [dataKey]: d.value,
   }));
 
@@ -854,9 +854,143 @@ function SleepPage() {
             const today = new Date().toISOString().slice(0, 10);
             const todaySession = oura.sleepSessions?.find((s: { date: string }) => s.date === today);
             const latestSession = todaySession || oura.sleepSessions?.at(-1);
+            const todaySummary = oura.sleep?.find((sl: { date: string }) => sl.date === today);
+            const hasTodaySessionMissing = !todaySession && todaySummary;
+
+            // If today's session is missing but summary exists, show summary card first
+            if (hasTodaySessionMissing) {
+              const contributors = (todaySummary.data as Record<string, unknown>)?.contributors as Record<string, number> | null;
+              const dayStress = stressMap.get(today);
+              const dayResilience = resilienceMap.get(today);
+              const daySpo2 = spo2Map.get(today);
+              return (
+                <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Bed className="h-4 w-4" />
+                      Last Night&apos;s Sleep
+                      <span className="text-xs text-muted-foreground font-normal ml-auto">
+                        {new Date(today + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                      </span>
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Detailed session data is pending from Oura. Showing summary scores.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-4">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Sleep Score</div>
+                        <div className="text-sm font-medium">{todaySummary.score ?? "--"}/100</div>
+                      </div>
+                      {contributors && (
+                        <>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Total Sleep</div>
+                            <div className="text-sm font-medium">{contributors.total_sleep ?? "--"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Deep Sleep</div>
+                            <div className="text-sm font-medium">{contributors.deep_sleep ?? "--"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">REM Sleep</div>
+                            <div className="text-sm font-medium">{contributors.rem_sleep ?? "--"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Efficiency</div>
+                            <div className="text-sm font-medium">{contributors.efficiency ?? "--"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Restfulness</div>
+                            <div className="text-sm font-medium">{contributors.restfulness ?? "--"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Latency</div>
+                            <div className="text-sm font-medium">{contributors.latency ?? "--"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Timing</div>
+                            <div className="text-sm font-medium">{contributors.timing ?? "--"}</div>
+                          </div>
+                        </>
+                      )}
+                      {daySpo2 != null && (
+                        <div>
+                          <div className="text-xs text-muted-foreground">SpO2</div>
+                          <div className="text-sm font-medium">{Math.round(daySpo2)}%</div>
+                        </div>
+                      )}
+                      {dayStress && (
+                        <div>
+                          <div className="text-xs text-muted-foreground">Stress</div>
+                          <div className="text-sm font-medium"><StressBadge summary={dayStress} /></div>
+                        </div>
+                      )}
+                      {dayResilience && (
+                        <div>
+                          <div className="text-xs text-muted-foreground">Resilience</div>
+                          <div className="text-sm font-medium"><ResilienceBadge level={dayResilience} /></div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+                {/* Still show previous session below for reference */}
+                {latestSession && (() => {
+                  const s = latestSession.data;
+                  const prevStress = stressMap.get(latestSession.date);
+                  const prevResilience = resilienceMap.get(latestSession.date);
+                  const prevSpo2 = spo2Map.get(latestSession.date);
+                  return (
+                    <Card className="opacity-60">
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Bed className="h-4 w-4" />
+                          Previous Night&apos;s Sleep
+                          <span className="text-xs text-muted-foreground font-normal ml-auto">
+                            {new Date(latestSession.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                          </span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-4">
+                          <div>
+                            <div className="text-xs text-muted-foreground">Total Sleep</div>
+                            <div className="text-sm font-medium">{formatDuration(s.total_sleep_duration as number | null)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Deep</div>
+                            <div className="text-sm font-medium">{formatDuration(s.deep_sleep_duration as number | null)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">REM</div>
+                            <div className="text-sm font-medium">{formatDuration(s.rem_sleep_duration as number | null)}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Efficiency</div>
+                            <div className="text-sm font-medium">{s.efficiency != null ? `${s.efficiency}%` : "--"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Avg HRV</div>
+                            <div className="text-sm font-medium">{s.average_hrv != null ? `${Math.round(s.average_hrv as number)} ms` : "--"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground">Lowest HR</div>
+                            <div className="text-sm font-medium">{s.lowest_heart_rate != null ? `${s.lowest_heart_rate} bpm` : "--"}</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
+                </>
+              );
+            }
+
             if (!latestSession) return null;
             const s = latestSession.data;
-            const isStale = latestSession.date !== today && oura.sleep?.some((sl: { date: string }) => sl.date === today);
             // Also grab stress/resilience for this date
             const dayStress = stressMap.get(latestSession.date);
             const dayResilience = resilienceMap.get(latestSession.date);
@@ -866,16 +1000,11 @@ function SleepPage() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Bed className="h-4 w-4" />
-                    {isStale ? "Previous Night\u2019s Sleep" : "Last Night\u2019s Sleep"}
+                    Last Night&apos;s Sleep
                     <span className="text-xs text-muted-foreground font-normal ml-auto">
                       {new Date(latestSession.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
                     </span>
                   </CardTitle>
-                  {isStale && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Last night&apos;s detailed session data hasn&apos;t synced from Oura yet. Score: {oura.sleep.find((sl: { date: string }) => sl.date === today)?.score ?? "--"}/100
-                    </p>
-                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-4">

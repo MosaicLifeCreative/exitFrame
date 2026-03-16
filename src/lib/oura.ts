@@ -339,9 +339,12 @@ export async function syncOuraData(daysBack = 7): Promise<SyncResults> {
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - daysBack);
+  // Oura API end_date is exclusive — add 1 day to include today's data
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + 1);
   const params = {
     start_date: formatDate(startDate),
-    end_date: formatDate(new Date()),
+    end_date: formatDate(endDate),
   };
 
   const results: SyncResults = {

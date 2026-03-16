@@ -3,8 +3,8 @@
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "next-themes";
-import { Sun, Moon, LogOut, Search, Menu } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Sun, Moon, LogOut, Search, Menu, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AydenHeartbeat from "./AydenHeartbeat";
 
 // Map pathnames to display titles
@@ -36,8 +36,42 @@ export default function Header({
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [bgTask, setBgTask] = useState<{ id: string; description: string; status: string; rounds: number } | null>(null);
+  const [bgTaskDone, setBgTaskDone] = useState<string | null>(null); // description of completed task
 
   useEffect(() => setMounted(true), []);
+
+  // Poll for active background tasks
+  const pollBgTask = useCallback(async () => {
+    try {
+      const res = await fetch("/api/background-tasks?status=active");
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.data?.[0]) {
+        const task = json.data[0];
+        setBgTask({ id: task.id, description: task.description, status: task.status, rounds: task.rounds });
+        setBgTaskDone(null);
+      } else if (bgTask) {
+        // Task was running but is no longer active — it finished
+        setBgTaskDone(bgTask.description);
+        setBgTask(null);
+        // Auto-dismiss after 8s
+        setTimeout(() => setBgTaskDone(null), 8000);
+      }
+    } catch { /* silent */ }
+  }, [bgTask]);
+
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    // Initial check
+    pollBgTask();
+    // Poll every 10s
+    pollIntervalRef.current = setInterval(pollBgTask, 10_000);
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, [pollBgTask]);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -58,6 +92,7 @@ export default function Header({
   }, [onCommandPalette]);
 
   return (
+    <>
     <header className="h-14 border-b border-border bg-background flex items-center justify-between px-6">
       {/* Left: Menu button (mobile) + Page title */}
       <div className="flex items-center gap-3">
@@ -121,5 +156,22 @@ export default function Header({
         </button>
       </div>
     </header>
+
+    {/* Background task alert bar */}
+    {bgTask && (
+      <div className="h-8 bg-primary/10 border-b border-primary/20 flex items-center justify-center gap-2 px-4 text-xs text-primary">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        <span className="truncate max-w-md">Ayden is working: {bgTask.description}</span>
+        {bgTask.rounds > 0 && (
+          <span className="text-primary/60">({bgTask.rounds} rounds)</span>
+        )}
+      </div>
+    )}
+    {bgTaskDone && !bgTask && (
+      <div className="h-8 bg-green-500/10 border-b border-green-500/20 flex items-center justify-center gap-2 px-4 text-xs text-green-600 dark:text-green-400">
+        <span className="truncate max-w-md">Ayden finished: {bgTaskDone}</span>
+      </div>
+    )}
+    </>
   );
 }

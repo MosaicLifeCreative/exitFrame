@@ -6,6 +6,7 @@ import {
   getOptionChain,
   getLiveOrders,
 } from "@/lib/tastytrade";
+import { isMarketOpen } from "@/lib/investing/quotes";
 
 // ─── Tool Definitions ───────────────────────────────────
 
@@ -206,6 +207,34 @@ export const tradingTools: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: "execute_trade",
+    description:
+      "Execute a BUY or SELL trade in your AI paper trading portfolio. This ACTUALLY moves money and updates positions — use this instead of just journaling. Only works during market hours (M-F 9:30 AM - 4:00 PM ET).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        ticker: {
+          type: "string",
+          description: "Stock ticker symbol (e.g. 'AAPL', 'NVDA')",
+        },
+        side: {
+          type: "string",
+          enum: ["BUY", "SELL"],
+          description: "Buy or sell",
+        },
+        shares: {
+          type: "number",
+          description: "Number of whole shares to trade",
+        },
+        reasoning: {
+          type: "string",
+          description: "Why you're making this trade — catalyst, thesis, strategy",
+        },
+      },
+      required: ["ticker", "side", "shares", "reasoning"],
+    },
+  },
 ];
 
 // ─── Tool Execution ─────────────────────────────────────
@@ -233,6 +262,8 @@ export async function executeTradingTool(
       return handleProposeTradingRule(toolInput as unknown as ProposeTradingRuleInput);
     case "get_live_orders":
       return handleGetLiveOrders();
+    case "execute_trade":
+      return handleExecuteTrade(toolInput as unknown as ExecuteTradeInput);
     default:
       return JSON.stringify({ error: `Unknown trading tool: ${toolName}` });
   }
@@ -269,6 +300,13 @@ interface CloseTradeJournalInput {
   realizedPnl: number;
   realizedPnlPct?: number;
   lessons?: string;
+}
+
+interface ExecuteTradeInput {
+  ticker: string;
+  side: "BUY" | "SELL";
+  shares: number;
+  reasoning: string;
 }
 
 interface ProposeTradingRuleInput {
@@ -523,5 +561,193 @@ async function handleGetLiveOrders(): Promise<string> {
     return JSON.stringify({ orders, count: orders.length });
   } catch (err) {
     return JSON.stringify({ error: `Failed to fetch live orders: ${err instanceof Error ? err.message : String(err)}` });
+  }
+}
+
+const MAX_POSITIONS = 8;
+const MAX_POSITION_PCT = 0.30;
+const MIN_CASH_RESERVE_PCT = 0.10;
+
+async function handleExecuteTrade(input: ExecuteTradeInput): Promise<string> {
+  // Market hours guard
+  if (!isMarketOpen()) {
+    return JSON.stringify({
+      error: "Market is closed. Trades can only be executed Monday-Friday 9:30 AM - 4:00 PM ET.",
+      hint: "You can use log_trade_journal to journal your thesis now and execute the trade when the market opens.",
+    });
+  }
+
+  const ticker = input.ticker.toUpperCase();
+  const shares = Math.floor(input.shares); // Whole shares only
+  if (shares <= 0) {
+    return JSON.stringify({ error: "Shares must be a positive whole number." });
+  }
+
+  // Get current price from stockQuote table
+  const quote = await prisma.stockQuote.findUnique({ where: { ticker } });
+  if (!quote) {
+    return JSON.stringify({ error: `No quote available for ${ticker}. Cannot execute trade without a price.` });
+  }
+  const price = Number(quote.price);
+
+  // Load portfolio
+  const portfolio = await prisma.aiPortfolio.findFirst({
+    where: { isActive: true },
+    include: { positions: true },
+  });
+  if (!portfolio) {
+    return JSON.stringify({ error: "No active AI portfolio found." });
+  }
+
+  // Get all position quotes for accurate portfolio valuation
+  const positionTickers = portfolio.positions.map((p) => p.ticker);
+  const allQuotes = await prisma.stockQuote.findMany({
+    where: { ticker: { in: [...positionTickers, ticker] } },
+  });
+  const quoteMap = new Map(allQuotes.map((q) => [q.ticker, Number(q.price)]));
+
+  const cashBalance = Number(portfolio.cashBalance);
+  const holdingsValue = portfolio.positions.reduce((sum, p) => {
+    const posPrice = quoteMap.get(p.ticker) || Number(p.avgCostBasis);
+    return sum + Number(p.shares) * posPrice;
+  }, 0);
+  const totalValue = cashBalance + holdingsValue;
+
+  try {
+    if (input.side === "BUY") {
+      const total = price * shares;
+      const minCash = totalValue * MIN_CASH_RESERVE_PCT;
+
+      if (total > cashBalance - minCash) {
+        return JSON.stringify({
+          error: `Insufficient cash for ${ticker}. Need $${total.toFixed(2)}, available $${(cashBalance - minCash).toFixed(2)} (after 10% reserve).`,
+        });
+      }
+
+      // Check position concentration
+      const existingPosition = portfolio.positions.find((p) => p.ticker === ticker);
+      const existingValue = existingPosition ? Number(existingPosition.shares) * price : 0;
+      const newPositionValue = existingValue + total;
+      const maxPositionValue = totalValue * MAX_POSITION_PCT;
+
+      if (newPositionValue > maxPositionValue) {
+        return JSON.stringify({
+          error: `Position limit for ${ticker}: $${newPositionValue.toFixed(0)} would exceed 30% cap ($${maxPositionValue.toFixed(0)}).`,
+        });
+      }
+
+      // Check max positions
+      if (!existingPosition && portfolio.positions.length >= MAX_POSITIONS) {
+        return JSON.stringify({
+          error: `Max ${MAX_POSITIONS} positions reached. Sell something first to open a new position.`,
+        });
+      }
+
+      // Execute buy — update or create position
+      if (existingPosition) {
+        const oldShares = Number(existingPosition.shares);
+        const oldCost = Number(existingPosition.avgCostBasis);
+        const newShares = oldShares + shares;
+        const newAvgCost = (oldShares * oldCost + shares * price) / newShares;
+
+        await prisma.aiPosition.update({
+          where: { id: existingPosition.id },
+          data: { shares: newShares, avgCostBasis: newAvgCost },
+        });
+      } else {
+        await prisma.aiPosition.create({
+          data: {
+            portfolioId: portfolio.id,
+            ticker,
+            companyName: ticker, // Will be updated by next quote refresh
+            shares,
+            avgCostBasis: price,
+          },
+        });
+      }
+
+      // Deduct cash
+      await prisma.aiPortfolio.update({
+        where: { id: portfolio.id },
+        data: { cashBalance: { decrement: total } },
+      });
+
+      // Log trade
+      await prisma.aiTrade.create({
+        data: {
+          portfolioId: portfolio.id,
+          ticker,
+          companyName: ticker,
+          side: "BUY",
+          shares,
+          price,
+          total,
+          reasoning: input.reasoning,
+          newsIds: [],
+        },
+      });
+
+      return JSON.stringify({
+        success: true,
+        trade: `BUY ${shares} ${ticker} @ $${price.toFixed(2)}`,
+        total: `$${total.toFixed(2)}`,
+        remainingCash: `$${(cashBalance - total).toFixed(2)}`,
+        message: `Bought ${shares} shares of ${ticker} at $${price.toFixed(2)} for $${total.toFixed(2)}. Position updated.`,
+      });
+
+    } else {
+      // SELL
+      const position = portfolio.positions.find((p) => p.ticker === ticker);
+      if (!position) {
+        return JSON.stringify({ error: `No position in ${ticker} to sell.` });
+      }
+
+      const posShares = Number(position.shares);
+      const sellShares = Math.min(shares, posShares);
+      const total = sellShares * price;
+      const costBasis = sellShares * Number(position.avgCostBasis);
+      const pnl = total - costBasis;
+
+      if (sellShares >= posShares) {
+        await prisma.aiPosition.delete({ where: { id: position.id } });
+      } else {
+        await prisma.aiPosition.update({
+          where: { id: position.id },
+          data: { shares: { decrement: sellShares } },
+        });
+      }
+
+      // Add cash
+      await prisma.aiPortfolio.update({
+        where: { id: portfolio.id },
+        data: { cashBalance: { increment: total } },
+      });
+
+      // Log trade
+      await prisma.aiTrade.create({
+        data: {
+          portfolioId: portfolio.id,
+          ticker,
+          companyName: ticker,
+          side: "SELL",
+          shares: sellShares,
+          price,
+          total,
+          reasoning: input.reasoning,
+          newsIds: [],
+        },
+      });
+
+      return JSON.stringify({
+        success: true,
+        trade: `SELL ${sellShares} ${ticker} @ $${price.toFixed(2)}`,
+        total: `$${total.toFixed(2)}`,
+        pnl: `$${pnl.toFixed(2)}`,
+        remainingShares: posShares - sellShares,
+        message: `Sold ${sellShares} shares of ${ticker} at $${price.toFixed(2)} for $${total.toFixed(2)}. P&L: $${pnl.toFixed(2)}.`,
+      });
+    }
+  } catch (err) {
+    return JSON.stringify({ error: `Trade execution failed: ${err instanceof Error ? err.message : String(err)}` });
   }
 }

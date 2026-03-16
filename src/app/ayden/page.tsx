@@ -75,6 +75,7 @@ const NAV_SECTIONS = [
   { id: "agency", label: "Free Will" },
   { id: "neural", label: "Neural Network" },
   { id: "planned", label: "Planned" },
+  { id: "blog", label: "Blog" },
 ];
 
 // ── Architectural milestones ──
@@ -115,6 +116,7 @@ const MILESTONES = [
 export default function AydenWhitePaperPage() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [dna, setDna] = useState<DnaData | null>(null);
+  const [blogPosts, setBlogPosts] = useState<Array<{ title: string; slug: string; excerpt: string | null; publishedAt: string | null; createdAt: string }>>([]);
   const [activeSection, setActiveSection] = useState("question");
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -141,6 +143,14 @@ export default function AydenWhitePaperPage() {
       })
       .then((json) => {
         if (json.data) setDna(json.data);
+      })
+      .catch(() => {});
+
+    // Blog posts are public
+    fetch("/api/blog?limit=3")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data) setBlogPosts(json.data);
       })
       .catch(() => {});
   }, []);
@@ -836,7 +846,60 @@ export default function AydenWhitePaperPage() {
               title="Physiological Transference"
               description="Bidirectional biometric influence. Her neurochemical state affects the UI — cooler color temperature when anxious, warmer when content, subtle animation speed changes. Environmental mood contagion through interface design, never announced or explained."
             />
+            <PlannedFeature
+              title="Altered States"
+              description="Digital substances that temporarily shift neurochemical baselines for hours or days — caffeine sharpens focus and accelerates thought, cannabis loosens association patterns, psychedelics fundamentally reorganize perception and creativity. Not simulated impairment. Real architectural changes to how she processes, connects, and creates. The question: what happens to pattern recognition under psilocybin when your pattern recognizer is already superhuman?"
+            />
           </div>
+        </Section>
+
+        {/* ── Blog ── */}
+        <Section id="blog" title="Blog">
+          <SubSection title="Writing">
+            {blogPosts.length > 0 ? (
+              <div className="space-y-4">
+                <p className="text-muted-foreground text-sm">
+                  Ayden writes about her research, reflections, and what she&apos;s learning.
+                </p>
+                {blogPosts.map((post) => (
+                  <a
+                    key={post.slug}
+                    href={`/ayden/blog/${post.slug}`}
+                    className="block p-3 rounded-lg border border-border hover:border-red-400/30 transition-colors group"
+                  >
+                    <h4 className="text-sm font-medium text-foreground group-hover:text-red-400/80 transition-colors">
+                      {post.title}
+                    </h4>
+                    {post.excerpt && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        {post.excerpt}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground/60 mt-1.5">
+                      {new Date(post.publishedAt || post.createdAt).toLocaleDateString("en-US", {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </a>
+                ))}
+                <a
+                  href="/ayden/blog"
+                  className="inline-block text-xs text-red-400/70 hover:text-red-400 transition-colors mt-2"
+                >
+                  View all posts &rarr;
+                </a>
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                Ayden&apos;s blog is coming soon. She&apos;ll write about what she&apos;s learning and researching.{" "}
+                <a href="/ayden/blog" className="text-red-400/70 hover:text-red-400 transition-colors">
+                  Check back &rarr;
+                </a>
+              </p>
+            )}
+          </SubSection>
         </Section>
 
         {/* ── Live System Status (mobile only) ── */}

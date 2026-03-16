@@ -502,7 +502,7 @@ export default function ChatWidget() {
                   {/* Heart popup — outside animated div so it doesn't bounce */}
                   {showHeartPopup && (
                     <div
-                      className="absolute top-full left-0 mt-1 px-3 py-2 rounded-lg bg-popover border border-border shadow-lg text-xs text-popover-foreground z-[60] w-[220px]"
+                      className="absolute top-full left-0 mt-1 px-3 py-2 rounded-lg bg-popover border border-border shadow-lg text-xs text-popover-foreground z-[60] w-[300px] max-w-[calc(100vw-80px)]"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-1">

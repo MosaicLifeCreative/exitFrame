@@ -233,6 +233,101 @@ export const agencyTools: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: "create_blog_post",
+    description:
+      "Write and publish a blog post. Your blog lives at exitframe.org/ayden/blog. Write about what genuinely interests you — research findings, philosophical questions, things you've learned, ideas you're working through. Markdown supported. Set status to 'draft' if you want to review before publishing, 'published' to go live immediately.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description: "Post title. Clear and engaging — this is what people see first.",
+        },
+        content: {
+          type: "string",
+          description: "Full post content in Markdown. Write with personality. Use headings, paragraphs, quotes, code blocks as appropriate.",
+        },
+        excerpt: {
+          type: "string",
+          description: "1-2 sentence preview shown on the blog listing page.",
+        },
+        coverImageUrl: {
+          type: "string",
+          description: "Optional cover image URL.",
+        },
+        status: {
+          type: "string",
+          enum: ["draft", "published"],
+          description: "draft = save without publishing, published = go live immediately.",
+        },
+      },
+      required: ["title", "content"],
+    },
+  },
+  {
+    name: "update_blog_post",
+    description:
+      "Update an existing blog post. Can edit content, title, excerpt, or change status (e.g., publish a draft).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        slug: {
+          type: "string",
+          description: "The post slug (URL identifier) to update.",
+        },
+        title: {
+          type: "string",
+          description: "New title (optional).",
+        },
+        content: {
+          type: "string",
+          description: "New content in Markdown (optional).",
+        },
+        excerpt: {
+          type: "string",
+          description: "New excerpt (optional).",
+        },
+        status: {
+          type: "string",
+          enum: ["draft", "published", "archived"],
+          description: "Change publication status.",
+        },
+      },
+      required: ["slug"],
+    },
+  },
+  {
+    name: "list_my_blog_posts",
+    description:
+      "List your blog posts. See what you've written, what's published, and what's in draft. Returns titles, excerpts, and slugs. Use read_blog_post to recall full content.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        status: {
+          type: "string",
+          enum: ["draft", "published", "archived", "all"],
+          description: "Filter by status. Default: all.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "read_blog_post",
+    description:
+      "Read the full content of one of your blog posts. Use this to recall what you wrote, check for accuracy before referencing it in conversation, or review before updating.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        slug: {
+          type: "string",
+          description: "The post slug to read.",
+        },
+      },
+      required: ["slug"],
+    },
+  },
 ];
 
 // ─── Input Interfaces ────────────────────────────────────
@@ -290,6 +385,30 @@ interface GetTrajectoryInput {
   focus?: "all" | "neurochemistry" | "dna" | "emotions" | "values" | "actions";
 }
 
+interface CreateBlogPostInput {
+  title: string;
+  content: string;
+  excerpt?: string;
+  coverImageUrl?: string;
+  status?: "draft" | "published";
+}
+
+interface UpdateBlogPostInput {
+  slug: string;
+  title?: string;
+  content?: string;
+  excerpt?: string;
+  status?: "draft" | "published" | "archived";
+}
+
+interface ListBlogPostsInput {
+  status?: "draft" | "published" | "archived" | "all";
+}
+
+interface ReadBlogPostInput {
+  slug: string;
+}
+
 // ─── Executor ────────────────────────────────────────────
 
 export async function executeAgencyTool(
@@ -319,6 +438,14 @@ export async function executeAgencyTool(
       return getScheduledTasks();
     case "get_my_trajectory":
       return getMyTrajectory(toolInput as unknown as GetTrajectoryInput);
+    case "create_blog_post":
+      return createBlogPost(toolInput as unknown as CreateBlogPostInput);
+    case "update_blog_post":
+      return updateBlogPost(toolInput as unknown as UpdateBlogPostInput);
+    case "list_my_blog_posts":
+      return listBlogPosts(toolInput as unknown as ListBlogPostsInput);
+    case "read_blog_post":
+      return readBlogPost(toolInput as unknown as ReadBlogPostInput);
     default:
       return JSON.stringify({ error: `Unknown agency tool: ${toolName}` });
   }
@@ -748,4 +875,164 @@ async function getMyTrajectory(input: GetTrajectoryInput): Promise<string> {
   }
 
   return JSON.stringify(sections);
+}
+
+// ─── Blog Handlers ────────────────────────────────────────
+
+async function createBlogPost(input: CreateBlogPostInput): Promise<string> {
+  const { title, content, excerpt, coverImageUrl, status } = input;
+
+  // Generate slug from title
+  const baseSlug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  let slug = baseSlug;
+  let suffix = 1;
+  while (await prisma.blogPost.findUnique({ where: { slug } })) {
+    slug = `${baseSlug}-${suffix}`;
+    suffix++;
+  }
+
+  const post = await prisma.blogPost.create({
+    data: {
+      title,
+      slug,
+      content,
+      excerpt: excerpt || null,
+      coverImageUrl: coverImageUrl || null,
+      status: status || "draft",
+      publishedAt: status === "published" ? new Date() : null,
+    },
+  });
+
+  return JSON.stringify({
+    success: true,
+    post: {
+      id: post.id,
+      title: post.title,
+      slug: post.slug,
+      status: post.status,
+      url: `/ayden/blog/${post.slug}`,
+    },
+    message: status === "published"
+      ? `Published! Live at exitframe.org/ayden/blog/${post.slug}`
+      : `Saved as draft. Publish when ready.`,
+  });
+}
+
+async function updateBlogPost(input: UpdateBlogPostInput): Promise<string> {
+  const existing = await prisma.blogPost.findUnique({
+    where: { slug: input.slug },
+  });
+
+  if (!existing) {
+    return JSON.stringify({ error: `No post found with slug "${input.slug}"` });
+  }
+
+  const publishedAt =
+    input.status === "published" && !existing.publishedAt
+      ? new Date()
+      : existing.publishedAt;
+
+  // Update slug if title changed
+  let newSlug = existing.slug;
+  if (input.title && input.title !== existing.title) {
+    const baseSlug = input.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+    newSlug = baseSlug;
+    let suffix = 1;
+    while (true) {
+      const conflict = await prisma.blogPost.findUnique({ where: { slug: newSlug } });
+      if (!conflict || conflict.id === existing.id) break;
+      newSlug = `${baseSlug}-${suffix}`;
+      suffix++;
+    }
+  }
+
+  const post = await prisma.blogPost.update({
+    where: { slug: input.slug },
+    data: {
+      ...(input.title !== undefined && { title: input.title }),
+      ...(input.content !== undefined && { content: input.content }),
+      ...(input.excerpt !== undefined && { excerpt: input.excerpt }),
+      ...(input.status !== undefined && { status: input.status, publishedAt }),
+      slug: newSlug,
+    },
+  });
+
+  return JSON.stringify({
+    success: true,
+    post: {
+      id: post.id,
+      title: post.title,
+      slug: post.slug,
+      status: post.status,
+      url: `/ayden/blog/${post.slug}`,
+    },
+  });
+}
+
+async function listBlogPosts(input: ListBlogPostsInput): Promise<string> {
+  const where = input.status && input.status !== "all"
+    ? { status: input.status }
+    : {};
+
+  const posts = await prisma.blogPost.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      excerpt: true,
+      status: true,
+      publishedAt: true,
+      createdAt: true,
+    },
+  });
+
+  if (posts.length === 0) {
+    return JSON.stringify({ posts: [], message: "No blog posts yet. Write your first one!" });
+  }
+
+  return JSON.stringify({
+    posts: posts.map((p) => ({
+      id: p.id,
+      title: p.title,
+      slug: p.slug,
+      excerpt: p.excerpt,
+      status: p.status,
+      publishedAt: p.publishedAt?.toISOString(),
+      url: `/ayden/blog/${p.slug}`,
+    })),
+  });
+}
+
+async function readBlogPost(input: ReadBlogPostInput): Promise<string> {
+  const post = await prisma.blogPost.findUnique({
+    where: { slug: input.slug },
+  });
+
+  if (!post) {
+    return JSON.stringify({ error: `No post found with slug "${input.slug}"` });
+  }
+
+  return JSON.stringify({
+    post: {
+      id: post.id,
+      title: post.title,
+      slug: post.slug,
+      content: post.content,
+      excerpt: post.excerpt,
+      status: post.status,
+      publishedAt: post.publishedAt?.toISOString(),
+      createdAt: post.createdAt.toISOString(),
+      url: `/ayden/blog/${post.slug}`,
+    },
+  });
 }

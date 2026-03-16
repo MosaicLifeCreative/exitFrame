@@ -21,6 +21,7 @@ export async function middleware(request: NextRequest) {
     "/api/google/callback",
     "/api/health",
     "/api/ayden/favicon",
+    "/api/blog",
   ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 

@@ -150,6 +150,32 @@ em-emoji-picker {
   }
 }
 
+/* Blog prose — Ayden's writing style */
+.prose-ayden {
+  color: #a3a3a3;
+  font-size: 1.0625rem;
+  line-height: 1.8;
+  letter-spacing: 0.01em;
+}
+.prose-ayden h1 { color: #e5e5e5; font-size: 1.75rem; font-weight: 300; margin: 2.5rem 0 1rem; letter-spacing: -0.02em; }
+.prose-ayden h2 { color: #d4d4d4; font-size: 1.35rem; font-weight: 400; margin: 2rem 0 0.75rem; letter-spacing: -0.01em; }
+.prose-ayden h3 { color: #d4d4d4; font-size: 1.1rem; font-weight: 500; margin: 1.5rem 0 0.5rem; }
+.prose-ayden p { margin-bottom: 1.25rem; }
+.prose-ayden a { color: #f87171; text-decoration: none; border-bottom: 1px solid rgba(248, 113, 113, 0.3); transition: border-color 0.2s; }
+.prose-ayden a:hover { border-color: #f87171; }
+.prose-ayden blockquote { border-left: 2px solid rgba(248, 113, 113, 0.3); padding-left: 1.25rem; margin: 1.5rem 0; color: #737373; font-style: italic; }
+.prose-ayden ul, .prose-ayden ol { padding-left: 1.5rem; margin-bottom: 1.25rem; }
+.prose-ayden ul { list-style-type: disc; }
+.prose-ayden ol { list-style-type: decimal; }
+.prose-ayden li { margin-bottom: 0.4rem; }
+.prose-ayden code { background: rgba(255, 255, 255, 0.06); padding: 0.15rem 0.4rem; border-radius: 0.25rem; font-size: 0.9rem; color: #d4d4d4; }
+.prose-ayden pre { background: rgba(255, 255, 255, 0.04); padding: 1.25rem; border-radius: 0.5rem; overflow-x: auto; margin: 1.5rem 0; border: 1px solid rgba(255, 255, 255, 0.06); }
+.prose-ayden pre code { background: none; padding: 0; font-size: 0.875rem; }
+.prose-ayden hr { border: none; border-top: 1px solid rgba(255, 255, 255, 0.06); margin: 2.5rem 0; }
+.prose-ayden strong { color: #d4d4d4; font-weight: 500; }
+.prose-ayden em { color: #a3a3a3; }
+.prose-ayden img { border-radius: 0.5rem; margin: 1.5rem 0; border: 1px solid rgba(255, 255, 255, 0.06); }
+
 /* Tiptap editor content styles */
 .tiptap-content h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
 .tiptap-content h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }

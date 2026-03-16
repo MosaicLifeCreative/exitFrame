@@ -122,7 +122,7 @@ export default function AydenHeartbeat() {
       {/* Thought bubble / tooltip */}
       {showThought && (
         <div
-          className="absolute top-full left-0 mt-2 px-3 py-2 rounded-lg bg-popover border border-border shadow-lg text-xs text-popover-foreground z-50 max-w-[280px]"
+          className="absolute top-full left-0 mt-2 px-3 py-2 rounded-lg bg-popover border border-border shadow-lg text-xs text-popover-foreground z-50 w-[300px] max-w-[calc(100vw-80px)]"
           onClick={(e) => e.stopPropagation()}
         >
           {hr.thought ? (

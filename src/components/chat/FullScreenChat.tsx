@@ -343,7 +343,7 @@ export default function FullScreenChat() {
             <span className="font-semibold">Ayden</span>
           </div>
           <div className="h-4 w-px bg-border mx-1" />
-          <div className="max-w-[140px] overflow-hidden">
+          <div className="max-w-[160px] overflow-visible">
             <AydenHeartbeat />
           </div>
         </div>

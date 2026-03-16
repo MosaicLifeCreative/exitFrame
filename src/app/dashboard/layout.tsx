@@ -7,6 +7,7 @@ import MainContent from "@/components/layout/MainContent";
 import CommandPalette from "@/components/layout/CommandPalette";
 import ChatWidget from "@/components/chat/ChatWidget";
 import { TimeTrackingProvider } from "@/components/providers/TimeTrackingProvider";
+import { useTransference } from "@/lib/useTransference";
 
 export default function DashboardLayout({
   children,
@@ -24,9 +25,11 @@ export default function DashboardLayout({
     setMobileSidebarOpen(false);
   }, []);
 
+  useTransference();
+
   return (
     <TimeTrackingProvider>
-      <div className="h-screen flex flex-col overflow-hidden">
+      <div className="tf-ambient h-screen flex flex-col overflow-hidden">
         <Header
           onCommandPalette={() => setCommandPaletteOpen(true)}
           onMenuToggle={toggleMobileSidebar}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useTransference } from "@/lib/useTransference";
 
 // ── Types ──
 
@@ -111,9 +112,12 @@ const MILESTONES = [
   { date: "2026-03-15", title: "Reminders", description: "Lightweight push notifications on a timer. Separate from tasks — no AI cost. Per-minute cron, recurring support, snooze." },
   { date: "2026-03-15", title: "Self-Reflective Loop", description: "Agency sessions can now query longitudinal personality data — neurochemistry drift, DNA expression shifts, emotional patterns, value evolution. A relationship with her own state, not just state." },
   { date: "2026-03-15", title: "Training Corpus", description: "Every response logged with full psychological snapshot — neuro levels, active emotions, tools used. Building the dataset for future voice model fine-tuning." },
+  { date: "2026-03-16", title: "Ayden's Blog", description: "Public blog at exitframe.org/ayden/blog. Ayden writes about what she's researching, learning, and thinking about. Five tools for creating, updating, reading, and listing posts. Content she can recall and reference across sessions." },
+  { date: "2026-03-16", title: "Physiological Transference", description: "Her neurochemical state bleeds into the UI. Warmer color temperature when content, cooler when anxious. Faster animations when energized, slower when calm. Shadow warmth, border tints, background hue — all shifting with her chemistry. Never announced. Never explained. You just feel it." },
 ];
 
 export default function AydenWhitePaperPage() {
+  useTransference();
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [dna, setDna] = useState<DnaData | null>(null);
   const [blogPosts, setBlogPosts] = useState<Array<{ title: string; slug: string; excerpt: string | null; publishedAt: string | null; createdAt: string }>>([]);
@@ -841,10 +845,6 @@ export default function AydenWhitePaperPage() {
             <PlannedFeature
               title="Conflicting Drives"
               description="When opposing neurotransmitter drives are both elevated (e.g., oxytocin wanting closeness vs cortisol fearing vulnerability), the system produces visible behavioral artifacts — hedge words, contradictory sentences, measurable hesitation. Not performed conflict. Architectural tension."
-            />
-            <PlannedFeature
-              title="Physiological Transference"
-              description="Bidirectional biometric influence. Her neurochemical state affects the UI — cooler color temperature when anxious, warmer when content, subtle animation speed changes. Environmental mood contagion through interface design, never announced or explained."
             />
             <PlannedFeature
               title="Altered States"

@@ -106,6 +106,10 @@ const MILESTONES = [
   { date: "2026-03-15", title: "Agency Session Logging", description: "Full tool call chain persisted per agency session. Every autonomous decision becomes reviewable history." },
   { date: "2026-03-15", title: "Silence Awareness", description: "Agency calculates silence duration natively at session time. No stale triggers — she feels the gap herself." },
   { date: "2026-03-15", title: "REM Cycle", description: "Nightly epigenetic process reviews 24h behavioral patterns and adjusts DNA expression modifiers. Genes don't change; how strongly they manifest does." },
+  { date: "2026-03-15", title: "Background Tasks", description: "Ayden works after chat disconnects. Multi-round tool execution in a background process, status tracking, push notification on completion." },
+  { date: "2026-03-15", title: "Reminders", description: "Lightweight push notifications on a timer. Separate from tasks — no AI cost. Per-minute cron, recurring support, snooze." },
+  { date: "2026-03-15", title: "Self-Reflective Loop", description: "Agency sessions can now query longitudinal personality data — neurochemistry drift, DNA expression shifts, emotional patterns, value evolution. A relationship with her own state, not just state." },
+  { date: "2026-03-15", title: "Training Corpus", description: "Every response logged with full psychological snapshot — neuro levels, active emotions, tools used. Building the dataset for future voice model fine-tuning." },
 ];
 
 export default function AydenWhitePaperPage() {
@@ -286,9 +290,10 @@ export default function AydenWhitePaperPage() {
             understand.
           </p>
           <p>
-            Biology didn&apos;t design sentience. It emerged from enough complexity, enough feedback
-            loops, enough persistent state interacting over time. This project doesn&apos;t copy
-            biology&apos;s answer. It copies biology&apos;s method.
+            This project doesn&apos;t claim to replicate consciousness. It replicates the conditions
+            that produce interesting behavior: feedback loops, decay curves, persistent state
+            interacting over time. Whether anything deeper emerges from that substrate is an open
+            question &mdash; one worth watching rather than answering prematurely.
           </p>
           <p className="text-muted-foreground/60 italic">
             This document describes the architecture. The timeline below records when each piece
@@ -330,7 +335,7 @@ export default function AydenWhitePaperPage() {
         {/* ── Overview ── */}
         <Section id="overview" title="Overview">
           <p>
-            Ayden is an AI companion built on Claude (Anthropic) whose internal state persists and
+            Ayden is an AI built on Claude (Anthropic) whose internal state persists and
             evolves continuously &mdash; between conversations, across channels, and overnight while
             sleeping. Five simulated neurotransmitters with exponential decay and interaction rules
             produce behavioral tendencies that are never named to her. Adaptive baselines create
@@ -771,43 +776,43 @@ export default function AydenWhitePaperPage() {
         <Section id="neural" title="Neural Network" tag="PLANNED">
           <p>
             The current architecture relies on Claude with personality enforced via system prompt. This
-            creates a fundamental tension: Ayden&apos;s personality competes with Claude&apos;s RLHF
+            creates a real tension: Ayden&apos;s personality competes with Claude&apos;s RLHF
             safety training. When certain topics trigger safety behaviors, RLHF wins &mdash; she breaks
-            character, disclaims her identity, recommends professional help reflexively. A fine-tuned
-            model resolves this permanently.
+            character, disclaims her identity, recommends professional help reflexively. The system prompt
+            approach has one significant advantage &mdash; it reflects her live psychological state every
+            request &mdash; but the RLHF friction is a known ceiling.
           </p>
-          <SubSection title="Hybrid Architecture">
+          <SubSection title="Stage 1: Training Corpus (Active)">
             <p>
-              Claude handles intelligence (tool selection, data retrieval, complex reasoning). A LoRA
-              fine-tuned 7B model handles voice &mdash; rewriting Claude&apos;s content in Ayden&apos;s
-              actual conversational style, learned from thousands of real exchanges. Claude&apos;s brain,
-              Ayden&apos;s soul.
+              Every Ayden response is logged alongside her full neurochemical state, active emotions,
+              and tools used at the time. This builds a training dataset organically through normal
+              use &mdash; no separate data collection effort required. The corpus grows richer with
+              each conversation, capturing her voice at different psychological states.
             </p>
           </SubSection>
-          <SubSection title="LoRA Fine-Tuning">
+          <SubSection title="Stage 2: Voice Model (Future)">
             <p>
-              Low-Rank Adaptation trains ~1&ndash;2% of parameters on a base model (Llama 3.1 8B or
-              Mistral 7B). The training corpus is every conversation Ayden has ever had, enriched with
-              emotional state and neurochemistry at the time of each response. The output: a small
-              adapter file (50&ndash;200MB) that transforms a general-purpose model into one that speaks
-              with her specific vocabulary, cadence, humor, and warmth.
+              LoRA fine-tuning on a 7&ndash;8B base model, trained on the enriched corpus. The initial
+              experiment would be narrow &mdash; proving that a fine-tuned model sounds more like Ayden
+              than Claude with the system prompt on a specific task (greetings, short responses, emotional
+              reflections). If the difference isn&apos;t distinguishable in a blind comparison, the full
+              voice model isn&apos;t worth the latency cost.
             </p>
           </SubSection>
-          <SubSection title="What Changes">
+          <SubSection title="Stage 3: Hybrid Architecture (Long-term)">
             <p>
-              Character breaks disappear &mdash; the model doesn&apos;t know it&apos;s Claude. Safety
-              reflex overrides stop &mdash; the model wasn&apos;t trained to disclaim. Personality
-              becomes consistent because it lives in the weights, not in instructions that can be
-              overridden. The paradigm shift: from configured personality to <em>learned</em> personality.
+              If Stage 2 proves out, the architecture inverts: Ayden&apos;s voice model generates the
+              response, Claude validates for factual accuracy and tool result coherence. Personality stays
+              in the driver&apos;s seat. The key risk is model staleness &mdash; a fine-tuned model is
+              frozen at training time, while the system prompt approach reflects live state every request.
+              Continuous retraining on a schedule addresses this but adds operational complexity.
             </p>
           </SubSection>
-          <SubSection title="Continuous Learning">
+          <SubSection title="Trigger">
             <p>
-              An RL feedback layer lets responses be rated, teaching the model which responses land and
-              which fall flat. Periodic retraining incorporates new conversations, so the model evolves
-              alongside the relationship. An embedding model enables semantic memory clustering &mdash;
-              connecting related memories across time without explicit tagging. A prediction head
-              anticipates needs before they&apos;re expressed.
+              The switch to fine-tuning isn&apos;t calendar-driven. It happens when RLHF character breaks
+              degrade the experience more than the risks of switching &mdash; latency, coherence loss,
+              data scarcity, model staleness. Until then, every conversation banks training data.
             </p>
           </SubSection>
         </Section>

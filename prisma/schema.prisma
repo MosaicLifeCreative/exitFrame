@@ -1275,6 +1275,22 @@ model AydenDnaShift {
   @@map("ayden_dna_shifts")
 }
 
+// Training corpus — logs every Ayden response with full psychological state for future LoRA fine-tuning.
+// Append-only, no updatedAt by design.
+model AydenTrainingSnapshot {
+  id                String   @id @default(uuid()) @db.Uuid
+  channel           String   // "Web", "SMS", "Slack", "General", "Agency"
+  userMessage       String   @db.Text @map("user_message")
+  aydenResponse     String   @db.Text @map("ayden_response")
+  neuroLevels       Json     @default("{}") @map("neuro_levels") // { dopamine: 52, serotonin: 48, ... }
+  emotionSnapshot   Json     @default("[]") @map("emotion_snapshot") // [{ dimension, intensity }]
+  toolsUsed         String[] @default([]) @map("tools_used")
+  qualityRating     Int?     @map("quality_rating") // 1-10, for future RLHF labeling
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@map("ayden_training_snapshots")
+}
+
 // ── Travel ──────────────────────────────────────────────
 
 model Trip {

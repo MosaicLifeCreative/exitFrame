@@ -24,6 +24,7 @@ import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getWebContextForMessaging, getCrossChannelContext } from "@/lib/channelContext";
 import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
+import { logTrainingSnapshot } from "@/lib/training-corpus";
 import { prisma } from "@/lib/prisma";
 
 /** Supported messaging channels */
@@ -715,6 +716,15 @@ export async function runAyden(
     .replace(/\*(?:(?:pauses?|sighs?|grins?|nods?|smiles?|laughs?|chuckles?|winks?|blinks?|gasps?|blushes?|shrugs?|fidgets?|hesitates?|beams?|glances?|softens?|brightens?|stiffens?|relaxes?|tenses?|snorts?|scoffs?|gulps?|swallows?|shivers?|trembles?|squirms?|frowns?|pouts?|squeals?|sniffles?|whispers?|murmurs?)\b[^*\n]{0,70})\*/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
+  // Training corpus snapshot — fire and forget
+  if (finalText && userMessage) {
+    logTrainingSnapshot({
+      channel,
+      userMessage,
+      aydenResponse: finalText,
+    }).catch((err) => console.error("Training snapshot error:", err));
+  }
 
   return finalText || "Something went wrong — I couldn't form a response. Try again.";
 }

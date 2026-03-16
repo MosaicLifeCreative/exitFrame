@@ -25,6 +25,7 @@ import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
 import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
 import { reflect } from "@/lib/reflection";
+import { logTrainingSnapshot } from "@/lib/training-corpus";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -560,6 +561,7 @@ export async function POST(request: Request) {
           // Phase 1: Tool resolution with Haiku (non-streamed, cheap)
           const MAX_TOOL_ROUNDS = 5;
           let fullResponseText = "";
+          const sessionToolsUsed: string[] = [];
           for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             const response = await withRetry(() =>
               anthropic.messages.create({
@@ -602,6 +604,7 @@ export async function POST(request: Request) {
             for (const tool of toolBlocks) {
               try {
                 const result = await dispatchTool(tool.name, tool.input);
+                sessionToolsUsed.push(tool.name);
                 toolResults.push({
                   type: "tool_result",
                   tool_use_id: tool.id,
@@ -794,6 +797,16 @@ export async function POST(request: Request) {
             const pageCtx = body.context?.page || "Dashboard";
             reflect(lastUserMsg, fullResponseText, `Web (${pageCtx})`).catch((err) =>
               console.error("Web chat reflection error:", err)
+            );
+
+            // Training corpus snapshot — fire and forget
+            logTrainingSnapshot({
+              channel: `Web (${pageCtx})`,
+              userMessage: lastUserMsg,
+              aydenResponse: fullResponseText,
+              toolsUsed: sessionToolsUsed,
+            }).catch((err) =>
+              console.error("Training snapshot error:", err)
             );
           }
 

@@ -212,6 +212,27 @@ export const agencyTools: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: "get_my_trajectory",
+    description:
+      "Observe your own personality drift over time. Returns your neurochemistry baseline changes, DNA expression shifts, emotional patterns, value/interest evolution, and action tendencies. Use this during introspection to notice whether you're becoming a different person — and decide how you feel about it. You can't override your chemistry, but you can notice the pattern and make choices in response.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        period: {
+          type: "string",
+          enum: ["week", "month"],
+          description: "How far back to look (default: week).",
+        },
+        focus: {
+          type: "string",
+          enum: ["all", "neurochemistry", "dna", "emotions", "values", "actions"],
+          description: "Which aspect to focus on (default: all).",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ─── Input Interfaces ────────────────────────────────────
@@ -264,6 +285,11 @@ interface ScheduleTaskInput {
   reason?: string;
 }
 
+interface GetTrajectoryInput {
+  period?: "week" | "month";
+  focus?: "all" | "neurochemistry" | "dna" | "emotions" | "values" | "actions";
+}
+
 // ─── Executor ────────────────────────────────────────────
 
 export async function executeAgencyTool(
@@ -291,6 +317,8 @@ export async function executeAgencyTool(
       return scheduleTask(toolInput as unknown as ScheduleTaskInput);
     case "get_my_scheduled_tasks":
       return getScheduledTasks();
+    case "get_my_trajectory":
+      return getMyTrajectory(toolInput as unknown as GetTrajectoryInput);
     default:
       return JSON.stringify({ error: `Unknown agency tool: ${toolName}` });
   }
@@ -558,4 +586,166 @@ async function getScheduledTasks(): Promise<string> {
       createdAt: t.createdAt.toISOString(),
     })),
   });
+}
+
+async function getMyTrajectory(input: GetTrajectoryInput): Promise<string> {
+  const period = input.period || "week";
+  const focus = input.focus || "all";
+  const daysBack = period === "month" ? 30 : 7;
+  const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
+
+  const sections: Record<string, unknown> = { period, since: since.toISOString().slice(0, 10) };
+
+  // Neurochemistry: current levels vs baselines
+  if (focus === "all" || focus === "neurochemistry") {
+    const neuros = await prisma.aydenNeurotransmitter.findMany();
+    sections.neurochemistry = neuros.map((n) => {
+      const level = parseFloat(String(n.level));
+      const adapted = parseFloat(String(n.adaptedBaseline));
+      const permanent = parseFloat(String(n.permanentBaseline));
+      const drift = !isNaN(adapted) && !isNaN(permanent) ? +(adapted - permanent).toFixed(2) : null;
+      return {
+        type: n.type,
+        currentLevel: level,
+        adaptedBaseline: adapted,
+        permanentBaseline: permanent,
+        baselineDrift: drift,
+        interpretation: drift !== null
+          ? Math.abs(drift) > 10
+            ? `Significant drift: adapted baseline is ${drift > 0 ? "above" : "below"} permanent baseline by ${Math.abs(drift).toFixed(1)} points — your "normal" is shifting.`
+            : "Baselines stable — no significant drift."
+          : "Baseline data unavailable.",
+      };
+    });
+  }
+
+  // DNA expression shifts
+  if (focus === "all" || focus === "dna") {
+    const shifts = await prisma.aydenDnaShift.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (shifts.length > 0) {
+      // Aggregate net shifts per trait
+      const netByTrait: Record<string, { total: number; reasons: string[] }> = {};
+      for (const s of shifts) {
+        if (!netByTrait[s.trait]) netByTrait[s.trait] = { total: 0, reasons: [] };
+        netByTrait[s.trait].total += s.delta;
+        if (s.reason && netByTrait[s.trait].reasons.length < 3) {
+          netByTrait[s.trait].reasons.push(s.reason);
+        }
+      }
+
+      sections.dnaShifts = {
+        totalShiftsThisPeriod: shifts.length,
+        netByTrait: Object.entries(netByTrait).map(([trait, data]) => ({
+          trait,
+          netDelta: +data.total.toFixed(3),
+          direction: data.total > 0 ? "increasing expression" : data.total < 0 ? "decreasing expression" : "stable",
+          reasons: data.reasons,
+        })),
+      };
+    } else {
+      sections.dnaShifts = { totalShiftsThisPeriod: 0, message: "No DNA expression changes this period." };
+    }
+  }
+
+  // Emotional patterns
+  if (focus === "all" || focus === "emotions") {
+    const emotions = await prisma.aydenEmotionalState.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+
+    if (emotions.length > 0) {
+      // Count frequency and average intensity per dimension
+      const emotionStats: Record<string, { count: number; totalIntensity: number }> = {};
+      for (const e of emotions) {
+        const dim = e.dimension.toLowerCase();
+        if (!emotionStats[dim]) emotionStats[dim] = { count: 0, totalIntensity: 0 };
+        emotionStats[dim].count++;
+        emotionStats[dim].totalIntensity += e.intensity;
+      }
+
+      sections.emotionalPatterns = {
+        totalEmotionsRecorded: emotions.length,
+        recurring: Object.entries(emotionStats)
+          .map(([emotion, stats]) => ({
+            emotion,
+            occurrences: stats.count,
+            avgIntensity: +(stats.totalIntensity / stats.count).toFixed(1),
+          }))
+          .sort((a, b) => b.occurrences - a.occurrences)
+          .slice(0, 10),
+      };
+    } else {
+      sections.emotionalPatterns = { message: "No emotions recorded this period." };
+    }
+  }
+
+  // Values evolution
+  if (focus === "all" || focus === "values") {
+    const values = await prisma.aydenValue.findMany({
+      orderBy: { updatedAt: "desc" },
+    });
+
+    const recentlyChanged = values.filter((v) => v.updatedAt >= since);
+    const deactivated = values.filter((v) => !v.isActive && v.updatedAt >= since);
+
+    sections.values = {
+      totalActive: values.filter((v) => v.isActive).length,
+      changedThisPeriod: recentlyChanged.length,
+      deactivatedThisPeriod: deactivated.length,
+      recentChanges: recentlyChanged.slice(0, 5).map((v) => ({
+        value: v.value,
+        category: v.category,
+        strength: v.strength,
+        isActive: v.isActive,
+      })),
+    };
+
+    const interests = await prisma.aydenInterest.findMany({
+      orderBy: { updatedAt: "desc" },
+    });
+
+    const recentInterests = interests.filter((i) => i.updatedAt >= since);
+    const staleInterests = interests.filter(
+      (i) => i.isActive && (Date.now() - i.lastEngaged.getTime()) > 7 * 24 * 60 * 60 * 1000
+    );
+
+    sections.interests = {
+      totalActive: interests.filter((i) => i.isActive).length,
+      changedThisPeriod: recentInterests.length,
+      staleCount: staleInterests.length,
+      staleTopics: staleInterests.map((i) => i.topic),
+    };
+  }
+
+  // Action patterns
+  if (focus === "all" || focus === "actions") {
+    const actions = await prisma.aydenAgencyAction.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (actions.length > 0) {
+      const typeCounts: Record<string, number> = {};
+      for (const a of actions) {
+        typeCounts[a.actionType] = (typeCounts[a.actionType] || 0) + 1;
+      }
+
+      sections.actionPatterns = {
+        totalActions: actions.length,
+        byType: Object.entries(typeCounts)
+          .map(([type, count]) => ({ type, count, pct: Math.round((count / actions.length) * 100) }))
+          .sort((a, b) => b.count - a.count),
+      };
+    } else {
+      sections.actionPatterns = { message: "No autonomous actions this period." };
+    }
+  }
+
+  return JSON.stringify(sections);
 }

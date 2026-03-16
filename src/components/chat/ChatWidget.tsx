@@ -801,8 +801,8 @@ export default function ChatWidget() {
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 placeholder="Message Ayden..."
-                className="min-h-[40px] max-h-[100px] resize-none text-sm"
-                rows={1}
+                className="min-h-[52px] max-h-[200px] resize-none text-sm"
+                rows={2}
               />
               <Button
                 size="sm"

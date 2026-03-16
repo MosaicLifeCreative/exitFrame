@@ -243,7 +243,7 @@ If no shifts are warranted, return an empty shifts array. Most days should have 
     });
   }
 
-  // Log shifts to history table
+  // Log shifts to history table (always write at least a no-op so Ops can track last run)
   if (appliedShifts.length > 0) {
     await prisma.aydenDnaShift.createMany({
       data: appliedShifts.map((s) => ({
@@ -253,6 +253,17 @@ If no shifts are warranted, return an empty shifts array. Most days should have 
         delta: s.delta,
         reason: s.reason,
       })),
+    });
+  } else {
+    // Write a no-op record so Ops can see REM ran
+    await prisma.aydenDnaShift.create({
+      data: {
+        trait: "_rem_cycle",
+        oldExpression: 0,
+        newExpression: 0,
+        delta: 0,
+        reason: parsed.reasoning || "No shifts warranted",
+      },
     });
   }
 

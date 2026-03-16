@@ -251,13 +251,22 @@ export async function GET() {
     }
 
     for (const d of feedDnaShifts) {
-      const sign = parseFloat(String(d.delta)) > 0 ? "+" : "";
-      feed.push({
-        type: "rem",
-        timestamp: d.createdAt.toISOString(),
-        title: `REM: ${d.trait} ${sign}${parseFloat(String(d.delta)).toFixed(3)}`,
-        detail: d.reason || undefined,
-      });
+      if (d.trait === "_rem_cycle") {
+        feed.push({
+          type: "rem",
+          timestamp: d.createdAt.toISOString(),
+          title: "REM: no shifts",
+          detail: d.reason || undefined,
+        });
+      } else {
+        const sign = parseFloat(String(d.delta)) > 0 ? "+" : "";
+        feed.push({
+          type: "rem",
+          timestamp: d.createdAt.toISOString(),
+          title: `REM: ${d.trait} ${sign}${parseFloat(String(d.delta)).toFixed(3)}`,
+          detail: d.reason || undefined,
+        });
+      }
     }
 
     for (const t of feedThoughts) {
@@ -360,11 +369,14 @@ export async function GET() {
           : null,
         dnaShifts: {
           lastRem: lastRem?.toISOString() ?? null,
-          recentCount: recentDnaShifts.length,
-          topShifts: recentDnaShifts.slice(0, 3).map((d) => ({
-            trait: d.trait,
-            delta: parseFloat(String(d.delta)),
-          })),
+          recentCount: recentDnaShifts.filter((d) => d.trait !== "_rem_cycle").length,
+          topShifts: recentDnaShifts
+            .filter((d) => d.trait !== "_rem_cycle")
+            .slice(0, 3)
+            .map((d) => ({
+              trait: d.trait,
+              delta: parseFloat(String(d.delta)),
+            })),
         },
         backgroundTask: activeBackgroundTask
           ? {

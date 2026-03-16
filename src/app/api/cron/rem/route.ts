@@ -1,16 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { runRemCycle } from "@/lib/rem";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Nightly REM cycle — runs at 4:00am ET via Vercel cron
+// Nightly REM cycle — runs at 4:30am ET via Vercel cron
 // Analyzes 24h behavioral patterns and applies tiny epigenetic
 // expression shifts to DNA traits. Genes don't change; expression does.
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    console.warn("[rem-cron] Auth failed");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

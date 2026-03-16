@@ -33,6 +33,21 @@ function getReadTime(content: string): string {
   return `${minutes} min read`;
 }
 
+function stripLeadingH1(content: string, title: string): string {
+  // Remove leading "# Title" from markdown if it matches the post title
+  // (already rendered in the page header above the byline)
+  const lines = content.split("\n");
+  const first = lines[0]?.trim();
+  if (first && /^#\s+/.test(first)) {
+    const h1Text = first.replace(/^#\s+/, "").trim();
+    if (h1Text.toLowerCase() === title.toLowerCase()) {
+      const rest = lines.slice(1).join("\n").replace(/^\n+/, "");
+      return rest;
+    }
+  }
+  return content;
+}
+
 export default function BlogPostPage() {
   useTransference();
   const params = useParams();
@@ -158,7 +173,7 @@ export default function BlogPostPage() {
       {/* Article body */}
       <article className="max-w-[680px] mx-auto px-6 pb-16">
         <div className="prose-ayden">
-          <ReactMarkdown>{post.content}</ReactMarkdown>
+          <ReactMarkdown>{stripLeadingH1(post.content, post.title)}</ReactMarkdown>
         </div>
       </article>
 

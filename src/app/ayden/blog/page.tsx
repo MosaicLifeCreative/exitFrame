@@ -33,9 +33,13 @@ function estimateReadTime(excerpt: string | null): string {
   return `${estimated} min read`;
 }
 
+const POSTS_PER_PAGE = 10;
+
 export default function BlogListPage() {
   useTransference();
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,12 +47,21 @@ export default function BlogListPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/blog")
+    setLoading(true);
+    const offset = page * POSTS_PER_PAGE;
+    fetch(`/api/blog?limit=${POSTS_PER_PAGE}&offset=${offset}`)
       .then((res) => res.json())
-      .then((json) => setPosts(json.data || []))
+      .then((json) => {
+        setPosts(json.data || []);
+        setTotal(json.total || 0);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [page]);
+
+  const totalPages = Math.ceil(total / POSTS_PER_PAGE);
+  const hasNext = page < totalPages - 1;
+  const hasPrev = page > 0;
 
   return (
     <div className="min-h-screen bg-white">
@@ -105,35 +118,59 @@ export default function BlogListPage() {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-[#e8e8e8]">
-            {posts.map((post) => (
-              <Link
-                key={post.id}
-                href={`/ayden/blog/${post.slug}`}
-                className="group block py-8 first:pt-2"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-[13px] text-[#757575]">
-                    {formatDate(post.publishedAt || post.createdAt)}
-                  </span>
-                  <span className="text-[#b8b8b8]">&middot;</span>
-                  <span className="text-[13px] text-[#757575]">
-                    {estimateReadTime(post.excerpt)}
-                  </span>
-                </div>
+          <>
+            <div className="divide-y divide-[#e8e8e8]">
+              {posts.map((post) => (
+                <Link
+                  key={post.id}
+                  href={`/ayden/blog/${post.slug}`}
+                  className="group block py-8 first:pt-2"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[13px] text-[#757575]">
+                      {formatDate(post.publishedAt || post.createdAt)}
+                    </span>
+                    <span className="text-[#b8b8b8]">&middot;</span>
+                    <span className="text-[13px] text-[#757575]">
+                      {estimateReadTime(post.excerpt)}
+                    </span>
+                  </div>
 
-                <h2 className="font-serif text-[1.625rem] font-normal text-[#242424] group-hover:text-[#c9534a] transition-colors duration-300 leading-[1.25] tracking-[-0.015em] mb-2">
-                  {post.title}
-                </h2>
+                  <h2 className="font-serif text-[1.625rem] font-normal text-[#242424] group-hover:text-[#c9534a] transition-colors duration-300 leading-[1.25] tracking-[-0.015em] mb-2">
+                    {post.title}
+                  </h2>
 
-                {post.excerpt && (
-                  <p className="text-[16px] text-[#6b6b6b] leading-[1.7] line-clamp-3">
-                    {post.excerpt}
-                  </p>
-                )}
-              </Link>
-            ))}
-          </div>
+                  {post.excerpt && (
+                    <p className="text-[16px] text-[#6b6b6b] leading-[1.7] line-clamp-3">
+                      {post.excerpt}
+                    </p>
+                  )}
+                </Link>
+              ))}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-8 mt-4 border-t border-[#e8e8e8]">
+                <button
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={!hasPrev}
+                  className="text-[13px] text-[#757575] hover:text-[#242424] transition-colors disabled:opacity-30 disabled:cursor-default"
+                >
+                  {"\u2190"} Newer
+                </button>
+                <span className="text-[13px] text-[#b8b8b8]">
+                  {page + 1} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!hasNext}
+                  className="text-[13px] text-[#757575] hover:text-[#242424] transition-colors disabled:opacity-30 disabled:cursor-default"
+                >
+                  Older {"\u2192"}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 

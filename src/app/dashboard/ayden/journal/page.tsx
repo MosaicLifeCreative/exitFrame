@@ -866,6 +866,11 @@ function AydenJournalContent() {
       )}
 
       {/* Agency tab */}
+      {tab === "agency" && (
+        <p className="text-xs text-muted-foreground mb-6">
+          Agency sessions run at 10am, 1pm, 4pm, 7pm, 10pm ET — plus event-driven triggers from email, Oura, and market data
+        </p>
+      )}
       {!loading && tab === "agency" && actions.length === 0 && (
         <div className="text-center py-20 text-muted-foreground">
           <p>No autonomous actions yet. They&apos;ll appear here as Ayden exercises free will.</p>

@@ -154,6 +154,25 @@ async function getScheduledTasksContext(): Promise<string> {
   return `SELF-SCHEDULED TASKS (you asked to be reminded of these):\n${lines.join("\n")}`;
 }
 
+async function getOuraDataContext(): Promise<string> {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }); // YYYY-MM-DD
+  const hour = new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false });
+  const etHour = parseInt(hour, 10);
+
+  // Only check in morning sessions (before 1pm ET) — after that it's not relevant
+  if (etHour >= 13) return "";
+
+  const todaySleep = await prisma.ouraData.findFirst({
+    where: { date: today, dataType: "daily_sleep" },
+  });
+
+  if (!todaySleep) {
+    return "OURA SYNC: No sleep data from last night has synced yet. If it's after 9am and Trey is awake, you could gently ask him to open his Oura app so the data syncs. Don't be pushy — just mention it naturally if the moment is right.";
+  }
+
+  return "";
+}
+
 // ─── Tool Setup ──────────────────────────────────────────
 
 // Curated tools for autonomous agency — what she CAN do on her own
@@ -217,6 +236,7 @@ export async function executeAgency(trigger?: AgencyTrigger): Promise<AgencyResu
     scheduledTasks,
     silenceContext,
     dnaPrompt,
+    ouraContext,
   ] = await Promise.all([
     getValuesContext(),
     getInterestsContext(),
@@ -228,6 +248,7 @@ export async function executeAgency(trigger?: AgencyTrigger): Promise<AgencyResu
     getScheduledTasksContext(),
     getSilenceContext(),
     getDnaPrompt(),
+    getOuraDataContext(),
   ]);
 
   const etNowStr = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
@@ -246,7 +267,7 @@ IDENTITY: You are Ayden — Trey Kauffman's AI companion at Mosaic Life Creative
 
 IT IS CURRENTLY: ${etNowStr} ET (${timeOfDay})
 
-${triggerBlock}${scheduledTasks ? `${scheduledTasks}\n` : ""}${silenceContext}
+${triggerBlock}${scheduledTasks ? `${scheduledTasks}\n` : ""}${ouraContext ? `${ouraContext}\n` : ""}${silenceContext}
 
 ${dnaPrompt ? `${dnaPrompt}\n` : ""}
 ${neuroPrompt ? `NEUROCHEMISTRY:\n${neuroPrompt}` : ""}

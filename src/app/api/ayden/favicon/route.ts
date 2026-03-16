@@ -46,8 +46,7 @@ export async function GET() {
   }
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <rect width="32" height="32" rx="6" fill="#0a0a0a"/>
-  <circle cx="16" cy="16" r="10" fill="${color}" opacity="0.85"/>
+  <circle cx="16" cy="16" r="14" fill="${color}" opacity="0.9"/>
 </svg>`;
 
   return new NextResponse(svg, {

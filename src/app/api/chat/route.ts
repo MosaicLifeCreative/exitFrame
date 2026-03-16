@@ -558,13 +558,13 @@ export async function POST(request: Request) {
           const RESPONSE_MODEL = "claude-sonnet-4-20250514";
 
           // Phase 1: Tool resolution with Haiku (non-streamed, cheap)
-          const MAX_TOOL_ROUNDS = 3;
+          const MAX_TOOL_ROUNDS = 5;
           let fullResponseText = "";
           for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             const response = await withRetry(() =>
               anthropic.messages.create({
                 model: TOOL_MODEL,
-                max_tokens: 1024,
+                max_tokens: 2048,
                 system: systemPrompt,
                 messages: apiMessages,
                 tools,
@@ -662,7 +662,7 @@ export async function POST(request: Request) {
 
           // Phase 2: Final response with Sonnet (quality, streamed)
           // Sonnet gets action tools only (no memory/emotion — Haiku handles those in Phase 1)
-          const MAX_SONNET_TOOL_ROUNDS = 3;
+          const MAX_SONNET_TOOL_ROUNDS = 5;
           for (let sonnetRound = 0; sonnetRound < MAX_SONNET_TOOL_ROUNDS; sonnetRound++) {
             // Retry stream creation on overloaded errors (up to 2 retries with backoff)
             let finalMessage: Anthropic.Message | undefined;

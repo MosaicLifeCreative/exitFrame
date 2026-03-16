@@ -433,6 +433,21 @@ Respond with your internal reasoning first (what you're thinking about, what dra
           data: { sessionId },
         });
         console.log(`[agency] Linked ${actionIds.length} action(s) to session ${sessionId}`);
+      } else {
+        // Ayden acted (e.g. create_note, web_search) but didn't call log_agency_action
+        // Create an action record so the session is visible in the journal
+        await prisma.aydenAgencyAction.create({
+          data: {
+            actionType: result.action || "action",
+            summary: finalText.substring(0, 1000) || "Acted autonomously",
+            trigger: trigger
+              ? `${trigger.source}: ${trigger.reason}`
+              : "Scheduled agency session",
+            outcome: `Acted via ${toolsUsed.join(", ")}`,
+            sessionId,
+          },
+        });
+        console.log(`[agency] Auto-logged action for session ${sessionId} (tools: ${toolsUsed.join(", ")})`);
       }
     }
   } catch (err) {

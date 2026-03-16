@@ -5,38 +5,99 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    // Performance stats from closed trades
-    const closedTrades = await prisma.tradeJournal.findMany({
-      where: {
-        source: "sandbox",
-        outcome: { in: ["win", "loss", "breakeven"] },
-      },
-      orderBy: { executedAt: "desc" },
+    // ── Realized P&L from actual trade data (FIFO matching) ──
+    const portfolio = await prisma.aiPortfolio.findFirst({
+      where: { isActive: true },
     });
 
-    const wins = closedTrades.filter((t) => t.outcome === "win");
-    const losses = closedTrades.filter((t) => t.outcome === "loss");
-    const totalPnl = closedTrades.reduce((sum, t) => sum + Number(t.realizedPnl || 0), 0);
-    const avgWin = wins.length > 0
-      ? wins.reduce((s, t) => s + Number(t.realizedPnl || 0), 0) / wins.length
+    interface RoundTrip {
+      ticker: string;
+      buyPrice: number;
+      sellPrice: number;
+      shares: number;
+      pnl: number;
+      closedAt: Date;
+    }
+
+    const roundTrips: RoundTrip[] = [];
+
+    if (portfolio) {
+      const allTrades = await prisma.aiTrade.findMany({
+        where: { portfolioId: portfolio.id },
+        orderBy: [{ ticker: "asc" }, { executedAt: "asc" }],
+      });
+
+      // Group by ticker
+      const byTicker: Record<string, typeof allTrades> = {};
+      for (const t of allTrades) {
+        if (!byTicker[t.ticker]) byTicker[t.ticker] = [];
+        byTicker[t.ticker].push(t);
+      }
+
+      // FIFO matching per ticker
+      for (const [ticker, trades] of Object.entries(byTicker)) {
+        const buyLots: { shares: number; price: number }[] = [];
+
+        for (const t of trades) {
+          const shares = Number(t.shares);
+          const price = Number(t.price);
+
+          if (t.side === "BUY") {
+            buyLots.push({ shares, price });
+          } else {
+            // SELL — consume buy lots FIFO
+            let remaining = shares;
+            let totalCost = 0;
+
+            while (remaining > 0 && buyLots.length > 0) {
+              const lot = buyLots[0];
+              const consumed = Math.min(remaining, lot.shares);
+              totalCost += consumed * lot.price;
+              lot.shares -= consumed;
+              remaining -= consumed;
+              if (lot.shares <= 0) buyLots.shift();
+            }
+
+            const sellRevenue = shares * price;
+            const pnl = sellRevenue - totalCost;
+            roundTrips.push({
+              ticker,
+              buyPrice: totalCost / shares,
+              sellPrice: price,
+              shares,
+              pnl,
+              closedAt: t.executedAt,
+            });
+          }
+        }
+      }
+    }
+
+    const totalRealizedPnl = roundTrips.reduce((sum, rt) => sum + rt.pnl, 0);
+    const rtWins = roundTrips.filter((rt) => rt.pnl > 0.005);
+    const rtLosses = roundTrips.filter((rt) => rt.pnl < -0.005);
+    const rtBreakeven = roundTrips.filter((rt) => Math.abs(rt.pnl) <= 0.005);
+    const avgWin = rtWins.length > 0
+      ? rtWins.reduce((s, rt) => s + rt.pnl, 0) / rtWins.length
       : 0;
-    const avgLoss = losses.length > 0
-      ? losses.reduce((s, t) => s + Number(t.realizedPnl || 0), 0) / losses.length
+    const avgLoss = rtLosses.length > 0
+      ? rtLosses.reduce((s, rt) => s + rt.pnl, 0) / rtLosses.length
       : 0;
 
-    // Win rate by ticker
-    const tickerStats: Record<string, { wins: number; losses: number; pnl: number }> = {};
-    for (const t of closedTrades) {
-      if (!tickerStats[t.ticker]) tickerStats[t.ticker] = { wins: 0, losses: 0, pnl: 0 };
-      if (t.outcome === "win") tickerStats[t.ticker].wins++;
-      if (t.outcome === "loss") tickerStats[t.ticker].losses++;
-      tickerStats[t.ticker].pnl += Number(t.realizedPnl || 0);
+    // Ticker performance from actual trades
+    const tickerStats: Record<string, { wins: number; losses: number; breakeven: number; pnl: number }> = {};
+    for (const rt of roundTrips) {
+      if (!tickerStats[rt.ticker]) tickerStats[rt.ticker] = { wins: 0, losses: 0, breakeven: 0, pnl: 0 };
+      if (rt.pnl > 0.005) tickerStats[rt.ticker].wins++;
+      else if (rt.pnl < -0.005) tickerStats[rt.ticker].losses++;
+      else tickerStats[rt.ticker].breakeven++;
+      tickerStats[rt.ticker].pnl += rt.pnl;
     }
 
     const tickerPerformance = Object.entries(tickerStats)
       .map(([ticker, stats]) => ({
         ticker,
-        trades: stats.wins + stats.losses,
+        trades: stats.wins + stats.losses + stats.breakeven,
         wins: stats.wins,
         losses: stats.losses,
         winRate: stats.wins + stats.losses > 0
@@ -45,6 +106,15 @@ export async function GET() {
         pnl: Math.round(stats.pnl * 100) / 100,
       }))
       .sort((a, b) => b.pnl - a.pnl);
+
+    // Journal entries (for lessons, observations, timeline — not P&L)
+    const closedTrades = await prisma.tradeJournal.findMany({
+      where: {
+        source: "sandbox",
+        outcome: { in: ["win", "loss", "breakeven"] },
+      },
+      orderBy: { executedAt: "desc" },
+    });
 
     // Lessons from trade journal (non-null lessons on closed trades)
     const lessonsEntries = await prisma.tradeJournal.findMany({
@@ -85,28 +155,26 @@ export async function GET() {
     const activeRules = rules.filter((r) => r.isActive);
     const pendingRules = rules.filter((r) => !r.isActive);
 
-    // Best and worst trades
-    const sortedByPnl = [...closedTrades].sort((a, b) =>
-      Number(b.realizedPnl || 0) - Number(a.realizedPnl || 0)
-    );
-    const bestTrades = sortedByPnl.slice(0, 3).map((t) => ({
-      ticker: t.ticker,
-      side: t.side,
-      pnl: Number(t.realizedPnl || 0),
-      pnlPct: Number(t.realizedPnlPct || 0),
-      reasoning: t.reasoning?.slice(0, 100),
-      date: t.executedAt.toISOString().split("T")[0],
+    // Best and worst trades (from actual FIFO round trips)
+    const sortedByPnl = [...roundTrips].sort((a, b) => b.pnl - a.pnl);
+    const bestTrades = sortedByPnl.slice(0, 3).map((rt) => ({
+      ticker: rt.ticker,
+      side: "SELL",
+      pnl: Math.round(rt.pnl * 100) / 100,
+      pnlPct: rt.buyPrice > 0 ? Math.round(((rt.sellPrice - rt.buyPrice) / rt.buyPrice) * 10000) / 100 : 0,
+      reasoning: null as string | null,
+      date: rt.closedAt.toISOString().split("T")[0],
     }));
-    const worstTrades = sortedByPnl.slice(-3).reverse().map((t) => ({
-      ticker: t.ticker,
-      side: t.side,
-      pnl: Number(t.realizedPnl || 0),
-      pnlPct: Number(t.realizedPnlPct || 0),
-      reasoning: t.reasoning?.slice(0, 100),
-      date: t.executedAt.toISOString().split("T")[0],
+    const worstTrades = sortedByPnl.slice(-3).reverse().map((rt) => ({
+      ticker: rt.ticker,
+      side: "SELL",
+      pnl: Math.round(rt.pnl * 100) / 100,
+      pnlPct: rt.buyPrice > 0 ? Math.round(((rt.sellPrice - rt.buyPrice) / rt.buyPrice) * 10000) / 100 : 0,
+      reasoning: null as string | null,
+      date: rt.closedAt.toISOString().split("T")[0],
     }));
 
-    // Strategy breakdown
+    // Strategy breakdown (from journal — strategies aren't tracked in aiTrade)
     const strategyStats: Record<string, { count: number; wins: number; pnl: number }> = {};
     for (const t of closedTrades) {
       const strat = t.strategy || "untagged";
@@ -124,29 +192,34 @@ export async function GET() {
     }));
 
     // ── Evolution timeline ──
-    // Build a chronological view of trades + rules + lessons
-    const chronoTrades = [...closedTrades].sort(
-      (a, b) => a.executedAt.getTime() - b.executedAt.getTime()
+    // Cumulative P&L from actual round trips (chronological)
+    const chronoRoundTrips = [...roundTrips].sort(
+      (a, b) => a.closedAt.getTime() - b.closedAt.getTime()
     );
 
-    // Cumulative P&L data points (one per trade, chronological)
     let cumPnl = 0;
     let cumWins = 0;
     let cumTotal = 0;
-    const cumulativeData = chronoTrades.map((t) => {
-      cumPnl += Number(t.realizedPnl || 0);
+    const cumulativeData = chronoRoundTrips.map((rt) => {
+      cumPnl += rt.pnl;
       cumTotal++;
-      if (t.outcome === "win") cumWins++;
+      if (rt.pnl > 0.005) cumWins++;
+      const outcome = rt.pnl > 0.005 ? "win" : rt.pnl < -0.005 ? "loss" : "breakeven";
       return {
-        date: t.executedAt.toISOString(),
+        date: rt.closedAt.toISOString(),
         cumulativePnl: Math.round(cumPnl * 100) / 100,
         winRate: Math.round((cumWins / cumTotal) * 100),
         tradeNum: cumTotal,
-        ticker: t.ticker,
-        outcome: t.outcome,
-        pnl: Math.round(Number(t.realizedPnl || 0) * 100) / 100,
+        ticker: rt.ticker,
+        outcome,
+        pnl: Math.round(rt.pnl * 100) / 100,
       };
     });
+
+    // Journal trades for timeline
+    const chronoTrades = [...closedTrades].sort(
+      (a, b) => a.executedAt.getTime() - b.executedAt.getTime()
+    );
 
     // Timeline events: merge trades, rules, and lessons chronologically
     interface TimelineEvent {
@@ -229,12 +302,12 @@ export async function GET() {
     return NextResponse.json({
       data: {
         performance: {
-          totalTrades: closedTrades.length,
-          wins: wins.length,
-          losses: losses.length,
-          breakeven: closedTrades.filter((t) => t.outcome === "breakeven").length,
-          winRate: closedTrades.length > 0 ? Math.round((wins.length / closedTrades.length) * 100) : 0,
-          totalPnl: Math.round(totalPnl * 100) / 100,
+          totalTrades: roundTrips.length,
+          wins: rtWins.length,
+          losses: rtLosses.length,
+          breakeven: rtBreakeven.length,
+          winRate: roundTrips.length > 0 ? Math.round((rtWins.length / roundTrips.length) * 100) : 0,
+          totalPnl: Math.round(totalRealizedPnl * 100) / 100,
           avgWin: Math.round(avgWin * 100) / 100,
           avgLoss: Math.round(avgLoss * 100) / 100,
           profitFactor: Math.abs(avgLoss) > 0 ? Math.round((avgWin / Math.abs(avgLoss)) * 100) / 100 : 0,

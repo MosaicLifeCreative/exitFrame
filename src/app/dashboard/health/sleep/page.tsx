@@ -940,9 +940,6 @@ function SleepPage() {
                 {/* Still show previous session below for reference */}
                 {latestSession && (() => {
                   const s = latestSession.data;
-                  const prevStress = stressMap.get(latestSession.date);
-                  const prevResilience = resilienceMap.get(latestSession.date);
-                  const prevSpo2 = spo2Map.get(latestSession.date);
                   return (
                     <Card className="opacity-60">
                       <CardHeader>

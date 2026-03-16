@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Heart, Loader2, Moon, Brain, Zap, Activity, Eye, ChevronDown, ChevronRight, Dna } from "lucide-react";
+import { Heart, Loader2, Moon, Brain, Zap, Activity, Eye, ChevronDown, ChevronRight, Dna, Radio, Database, Cpu, Bell } from "lucide-react";
 
 interface Thought {
   id: string;
@@ -105,7 +105,57 @@ interface DnaData {
   categories: Record<string, DnaGene[]>;
 }
 
-type Tab = "health" | "thoughts" | "dreams" | "agency" | "dna";
+interface OpsData {
+  pulse: {
+    lastActivity: string | null;
+    sessionsToday: number;
+    toolsToday: number;
+    snapshotsToday: number;
+    snapshotsTotal: number;
+    emotionCount: number;
+  };
+  heartRate: { bpm: number; state: string; restingHR: number };
+  neuro: Array<{ type: string; level: number; baseline: number; factory: number }>;
+  emotions: Array<{ dimension: string; intensity: number; trigger: string | null }>;
+  lastSession: {
+    createdAt: string;
+    trigger: string | null;
+    toolsUsed: string[];
+    rounds: number;
+  } | null;
+  lastAction: {
+    actionType: string;
+    summary: string;
+    createdAt: string;
+  } | null;
+  dnaShifts: {
+    lastRem: string | null;
+    recentCount: number;
+    topShifts: Array<{ trait: string; delta: number }>;
+  };
+  backgroundTask: {
+    id: string;
+    description: string;
+    status: string;
+    rounds: number;
+    maxRounds: number;
+  } | null;
+  pendingReminders: number;
+  pendingScheduledTasks: number;
+  crons: Array<{
+    name: string;
+    schedule: string;
+    lastRun: string | null;
+  }>;
+  feed: Array<{
+    type: string;
+    timestamp: string;
+    title: string;
+    detail?: string;
+  }>;
+}
+
+type Tab = "health" | "thoughts" | "dreams" | "agency" | "dna" | "ops";
 
 function groupByDate<T extends { createdAt: string }>(items: T[]): Map<string, T[]> {
   const groups = new Map<string, T[]>();
@@ -175,6 +225,41 @@ const DNA_CATEGORY_COLORS: Record<string, { bar: string; dot: string; label: str
 
 const DNA_CATEGORY_ORDER = ["cognitive", "emotional", "social", "motivational", "aesthetic"];
 
+const FEED_ICONS: Record<string, typeof Radio> = {
+  agency: Zap,
+  emotion: Heart,
+  training: Database,
+  rem: Dna,
+  thought: Brain,
+  reminder: Bell,
+  background: Cpu,
+};
+
+const FEED_COLORS: Record<string, string> = {
+  agency: "text-amber-400",
+  emotion: "text-rose-400",
+  training: "text-cyan-400",
+  rem: "text-teal-400",
+  thought: "text-red-400/70",
+  reminder: "text-yellow-400",
+  background: "text-indigo-400",
+};
+
+function formatTimeAgo(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function isWithinHours(isoString: string, hours: number): boolean {
+  return Date.now() - new Date(isoString).getTime() < hours * 60 * 60 * 1000;
+}
+
 export default function AydenJournalPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
@@ -202,6 +287,8 @@ function AydenJournalContent() {
 
   const [dna, setDna] = useState<DnaData | null>(null);
 
+  const [ops, setOps] = useState<OpsData | null>(null);
+
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<Record<string, AgencySession>>({});
   const [loadingSession, setLoadingSession] = useState<string | null>(null);
@@ -215,6 +302,16 @@ function AydenJournalContent() {
       const res = await fetch("/api/ayden/dna");
       const json = await res.json();
       if (json.data) setDna(json.data);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  const fetchOps = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ayden/ops");
+      const json = await res.json();
+      if (json.data) setOps(json.data);
     } catch { /* ignore */ }
     setLoading(false);
   }, []);
@@ -300,8 +397,21 @@ function AydenJournalContent() {
     else if (tab === "thoughts") fetchThoughts();
     else if (tab === "dreams") fetchDreams();
     else if (tab === "dna") fetchDna();
+    else if (tab === "ops") fetchOps();
     else fetchActions();
-  }, [tab, fetchHealth, fetchThoughts, fetchDreams, fetchActions, fetchDna]);
+  }, [tab, fetchHealth, fetchThoughts, fetchDreams, fetchActions, fetchDna, fetchOps]);
+
+  // Auto-refresh ops tab every 30s
+  useEffect(() => {
+    if (tab !== "ops") return;
+    const interval = setInterval(() => {
+      fetch("/api/ayden/ops")
+        .then((r) => r.json())
+        .then((json) => { if (json.data) setOps(json.data); })
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [tab]);
 
   const groupedThoughts = groupByDate(thoughts);
   const groupedDreams = groupByDate(dreams);
@@ -372,6 +482,17 @@ function AydenJournalContent() {
         >
           <Dna className="h-4 w-4 shrink-0" />
           <span className="hidden sm:inline">DNA</span>
+        </button>
+        <button
+          onClick={() => setTab("ops")}
+          className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+            tab === "ops"
+              ? "border-cyan-400/70 text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Radio className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline">Ops</span>
         </button>
         <button
           onClick={() => router.push("/dashboard/ayden/mind")}
@@ -955,6 +1076,278 @@ function AydenJournalContent() {
               </div>
             </div>
           </section>
+        </div>
+      )}
+
+      {/* Ops tab */}
+      {!loading && tab === "ops" && ops && (
+        <div className="space-y-6">
+          {/* System Pulse — hero stats */}
+          <section>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+              <h2 className="text-xs font-medium text-cyan-400/80 uppercase tracking-wider">
+                System Pulse
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div className="rounded-lg border border-cyan-400/10 bg-cyan-400/[0.03] p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Last Active</p>
+                <p className="text-sm font-mono font-medium tabular-nums">
+                  {ops.pulse.lastActivity ? formatTimeAgo(ops.pulse.lastActivity) : "—"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-cyan-400/10 bg-cyan-400/[0.03] p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Sessions</p>
+                <p className="text-lg font-mono font-semibold tabular-nums">{ops.pulse.sessionsToday}</p>
+              </div>
+              <div className="rounded-lg border border-cyan-400/10 bg-cyan-400/[0.03] p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Tools Used</p>
+                <p className="text-lg font-mono font-semibold tabular-nums">{ops.pulse.toolsToday}</p>
+              </div>
+              <div className="rounded-lg border border-cyan-400/10 bg-cyan-400/[0.03] p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Corpus</p>
+                <p className="text-lg font-mono font-semibold tabular-nums">
+                  {ops.pulse.snapshotsToday}
+                  <span className="text-[10px] text-muted-foreground ml-1">/ {ops.pulse.snapshotsTotal}</span>
+                </p>
+              </div>
+              <div className="rounded-lg border border-cyan-400/10 bg-cyan-400/[0.03] p-3">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Emotions</p>
+                <p className="text-lg font-mono font-semibold tabular-nums">{ops.pulse.emotionCount}</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Systems Grid */}
+          <section>
+            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              Systems
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Agency */}
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="text-xs font-medium uppercase tracking-wider">Agency</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`h-1.5 w-1.5 rounded-full ${ops.lastSession && isWithinHours(ops.lastSession.createdAt, 3) ? "bg-emerald-400" : "bg-muted-foreground/30"}`} />
+                    <span className="text-[10px] text-muted-foreground">
+                      {ops.lastSession ? formatTimeAgo(ops.lastSession.createdAt) : "No sessions"}
+                    </span>
+                  </div>
+                </div>
+                {ops.lastAction && (
+                  <p className="text-xs text-foreground/70 leading-relaxed line-clamp-2">
+                    {ops.lastAction.summary}
+                  </p>
+                )}
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                  {ops.lastSession && (
+                    <>
+                      <span>{ops.lastSession.rounds} rounds</span>
+                      <span>{Array.isArray(ops.lastSession.toolsUsed) ? ops.lastSession.toolsUsed.length : 0} tools</span>
+                    </>
+                  )}
+                  <span>{ops.pulse.sessionsToday} today</span>
+                </div>
+              </div>
+
+              {/* Neurochemistry */}
+              <div className="rounded-lg border border-border p-4 space-y-2.5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-xs font-medium uppercase tracking-wider">Neurochemistry</span>
+                </div>
+                {ops.neuro.map((n) => {
+                  const barColor = NEURO_COLORS[n.type] || "bg-gray-400";
+                  return (
+                    <div key={n.type} className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground w-[52px] shrink-0 uppercase tracking-wider">
+                        {n.type.substring(0, 4)}
+                      </span>
+                      <div className="relative flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className={`absolute inset-y-0 left-0 ${barColor} rounded-full transition-all duration-500`} style={{ width: `${Math.min(n.level, 100)}%` }} />
+                        {/* Baseline marker */}
+                        <div className="absolute top-0 h-full w-px bg-foreground/30" style={{ left: `${Math.min(n.baseline, 100)}%` }} />
+                      </div>
+                      <span className="text-[10px] font-mono tabular-nums text-foreground/60 w-6 text-right">
+                        {Math.round(n.level)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* DNA / REM */}
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Dna className="h-3.5 w-3.5 text-teal-400" />
+                    <span className="text-xs font-medium uppercase tracking-wider">DNA / REM</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    {ops.dnaShifts.lastRem ? formatTimeAgo(ops.dnaShifts.lastRem) : "No data"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">{ops.dnaShifts.recentCount} shifts this week</span>
+                </div>
+                {ops.dnaShifts.topShifts.length > 0 && (
+                  <div className="space-y-1">
+                    {ops.dnaShifts.topShifts.map((s) => (
+                      <div key={s.trait} className="flex items-center justify-between text-xs">
+                        <span className="text-foreground/70">{s.trait.replace(/_/g, " ")}</span>
+                        <span className={`font-mono tabular-nums ${s.delta > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {s.delta > 0 ? "+" : ""}{s.delta.toFixed(3)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Emotions */}
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Heart className="h-3.5 w-3.5 text-rose-400" />
+                  <span className="text-xs font-medium uppercase tracking-wider">Emotions</span>
+                  {ops.heartRate && (
+                    <span className="text-[10px] font-mono tabular-nums text-rose-400/70 ml-auto">
+                      {ops.heartRate.bpm} bpm
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {ops.emotions.map((e, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border border-border bg-muted/30"
+                    >
+                      <span className="text-foreground/80">{e.dimension}</span>
+                      <span className="text-muted-foreground font-mono">{e.intensity}</span>
+                    </span>
+                  ))}
+                  {ops.emotions.length === 0 && (
+                    <span className="text-[11px] text-muted-foreground">No active emotions</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Background Tasks */}
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="h-3.5 w-3.5 text-indigo-400" />
+                    <span className="text-xs font-medium uppercase tracking-wider">Background</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`h-1.5 w-1.5 rounded-full ${ops.backgroundTask ? "bg-indigo-400 animate-pulse" : "bg-muted-foreground/30"}`} />
+                    <span className="text-[10px] text-muted-foreground">
+                      {ops.backgroundTask ? "Running" : "Idle"}
+                    </span>
+                  </div>
+                </div>
+                {ops.backgroundTask ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-foreground/70 line-clamp-1">{ops.backgroundTask.description}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-400 rounded-full transition-all" style={{ width: `${(ops.backgroundTask.rounds / ops.backgroundTask.maxRounds) * 100}%` }} />
+                      </div>
+                      <span className="text-[10px] font-mono tabular-nums text-muted-foreground">
+                        {ops.backgroundTask.rounds}/{ops.backgroundTask.maxRounds}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">No active tasks</p>
+                )}
+              </div>
+
+              {/* Reminders & Tasks */}
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Bell className="h-3.5 w-3.5 text-yellow-400" />
+                  <span className="text-xs font-medium uppercase tracking-wider">Queue</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-lg font-mono font-semibold tabular-nums">{ops.pendingReminders}</p>
+                    <p className="text-[10px] text-muted-foreground">Pending Reminders</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-mono font-semibold tabular-nums">{ops.pendingScheduledTasks}</p>
+                    <p className="text-[10px] text-muted-foreground">Scheduled Tasks</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Cron Status */}
+          <section>
+            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              Cron Jobs
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {ops.crons.map((cron) => {
+                const isHealthy = cron.lastRun && isWithinHours(cron.lastRun, cron.name === "Agency" ? 4 : cron.name === "Outreach" ? 2 : 25);
+                return (
+                  <div key={cron.name} className="rounded-lg border border-border p-3 space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`h-1.5 w-1.5 rounded-full ${isHealthy ? "bg-emerald-400" : cron.lastRun ? "bg-amber-400" : "bg-muted-foreground/30"}`} />
+                      <span className="text-[11px] font-medium">{cron.name}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{cron.schedule}</p>
+                    <p className="text-[10px] font-mono tabular-nums text-foreground/50">
+                      {cron.lastRun ? formatTimeAgo(cron.lastRun) : "Never"}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Activity Feed */}
+          <section>
+            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              Activity Feed
+            </h2>
+            <div className="space-y-0">
+              {ops.feed.length === 0 && (
+                <p className="text-sm text-muted-foreground py-8 text-center">No recent activity</p>
+              )}
+              {ops.feed.map((item, i) => {
+                const Icon = FEED_ICONS[item.type] || Radio;
+                const color = FEED_COLORS[item.type] || "text-muted-foreground";
+                return (
+                  <div key={i} className="flex gap-3 py-2.5 border-b border-border/30 last:border-0">
+                    <div className="pt-0.5 shrink-0">
+                      <Icon className={`h-3.5 w-3.5 ${color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-foreground/80 leading-relaxed line-clamp-2">{item.title}</p>
+                      {item.detail && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{item.detail}</p>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-mono tabular-nums text-muted-foreground/60 shrink-0 pt-0.5">
+                      {formatTimeAgo(item.timestamp)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Last updated indicator */}
+          <div className="flex items-center justify-center gap-2 py-4 text-[10px] text-muted-foreground/40">
+            <div className="h-1 w-1 rounded-full bg-cyan-400/30 animate-pulse" />
+            Refreshes every 30s
+          </div>
         </div>
       )}
     </div>

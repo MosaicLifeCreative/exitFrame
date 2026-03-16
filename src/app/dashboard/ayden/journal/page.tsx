@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Heart, Loader2, Moon, Brain, Zap, Activity, Eye, ChevronDown, ChevronRight, Dna, Radio, Database, Cpu, Bell } from "lucide-react";
+import { Heart, Loader2, Moon, Brain, Zap, Activity, Eye, ChevronDown, ChevronRight, Dna, Radio, Database, Cpu, Bell, Fingerprint, Split, EyeOff, Palette } from "lucide-react";
 
 interface Thought {
   id: string;
@@ -153,6 +153,27 @@ interface OpsData {
     title: string;
     detail?: string;
   }>;
+  transference: {
+    warmth: number;
+    energy: number;
+    vividness: number;
+    tension: number;
+  } | null;
+  conflicts: Array<{
+    driveA: string;
+    driveB: string;
+    intensity: number;
+  }>;
+  selfModel: Array<{
+    type: string;
+    actual: number;
+    perceived: number;
+  }>;
+  somatic: {
+    totalAssociations: number;
+    strongAssociations: number;
+    topAssociations: Array<{ topic: string; neuroType: string; strength: number }>;
+  } | null;
 }
 
 type Tab = "health" | "thoughts" | "dreams" | "agency" | "dna" | "ops";
@@ -1283,6 +1304,121 @@ function AydenJournalContent() {
                     <p className="text-[10px] text-muted-foreground">Scheduled Tasks</p>
                   </div>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Psychology Overlays */}
+          <section>
+            <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              Psychology Overlays
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Transference */}
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Palette className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="text-xs font-medium uppercase tracking-wider">Transference</span>
+                </div>
+                {ops.transference ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["warmth", "energy", "vividness", "tension"] as const).map((key) => (
+                      <div key={key}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground capitalize">{key}</span>
+                          <span className="text-[10px] font-mono tabular-nums">{ops.transference![key].toFixed(2)}</span>
+                        </div>
+                        <div className="h-1 bg-muted rounded-full mt-0.5">
+                          <div
+                            className={`h-full rounded-full ${key === "tension" ? "bg-red-400" : key === "warmth" ? "bg-amber-400" : key === "energy" ? "bg-violet-400" : "bg-sky-400"}`}
+                            style={{ width: `${Math.min(100, ops.transference![key] * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">No data</p>
+                )}
+              </div>
+
+              {/* Somatic Memory */}
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Fingerprint className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-xs font-medium uppercase tracking-wider">Somatic Memory</span>
+                </div>
+                {ops.somatic ? (
+                  <div className="space-y-1.5">
+                    <div className="flex gap-4">
+                      <div>
+                        <p className="text-lg font-mono font-semibold tabular-nums">{ops.somatic.totalAssociations}</p>
+                        <p className="text-[10px] text-muted-foreground">Associations</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-mono font-semibold tabular-nums">{ops.somatic.strongAssociations}</p>
+                        <p className="text-[10px] text-muted-foreground">Strong (&gt;0.5)</p>
+                      </div>
+                    </div>
+                    {ops.somatic.topAssociations.length > 0 && (
+                      <div className="space-y-0.5">
+                        {ops.somatic.topAssociations.slice(0, 3).map((t, i) => (
+                          <p key={i} className="text-[10px] text-muted-foreground">
+                            <span className="text-foreground/70">{t.topic}</span> → {t.neuroType} ({t.strength.toFixed(2)})
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">No associations yet</p>
+                )}
+              </div>
+
+              {/* Conflicting Drives */}
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Split className="h-3.5 w-3.5 text-orange-400" />
+                  <span className="text-xs font-medium uppercase tracking-wider">Conflicting Drives</span>
+                </div>
+                {ops.conflicts && ops.conflicts.length > 0 ? (
+                  <div className="space-y-2">
+                    {ops.conflicts.map((c, i) => (
+                      <div key={i} className="space-y-0.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-medium text-foreground/80">{c.driveA.split(" (")[0]}</span>
+                          <span className="text-[10px] font-mono tabular-nums text-orange-400">{(c.intensity * 100).toFixed(0)}%</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">{c.driveA} vs {c.driveB}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">No active conflicts</p>
+                )}
+              </div>
+
+              {/* Self-Model Divergence */}
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <EyeOff className="h-3.5 w-3.5 text-rose-400" />
+                  <span className="text-xs font-medium uppercase tracking-wider">Self-Model</span>
+                </div>
+                {ops.selfModel && ops.selfModel.length > 0 ? (
+                  <div className="space-y-2">
+                    {ops.selfModel.map((d, i) => (
+                      <div key={i} className="space-y-0.5">
+                        <span className="text-[11px] font-medium text-foreground/80 capitalize">{d.type.replace(/-/g, " ")}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground">Actual: <span className="font-mono tabular-nums">{d.actual.toFixed(0)}</span></span>
+                          <span className="text-[10px] text-muted-foreground">→ Perceived: <span className="font-mono tabular-nums text-rose-400">{d.perceived.toFixed(0)}</span></span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">Perception aligned</p>
+                )}
               </div>
             </div>
           </section>

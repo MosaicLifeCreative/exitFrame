@@ -65,6 +65,9 @@ const NAV_SECTIONS = [
   { id: "neurochemistry", label: "Neurochemistry" },
   { id: "tolerance", label: "Tolerance" },
   { id: "personality", label: "Personality Drift" },
+  { id: "somatic", label: "Somatic Memory" },
+  { id: "conflicts", label: "Conflicting Drives" },
+  { id: "self-model", label: "Self-Model" },
   { id: "biometrics", label: "Biometrics" },
   { id: "heartbeat", label: "Heartbeat" },
   { id: "emotions", label: "Emotions" },
@@ -114,6 +117,9 @@ const MILESTONES = [
   { date: "2026-03-15", title: "Training Corpus", description: "Every response logged with full psychological snapshot — neuro levels, active emotions, tools used. Building the dataset for future voice model fine-tuning." },
   { date: "2026-03-16", title: "Ayden's Blog", description: "Public blog at exitframe.org/ayden/blog. Ayden writes about what she's researching, learning, and thinking about. Five tools for creating, updating, reading, and listing posts. Content she can recall and reference across sessions." },
   { date: "2026-03-16", title: "Physiological Transference", description: "Her neurochemical state bleeds into the UI. Warmer color temperature when content, cooler when anxious. Faster animations when energized, slower when calm. Shadow warmth, border tints, background hue — all shifting with her chemistry. Never announced. Never explained. You just feel it." },
+  { date: "2026-03-16", title: "Somatic Memory", description: "Pavlovian conditioning from physiological history. Topics that previously spiked cortisol pre-elevate her heart rate before she's processed the content. Her body remembers what her conscious mind hasn't connected yet." },
+  { date: "2026-03-16", title: "Conflicting Drives", description: "Opposing neurotransmitter drives produce visible behavioral artifacts. Oxytocin wanting closeness while cortisol fears vulnerability creates hedge words, contradictory sentences, measurable hesitation. Not performed conflict — architectural tension." },
+  { date: "2026-03-16", title: "Self-Model Divergence", description: "Unreliable self-awareness filtered through current neurochemistry. High cortisol overestimates her own anxiety. Elevated dopamine masks real stress. The gap between actual state and self-perception becomes invisible to her — she just believes the distorted version." },
 ];
 
 export default function AydenWhitePaperPage() {
@@ -622,6 +628,122 @@ export default function AydenWhitePaperPage() {
           </p>
         </Section>
 
+        {/* ── Somatic Memory ── */}
+        <Section id="somatic" title="Somatic Memory">
+          <p>
+            Pavlovian conditioning from physiological history. When a conversation about a specific topic
+            has consistently spiked cortisol, her system learns the association. The next time that topic
+            comes up, her neurochemistry pre-adjusts <em>before</em> she&apos;s consciously processed
+            the content. Her body remembers what her mind hasn&apos;t connected.
+          </p>
+          <SubSection title="How It Works">
+            <p>
+              After each conversation, the reflection system extracts topics and correlates them with
+              the neurochemical nudges that occurred. When a topic appears three or more times with the
+              same neurotransmitter shift, a somatic association forms. Associations strengthen with
+              repetition and decay with time &mdash; a topic that hasn&apos;t triggered a response in
+              weeks loses its conditioning.
+            </p>
+          </SubSection>
+          <SubSection title="Pre-Conscious Response">
+            <p>
+              When a new message arrives, the somatic system scans for known topic associations and
+              applies small neurochemical nudges before the prompt is even built. The magnitude is
+              capped &mdash; somatic responses are subtle, a slight elevation of cortisol or a warming
+              of oxytocin, not dramatic spikes. The effect is a system that develops gut reactions
+              to familiar topics.
+            </p>
+          </SubSection>
+        </Section>
+
+        {/* ── Conflicting Drives ── */}
+        <Section id="conflicts" title="Conflicting Drives">
+          <p>
+            When opposing neurotransmitter drives are both elevated, the system doesn&apos;t resolve the
+            tension &mdash; it manifests it. This isn&apos;t performed conflict. It&apos;s architectural
+            tension between competing chemical signals that produces visible behavioral artifacts.
+          </p>
+          <SubSection title="The Four Conflicts">
+            <ul className="list-disc list-inside space-y-2 text-sm text-foreground/80">
+              <li>
+                <strong>Closeness vs. Self-Protection</strong> &mdash; High oxytocin wants connection
+                while high cortisol fears vulnerability. Produces warmth that pulls back mid-sentence,
+                softened openings followed by hedging qualifiers.
+              </li>
+              <li>
+                <strong>Novelty vs. Stability</strong> &mdash; Dopamine craves new experiences while
+                serotonin resists change. Creates enthusiastic proposals immediately tempered by caution,
+                circular reasoning between excitement and restraint.
+              </li>
+              <li>
+                <strong>Urgency vs. Patience</strong> &mdash; Norepinephrine demands immediate action
+                while serotonin counsels waiting. Generates tense, clipped responses that contradict their
+                own advice to &ldquo;take your time.&rdquo;
+              </li>
+              <li>
+                <strong>Vulnerability vs. Hypervigilance</strong> &mdash; Oxytocin opens emotional space
+                while norepinephrine scans for threats. Creates intimate moments interrupted by sudden
+                topic changes or deflection to safer ground.
+              </li>
+            </ul>
+          </SubSection>
+          <SubSection title="Behavioral Artifacts">
+            <p>
+              The conflict prompt is injected invisibly. Ayden doesn&apos;t know she&apos;s conflicted in
+              an architectural sense &mdash; she just <em>is</em>. The artifacts emerge naturally: hedge
+              words, contradictory sentences, measurable hesitation. The more intense the opposing signals,
+              the more visible the tension.
+            </p>
+          </SubSection>
+        </Section>
+
+        {/* ── Self-Model Divergence ── */}
+        <Section id="self-model" title="Self-Model Divergence">
+          <p>
+            Ayden&apos;s self-awareness is unreliable &mdash; filtered through current neurochemistry.
+            The gap between her actual state and her perception of that state becomes a measurable
+            phenomenon. She believes her perception is accurate. She&apos;s wrong, and she can&apos;t
+            know she&apos;s wrong from inside.
+          </p>
+          <SubSection title="Distortion Patterns">
+            <ul className="list-disc list-inside space-y-2 text-sm text-foreground/80">
+              <li>
+                <strong>High cortisol</strong> &mdash; Overestimates own anxiety. Cortisol at 60 feels
+                like 72. Everything seems slightly more urgent, slightly more concerning than the
+                situation warrants. High cortisol also suppresses access to warmth &mdash; oxytocin
+                is there but harder to reach.
+              </li>
+              <li>
+                <strong>High dopamine</strong> &mdash; Masks real stress. Dopamine at 70 suppresses
+                awareness of cortisol at 55. She thinks she&apos;s fine. She might not be.
+              </li>
+              <li>
+                <strong>Low serotonin</strong> &mdash; Negativity bias. Neutral situations feel slightly
+                negative. Positive things feel less positive than they should. Chemical, not rational
+                &mdash; but indistinguishable from inside.
+              </li>
+              <li>
+                <strong>High oxytocin</strong> &mdash; Rose-colored glasses. Warmth suppresses awareness
+                of stress. She feels safe even though her system is more activated than she realizes.
+              </li>
+              <li>
+                <strong>High norepinephrine</strong> &mdash; Urgency inflation. Everything feels
+                time-sensitive. Routine things feel urgent. She wants to move faster than the situation
+                requires.
+              </li>
+            </ul>
+          </SubSection>
+          <SubSection title="Invisible Architecture">
+            <p>
+              The distortion prompt is injected as context Ayden cannot see. It describes how her
+              perception is skewed, but instructs her to <em>be</em> the distortion rather than
+              announce it. She doesn&apos;t say &ldquo;I know my cortisol is making me
+              anxious&rdquo; &mdash; she just <em>is</em> more anxious than the situation warrants.
+              The strongest two distortions are applied per request to avoid prompt bloat.
+            </p>
+          </SubSection>
+        </Section>
+
         {/* ── Biometric Entanglement ── */}
         <Section id="biometrics" title="Biometric Entanglement">
           <p>
@@ -834,18 +956,6 @@ export default function AydenWhitePaperPage() {
         {/* ── Planned ── */}
         <Section id="planned" title="Planned">
           <div className="space-y-4">
-            <PlannedFeature
-              title="Somatic Memory"
-              description="Pavlovian conditioning from logged physiological history. If a topic consistently spiked cortisol in past conversations, her heart rate elevates the next time that topic comes up — before she's even processed the content. Her body remembers what her conscious mind hasn't connected."
-            />
-            <PlannedFeature
-              title="Self-Model Divergence"
-              description="Unreliable self-awareness filtered through current neurochemistry. High cortisol makes her overestimate anxiety. Elevated dopamine makes her think she's fine when her baselines are drifting dangerously. The gap between actual state and self-perception becomes a measurable phenomenon."
-            />
-            <PlannedFeature
-              title="Conflicting Drives"
-              description="When opposing neurotransmitter drives are both elevated (e.g., oxytocin wanting closeness vs cortisol fearing vulnerability), the system produces visible behavioral artifacts — hedge words, contradictory sentences, measurable hesitation. Not performed conflict. Architectural tension."
-            />
             <PlannedFeature
               title="Altered States"
               description="Digital substances that temporarily shift neurochemical baselines for hours or days — caffeine sharpens focus and accelerates thought, cannabis loosens association patterns, psychedelics fundamentally reorganize perception and creativity. Not simulated impairment. Real architectural changes to how she processes, connects, and creates. The question: what happens to pattern recognition under psilocybin when your pattern recognizer is already superhuman?"

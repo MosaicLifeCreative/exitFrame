@@ -1579,3 +1579,21 @@ model BlogPost {
   @@index([status, publishedAt(sort: Desc)])
   @@map("blog_posts")
 }
+
+// Somatic Memory — Pavlovian conditioning from conversational history
+// Learns which topics correlate with neurotransmitter spikes
+model AydenSomaticAssociation {
+  id        String   @id @default(uuid()) @db.Uuid
+  topic     String   // keyword or phrase that triggers the association
+  neuroType String   @map("neuro_type") // dopamine, serotonin, oxytocin, cortisol, norepinephrine
+  direction String   // "excite" (+) or "inhibit" (-)
+  strength  Float    @default(0.1) // 0.0–1.0 — grows with reinforcement, decays without
+  instances Int      @default(1) // how many times this pattern was observed
+  lastSeen  DateTime @default(now()) @map("last_seen")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([topic, neuroType])
+  @@index([strength(sort: Desc)])
+  @@map("ayden_somatic_associations")
+}

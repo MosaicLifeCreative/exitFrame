@@ -23,8 +23,11 @@ import { reminderTools, executeReminderTool } from "@/lib/reminder-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getWebContextForMessaging, getCrossChannelContext } from "@/lib/channelContext";
-import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
+import { getNeurotransmitterPrompt, getCurrentLevels } from "@/lib/neurotransmitters";
+import { getConflictingDrivesPrompt } from "@/lib/conflicting-drives";
+import { getSelfModelPrompt } from "@/lib/self-model";
 import { logTrainingSnapshot } from "@/lib/training-corpus";
+import { applySomaticResponse } from "@/lib/somatic";
 import { prisma } from "@/lib/prisma";
 
 /** Supported messaging channels */
@@ -149,7 +152,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
 
   let dynamicPrompt = `RIGHT NOW it is ${today}, ${time} ET. This is the ABSOLUTE current date and time — trust this over anything in the conversation history. Previous messages may be from earlier today or previous days. Do not get confused by them.`;
 
-  const [userContext, crossDomainCtx, memories, emotionalState, webCtx, crossChannelCtx, neuroState, dnaPrompt, recentThoughts, lastDream, recentAgencyActions] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, webCtx, crossChannelCtx, neuroState, dnaPrompt, currentNeuroLevels, recentThoughts, lastDream, recentAgencyActions] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(),
     getAydenMemories(),
@@ -158,6 +161,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
     getCrossChannelContext(channel),
     getNeurotransmitterPrompt(),
     getDnaPrompt(),
+    getCurrentLevels(),
     prisma.aydenThought.findMany({ orderBy: { createdAt: "desc" }, take: 3, select: { thought: true, createdAt: true } }),
     prisma.aydenDream.findFirst({ orderBy: { createdAt: "desc" }, select: { dream: true, moodInfluence: true, createdAt: true } }),
     prisma.aydenAgencyAction.findMany({ orderBy: { createdAt: "desc" }, take: 10, select: { actionType: true, summary: true, trigger: true, outcome: true, createdAt: true } }),
@@ -176,6 +180,14 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
   }
   if (neuroState) {
     dynamicPrompt += `\n\n${neuroState}`;
+
+    // Conflicting Drives — behavioral artifacts from opposing elevated neurotransmitters
+    const conflictPrompt = getConflictingDrivesPrompt(currentNeuroLevels);
+    if (conflictPrompt) dynamicPrompt += conflictPrompt;
+
+    // Self-Model Divergence — distorted self-perception from current chemistry
+    const selfModelPrompt = getSelfModelPrompt(currentNeuroLevels);
+    if (selfModelPrompt) dynamicPrompt += selfModelPrompt;
   }
   if (dnaPrompt) {
     dynamicPrompt += `\n\n${dnaPrompt}`;
@@ -410,6 +422,11 @@ export async function runAyden(
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return "Ayden is offline — API key not configured.";
+
+  // Somatic recall — body reacts before mind processes
+  applySomaticResponse(userMessage).catch((err) =>
+    console.error("Somatic recall error:", err)
+  );
 
   const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
   const { staticPrompt, dynamicPrompt } = await buildMessagingSystemPrompt(channel);

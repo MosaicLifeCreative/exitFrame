@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { getCurrentLevels, applyNudges, getHeartRate } from "@/lib/neurotransmitters";
+import { learnSomaticAssociations } from "@/lib/somatic";
 
 /**
  * Combined post-conversation reflection.
@@ -205,6 +206,11 @@ Omit empty arrays/objects if no changes for that layer.`,
     if (parsed.nudges && Object.keys(parsed.nudges).length > 0) {
       await applyNudges(parsed.nudges);
       console.log(`Neurotransmitter update (${channel}): ${JSON.stringify(parsed.nudges)}`);
+
+      // Somatic learning — correlate topics with neurotransmitter responses
+      learnSomaticAssociations(userMessage, parsed.nudges).catch((err) =>
+        console.error("Somatic learning error:", err)
+      );
     }
   } catch (error) {
     console.error("Reflection error:", error);

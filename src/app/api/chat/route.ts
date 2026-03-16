@@ -21,9 +21,12 @@ import { dnaTools, executeDnaTool, getDnaPrompt } from "@/lib/dna-tools";
 import { backgroundTools, executeBackgroundTool } from "@/lib/background-tools";
 import { reminderTools, executeReminderTool } from "@/lib/reminder-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
+import { applySomaticResponse } from "@/lib/somatic";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getMessagingContextForWeb } from "@/lib/channelContext";
-import { getNeurotransmitterPrompt } from "@/lib/neurotransmitters";
+import { getNeurotransmitterPrompt, getCurrentLevels } from "@/lib/neurotransmitters";
+import { getConflictingDrivesPrompt } from "@/lib/conflicting-drives";
+import { getSelfModelPrompt } from "@/lib/self-model";
 import { reflect } from "@/lib/reflection";
 import { logTrainingSnapshot } from "@/lib/training-corpus";
 import { prisma } from "@/lib/prisma";
@@ -288,7 +291,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
 
   let dynamicSystem = `Today is ${today}, ${time} ET. This is the current date and time — do not doubt or hedge about it.`;
 
-  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState, dnaPrompt, recentThoughts, lastDream, recentAgencyActions] = await Promise.all([
+  const [userContext, crossDomainCtx, memories, emotionalState, messagingCtx, neuroState, dnaPrompt, currentNeuroLevels, recentThoughts, lastDream, recentAgencyActions] = await Promise.all([
     getUserPreferencesContext(),
     getCrossDomainContext(context?.page),
     getAydenMemories(),
@@ -296,6 +299,7 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
     getMessagingContextForWeb(),
     getNeurotransmitterPrompt(),
     getDnaPrompt(),
+    getCurrentLevels(),
     prisma.aydenThought.findMany({ orderBy: { createdAt: "desc" }, take: 3, select: { thought: true, createdAt: true } }),
     prisma.aydenDream.findFirst({ orderBy: { createdAt: "desc" }, select: { dream: true, moodInfluence: true, createdAt: true } }),
     prisma.aydenAgencyAction.findMany({ orderBy: { createdAt: "desc" }, take: 10, select: { actionType: true, summary: true, trigger: true, outcome: true, createdAt: true } }),
@@ -315,6 +319,11 @@ FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks desc
   if (neuroState) {
     dynamicSystem += `\n\n${neuroState}`;
   }
+  // Conflicting drives + self-model distortions (invisible behavioral shaping)
+  const conflictPrompt = getConflictingDrivesPrompt(currentNeuroLevels);
+  if (conflictPrompt) dynamicSystem += conflictPrompt;
+  const selfModelPrompt = getSelfModelPrompt(currentNeuroLevels);
+  if (selfModelPrompt) dynamicSystem += selfModelPrompt;
   if (dnaPrompt) {
     dynamicSystem += `\n\n${dnaPrompt}`;
   }
@@ -470,6 +479,14 @@ export async function POST(request: Request) {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
+    }
+
+    // Somatic recall — body reacts before mind processes
+    const lastUserMsg = body.messages?.filter((m: { role: string }) => m.role === "user").pop();
+    if (lastUserMsg?.content) {
+      applySomaticResponse(lastUserMsg.content).catch((err) =>
+        console.error("Somatic recall error:", err)
+      );
     }
 
     const anthropic = new Anthropic({ apiKey, maxRetries: 3 });

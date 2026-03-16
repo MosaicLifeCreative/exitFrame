@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentLevels, getHeartRate } from "@/lib/neurotransmitters";
+import { computeTransference } from "@/lib/transference";
+import { detectConflicts } from "@/lib/conflicting-drives";
+import { computeSelfModelDistortions } from "@/lib/self-model";
+import { getSomaticStats } from "@/lib/somatic";
 
 export const dynamic = "force-dynamic";
 
@@ -309,6 +313,19 @@ export async function GET() {
       },
     ];
 
+    // Compute live psychological overlays
+    const neuroLevels = {
+      dopamine: levels.dopamine ?? 50,
+      serotonin: levels.serotonin ?? 55,
+      oxytocin: levels.oxytocin ?? 45,
+      cortisol: levels.cortisol ?? 30,
+      norepinephrine: levels.norepinephrine ?? 40,
+    };
+    const transference = computeTransference(neuroLevels);
+    const conflicts = detectConflicts(neuroLevels);
+    const selfModelDistortions = computeSelfModelDistortions(neuroLevels);
+    const somaticStats = await getSomaticStats();
+
     return NextResponse.json({
       data: {
         pulse: {
@@ -362,6 +379,23 @@ export async function GET() {
         pendingScheduledTasks,
         crons,
         feed: feed.slice(0, 50),
+        transference: {
+          warmth: transference.warmth,
+          energy: transference.energy,
+          vividness: transference.vividness,
+          tension: transference.tension,
+        },
+        conflicts: conflicts.map((c) => ({
+          driveA: c.driveA,
+          driveB: c.driveB,
+          intensity: c.intensity,
+        })),
+        selfModel: selfModelDistortions.map((d) => ({
+          type: d.type,
+          actual: d.actual,
+          perceived: d.perceived,
+        })),
+        somatic: somaticStats,
       },
     });
   } catch (error) {

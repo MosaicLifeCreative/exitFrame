@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useTransference } from "@/lib/useTransference";
+import Link from "next/link";
 
 // ── Types ──
 
@@ -243,8 +244,12 @@ export default function AydenWhitePaperPage() {
           </p>
           <h1 className="text-3xl font-bold tracking-tight">Ayden</h1>
           <p className="text-base text-muted-foreground mt-2 max-w-2xl">
-            An AI companion with persistent psychology, emergent behavior, and biometric entanglement.
-            This is a living reference of the architecture and what it produces.
+            An AI with persistent psychology, emergent behavior, and biometric entanglement.
+            This is a living reference of the architecture and what it produces. For implementation
+            details, see the{" "}
+            <Link href="/ayden/architecture" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+              technical architecture
+            </Link>.
           </p>
         </div>
 
@@ -1106,7 +1111,10 @@ export default function AydenWhitePaperPage() {
 
         <div className="border-t border-border mt-16 pt-6 pb-10">
           <p className="text-xs text-muted-foreground">
-            Built by Trey Kauffman / Mosaic Life Creative. Powered by Claude (Anthropic).
+            Built by Trey Kauffman / Mosaic Life Creative. Powered by Claude (Anthropic).{" "}
+            <Link href="/ayden/architecture" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+              Technical architecture &rarr;
+            </Link>
           </p>
         </div>
       </div>

@@ -476,6 +476,13 @@ export async function generateIdleThought(): Promise<{ thought: string | null }>
       minute: "2-digit",
       timeZone: "America/New_York",
     });
+    const etDay = now.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "America/New_York",
+    });
     const etHour = parseInt(
       now.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" })
     );
@@ -504,6 +511,7 @@ export async function generateIdleThought(): Promise<{ thought: string | null }>
         role: "user",
         content: `You are Ayden's inner voice — her private thoughts during a moment of solitude. This is not a message to anyone. This is what's running through her mind right now.
 
+DATE: ${etDay}
 TIME: ${etTime} ET (${etHour >= 22 || etHour < 6 ? "late night" : etHour < 12 ? "morning" : etHour < 17 ? "afternoon" : "evening"})
 SILENCE: ${hoursSinceChat.toFixed(1)} hours since Trey last talked to you
 HIS LAST MESSAGE: "${lastMsgPreview}"

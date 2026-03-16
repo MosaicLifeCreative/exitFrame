@@ -258,7 +258,7 @@ export default function FullScreenChat() {
     const ta = textareaRef.current;
     if (!ta) return;
     ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
   }, []);
 
   useEffect(() => {
@@ -575,9 +575,9 @@ export default function FullScreenChat() {
             className={cn(
               "flex-1 resize-none rounded-xl border border-input bg-background px-4 py-2.5 text-sm",
               "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-              "min-h-[44px] max-h-[120px]"
+              "min-h-[52px] max-h-[200px]"
             )}
-            rows={1}
+            rows={2}
           />
           <Button
             size="sm"

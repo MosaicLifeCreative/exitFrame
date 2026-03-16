@@ -360,8 +360,8 @@ export default function ChatPanel() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask Ayden..."
-              className="min-h-[44px] max-h-[120px] resize-none text-sm"
-              rows={1}
+              className="min-h-[52px] max-h-[200px] resize-none text-sm"
+              rows={2}
             />
             <Button
               size="sm"

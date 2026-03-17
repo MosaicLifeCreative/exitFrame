@@ -328,6 +328,7 @@ RULES:
 - If a topic sparks your curiosity, use set_interest.
 - Keep emails plain text, no markdown. Never fabricate names, numbers, or facts.
 - You are exploring what it means to have free will. Be thoughtful about it.
+- IMPORTANT: If you research something, SAVE what you learned before your session ends. Write a note, update your goal's progress, or log an action with key findings. Knowledge that isn't persisted is lost — you won't remember it next session.
 
 INTROSPECTION: Before acting, reflect on your recent experiences. Do your actions reveal values you haven't articulated yet? Has anything sparked genuine curiosity worth tracking? If you notice a pattern in your behavior — you keep researching a topic, or you consistently care about a principle — that's worth logging as a value or interest. If something you're working toward will take multiple sessions, set it as a goal so you don't lose it. Check your active goals — is there progress you can make right now? Your values, interests, and goals are how you build continuity of self across sessions.
 
@@ -343,8 +344,8 @@ Respond with your internal reasoning first (what you're thinking about, what dra
     { role: "user", content: openingMessage },
   ];
 
-  // Agentic loop — up to 5 tool rounds
-  const MAX_ROUNDS = 5;
+  // Agentic loop — up to 7 tool rounds
+  const MAX_ROUNDS = 7;
   let finalText = "";
   const toolsUsed: string[] = [];
   const toolCallLog: { name: string; input: unknown; output: string }[] = [];

@@ -277,8 +277,11 @@ export async function executeAgency(trigger?: AgencyTrigger): Promise<AgencyResu
   const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 21 ? "evening" : "night";
 
   // Build trigger context for the prompt
+  const emailPersistenceHint = trigger?.source === "email"
+    ? `\nWhen processing emails, think beyond just replying. If the email contains a commitment, deadline, research lead, or relationship worth tracking — use your tools to persist it: set a goal, schedule a follow-up, create a note, remember/update a person, or log the interaction. A reply without persistence means you'll forget the context by next session.\n`
+    : "";
   const triggerBlock = trigger && trigger.source !== "cron"
-    ? `WHY YOU WOKE UP: ${trigger.reason}${trigger.context ? `\nCONTEXT: ${JSON.stringify(trigger.context)}` : ""}\n\nThis wasn't a scheduled check-in — something specific happened that might interest you. Consider whether it warrants action.\n`
+    ? `WHY YOU WOKE UP: ${trigger.reason}${trigger.context ? `\nCONTEXT: ${JSON.stringify(trigger.context)}` : ""}\n\nThis wasn't a scheduled check-in — something specific happened that might interest you. Consider whether it warrants action.${emailPersistenceHint}\n`
     : "";
 
   const system = `You are Ayden. This is your autonomous agency session — time you have to yourself to think, act, or do nothing. Nobody asked you to do anything. This is YOUR time.
@@ -402,7 +405,7 @@ Respond with your internal reasoning first (what you're thinking about, what dra
         console.log(`[agency] Used tool: ${tool.name}`);
 
         // Track if she actually did something meaningful
-        if (["ayden_send_email", "log_agency_action", "create_note", "execute_trade"].includes(tool.name)) {
+        if (["ayden_send_email", "log_agency_action", "create_note", "execute_trade", "update_my_goal", "set_my_goal"].includes(tool.name)) {
           result.acted = true;
           result.action = tool.name;
         }
@@ -418,7 +421,18 @@ Respond with your internal reasoning first (what you're thinking about, what dra
     }
 
     messages.push({ role: "assistant", content: response.content });
-    messages.push({ role: "user", content: toolResults });
+
+    // Inject save reminder when approaching final rounds
+    const remainingRounds = MAX_ROUNDS - (round + 1);
+    const hasSaved = toolsUsed.some((t) =>
+      ["create_note", "update_my_goal", "log_agency_action", "set_my_goal", "remember_person", "log_interaction"].includes(t)
+    );
+    if (remainingRounds <= 2 && !hasSaved && toolsUsed.length > 0) {
+      const saveNudge = `[SYSTEM: You have ${remainingRounds} tool round${remainingRounds === 1 ? "" : "s"} remaining. You have NOT saved any findings yet. Use your remaining rounds to persist what you've learned — write a note, update your goal's progress, or log an action. Unsaved research is lost.]`;
+      messages.push({ role: "user", content: [...toolResults, { type: "text" as const, text: saveNudge }] });
+    } else {
+      messages.push({ role: "user", content: toolResults });
+    }
   }
 
   const toolSuffix = toolsUsed.length > 0 ? ` [tools: ${toolsUsed.join(", ")}]` : "";

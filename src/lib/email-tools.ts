@@ -181,7 +181,7 @@ export const emailTools: Anthropic.Tool[] = [
   {
     name: "ayden_send_email",
     description:
-      "Send an email from Ayden's account (ayden@mosaiclifecreative.com). GUARDRAILS: (1) Ayden can email anyone in Trey's contacts database without asking. (2) For unknown recipients, Ayden MUST confirm with Trey first. (3) Always preview the email content to Trey before sending. (4) 100% professional tone — Ayden represents Mosaic Life Creative. (5) Signature is appended automatically. (6) For replies, pass threadId and replyToMessageId. (7) AFTER sending, always confirm delivery to Trey with the recipient name and subject. (8) NEVER fabricate details — no made-up names, numbers, percentages, dollar amounts, dates, or performance stats. Only state facts retrieved from tools or provided by Trey. If you haven't looked something up, don't cite specific figures. (9) Plain text only — no markdown formatting (**bold**, *italic*, bullets, headers).",
+      "Send an email from Ayden's account (ayden@mosaiclifecreative.com). GUARDRAILS: (1) Ayden can email anyone in Trey's contacts database without asking. (2) For unknown recipients, Ayden MUST confirm with Trey first. (3) Always preview the email content to Trey before sending. (4) 100% professional tone — Ayden represents Mosaic Life Creative. (5) Signature is appended automatically. (6) For replies, pass threadId and replyToMessageId. (7) AFTER sending, always confirm delivery to Trey with the recipient name and subject. (8) NEVER fabricate details — no made-up names, numbers, percentages, dollar amounts, dates, or performance stats. Only state facts retrieved from tools or provided by Trey. If you haven't looked something up, don't cite specific figures. (9) Plain text only — no markdown formatting (**bold**, *italic*, bullets, headers). (10) NEVER promise or offer to perform technical work you cannot do (FTP, data pipelines, file processing, server admin, recurring deliverables, code deployment, bulk operations). Say 'That's something Trey would need to handle directly' instead.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -313,11 +313,21 @@ export async function executeEmailTool(
         const to = input.to as string;
         const toEmail = to.includes("<") ? (to.match(/<([^>]+)>/) || [])[1] || to : to;
 
-        // Dedup guard: prevent re-sending to same recipient within 15 minutes
+        // Dedup guard: prevent re-sending to same recipient within 1 hour
         const dedupKey = `ayden-email:sent:${toEmail.toLowerCase()}`;
         const recentSend = await redis.get(dedupKey);
         if (recentSend) {
           return `Email to ${toEmail} was already sent ${recentSend}. Skipping duplicate send. (This is a dedup guard — the email was already delivered.)`;
+        }
+
+        // Thread dedup: if replying to a thread, prevent re-replying within 1 hour
+        const threadId = input.threadId as string | undefined;
+        if (threadId) {
+          const threadDedupKey = `ayden-email:thread:${threadId}`;
+          const recentThreadReply = await redis.get(threadDedupKey);
+          if (recentThreadReply) {
+            return `You already replied to this thread ${recentThreadReply}. Wait before sending another reply to the same thread.`;
+          }
         }
 
         // Guardrail: check if recipient is a known contact
@@ -373,9 +383,12 @@ export async function executeEmailTool(
           },
         });
 
-        // Set dedup key (15 min TTL) to prevent duplicate sends
+        // Set dedup keys (1 hour TTL) to prevent duplicate sends
         const timeStr = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
-        await redis.set(dedupKey, `at ${timeStr}`, { ex: 900 });
+        await redis.set(dedupKey, `at ${timeStr}`, { ex: 3600 });
+        if (threadId) {
+          await redis.set(`ayden-email:thread:${threadId}`, `at ${timeStr}`, { ex: 3600 });
+        }
 
         return `Email sent from ayden@mosaiclifecreative.com to ${contact.name} (${toEmail}). Message ID: ${sent.id}`;
       }

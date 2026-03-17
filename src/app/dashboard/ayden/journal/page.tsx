@@ -149,6 +149,12 @@ interface OpsData {
     priority: number;
     progress: string | null;
     age: number;
+    tasks: Array<{
+      id: string;
+      description: string;
+      status: string;
+      sortOrder: number;
+    }>;
   }>;
   crons: Array<{
     name: string;
@@ -1340,9 +1346,28 @@ function AydenJournalContent() {
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[10px] text-muted-foreground uppercase">{g.category}</span>
                           <span className="text-[10px] text-muted-foreground">{g.age}d old</span>
+                          {g.tasks.length > 0 && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {g.tasks.filter((t) => t.status === "done").length}/{g.tasks.length} tasks
+                            </span>
+                          )}
                         </div>
                         {g.progress && (
                           <p className="text-xs text-muted-foreground mt-1">{g.progress}</p>
+                        )}
+                        {g.tasks.length > 0 && (
+                          <div className="mt-2 space-y-0.5">
+                            {g.tasks.map((t) => (
+                              <div key={t.id} className="flex items-center gap-1.5 text-xs">
+                                <span className={t.status === "done" ? "text-green-500" : t.status === "skipped" ? "text-muted-foreground line-through" : "text-muted-foreground"}>
+                                  {t.status === "done" ? "✓" : t.status === "skipped" ? "—" : "○"}
+                                </span>
+                                <span className={t.status === "done" ? "text-muted-foreground line-through" : t.status === "skipped" ? "text-muted-foreground line-through" : ""}>
+                                  {t.description}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>

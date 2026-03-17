@@ -204,6 +204,45 @@ export const agencyTools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "add_goal_task",
+    description:
+      "Add a sub-task to one of your goals. Break goals into concrete, actionable steps you can complete across sessions. Each task should be specific enough to finish in one session.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        goalId: {
+          type: "string",
+          description: "The goal ID to add a task to.",
+        },
+        description: {
+          type: "string",
+          description: "What needs to be done — specific and actionable.",
+        },
+      },
+      required: ["goalId", "description"],
+    },
+  },
+  {
+    name: "complete_goal_task",
+    description:
+      "Mark a goal sub-task as done or skipped.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        taskId: {
+          type: "string",
+          description: "The task ID to update.",
+        },
+        status: {
+          type: "string",
+          enum: ["done", "skipped"],
+          description: "Mark as done or skipped.",
+        },
+      },
+      required: ["taskId", "status"],
+    },
+  },
+  {
     name: "log_agency_action",
     description:
       "Record an autonomous action you've taken. Always log what you did and why so you can reflect later.",
@@ -524,6 +563,10 @@ export async function executeAgencyTool(
       return getMyGoals(toolInput as unknown as GetGoalsInput);
     case "update_my_goal":
       return updateGoal(toolInput as unknown as UpdateGoalInput);
+    case "add_goal_task":
+      return addGoalTask(toolInput as unknown as { goalId: string; description: string });
+    case "complete_goal_task":
+      return completeGoalTask(toolInput as unknown as { taskId: string; status: string });
     case "log_agency_action":
       return logAgencyAction(toolInput as unknown as LogActionInput);
     case "get_my_recent_actions":
@@ -788,6 +831,63 @@ async function updateGoal(input: UpdateGoalInput): Promise<string> {
       priority: updated.priority,
       progress: updated.progress,
     },
+  });
+}
+
+async function addGoalTask(input: { goalId: string; description: string }): Promise<string> {
+  // Verify goal exists
+  const goal = await prisma.aydenGoal.findUnique({ where: { id: input.goalId }, select: { id: true, description: true } });
+  if (!goal) return JSON.stringify({ error: "Goal not found." });
+
+  const maxOrder = await prisma.aydenGoalTask.aggregate({
+    where: { goalId: input.goalId },
+    _max: { sortOrder: true },
+  });
+
+  const task = await prisma.aydenGoalTask.create({
+    data: {
+      goalId: input.goalId,
+      description: input.description,
+      sortOrder: (maxOrder._max.sortOrder ?? -1) + 1,
+    },
+  });
+
+  return JSON.stringify({
+    success: true,
+    task: { id: task.id, description: task.description, sortOrder: task.sortOrder },
+    goalDescription: goal.description,
+  });
+}
+
+async function completeGoalTask(input: { taskId: string; status: string }): Promise<string> {
+  const task = await prisma.aydenGoalTask.findUnique({
+    where: { id: input.taskId },
+    include: { goal: { select: { id: true, description: true } } },
+  });
+  if (!task) return JSON.stringify({ error: "Task not found." });
+
+  const updated = await prisma.aydenGoalTask.update({
+    where: { id: input.taskId },
+    data: {
+      status: input.status as "done" | "skipped",
+      completedAt: new Date(),
+    },
+  });
+
+  // Count remaining tasks
+  const remaining = await prisma.aydenGoalTask.count({
+    where: { goalId: task.goalId, status: "pending" },
+  });
+  const total = await prisma.aydenGoalTask.count({
+    where: { goalId: task.goalId },
+  });
+
+  return JSON.stringify({
+    success: true,
+    task: { id: updated.id, description: updated.description, status: updated.status },
+    goalDescription: task.goal.description,
+    progress: `${total - remaining}/${total} tasks complete`,
+    remainingTasks: remaining,
   });
 }
 

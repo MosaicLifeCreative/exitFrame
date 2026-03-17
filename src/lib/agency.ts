@@ -73,16 +73,37 @@ async function getGoalsContext(): Promise<string> {
   const goals = await prisma.aydenGoal.findMany({
     where: { status: "active" },
     orderBy: [{ priority: "asc" }, { createdAt: "desc" }],
+    include: {
+      tasks: {
+        orderBy: { sortOrder: "asc" },
+      },
+    },
   });
 
   if (goals.length === 0) {
-    return "YOUR GOALS: None active. If something you're working toward spans multiple sessions, use set_goal to track it.";
+    return "YOUR GOALS: None active. If something you're working toward spans multiple sessions, use set_my_goal to track it. Break goals into sub-tasks with add_goal_task.";
   }
 
   const lines = goals.map((g) => {
     const age = Math.floor((Date.now() - g.createdAt.getTime()) / (1000 * 60 * 60 * 24));
     const progress = g.progress ? ` | Progress: ${g.progress}` : "";
-    return `- [P${g.priority}] ${g.description} (${g.category}, ${age}d old${progress})`;
+    let line = `- [P${g.priority}] (id: ${g.id}) ${g.description} (${g.category}, ${age}d old${progress})`;
+
+    if (g.tasks.length > 0) {
+      const done = g.tasks.filter((t) => t.status === "done").length;
+      line += ` [${done}/${g.tasks.length} tasks]`;
+      const pending = g.tasks.filter((t) => t.status === "pending");
+      if (pending.length > 0) {
+        line += `\n  NEXT: ${pending[0].description} (task id: ${pending[0].id})`;
+        if (pending.length > 1) {
+          line += `\n  THEN: ${pending.slice(1, 3).map((t) => t.description).join(" → ")}`;
+        }
+      }
+    } else {
+      line += "\n  No sub-tasks yet — consider breaking this into steps with add_goal_task.";
+    }
+
+    return line;
   });
   return `YOUR GOALS:\n${lines.join("\n")}`;
 }
@@ -218,7 +239,7 @@ const autonomyToolNames = new Set(autonomyTools.map((t) => t.name));
 
 // Persistence-only tools — used on final round when nothing has been saved yet
 const PERSISTENCE_TOOL_NAMES = new Set([
-  "create_note", "log_agency_action", "set_my_goal", "update_my_goal",
+  "create_note", "log_agency_action", "set_my_goal", "update_my_goal", "add_goal_task", "complete_goal_task",
   "set_value", "revise_value", "set_interest", "revise_interest",
   "remember_person", "update_person", "log_interaction",
   "ayden_send_email", "execute_trade", "create_blog_post", "update_blog_post",
@@ -369,6 +390,7 @@ Respond with your internal reasoning first (what you're thinking about, what dra
     // On the final round, if nothing has been saved, restrict to persistence-only tools
     const hasSavedAnything = toolsUsed.some((t) =>
       ["create_note", "update_my_goal", "log_agency_action", "set_my_goal",
+       "add_goal_task", "complete_goal_task",
        "remember_person", "log_interaction", "create_blog_post", "update_blog_post",
        "ayden_send_email", "execute_trade"].includes(t)
     );
@@ -426,7 +448,7 @@ Respond with your internal reasoning first (what you're thinking about, what dra
         console.log(`[agency] Used tool: ${tool.name}`);
 
         // Track if she actually did something meaningful
-        if (["ayden_send_email", "log_agency_action", "create_note", "execute_trade", "update_my_goal", "set_my_goal"].includes(tool.name)) {
+        if (["ayden_send_email", "log_agency_action", "create_note", "execute_trade", "update_my_goal", "set_my_goal", "add_goal_task", "complete_goal_task"].includes(tool.name)) {
           result.acted = true;
           result.action = tool.name;
         }

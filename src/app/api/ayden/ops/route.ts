@@ -120,6 +120,15 @@ export async function GET() {
           priority: true,
           progress: true,
           createdAt: true,
+          tasks: {
+            orderBy: { sortOrder: "asc" },
+            select: {
+              id: true,
+              description: true,
+              status: true,
+              sortOrder: true,
+            },
+          },
         },
       }),
       // --- FEED ITEMS (last 24h) ---
@@ -410,6 +419,7 @@ export async function GET() {
           priority: g.priority,
           progress: g.progress,
           age: Math.floor((Date.now() - g.createdAt.getTime()) / (1000 * 60 * 60 * 24)),
+          tasks: g.tasks,
         })),
         crons,
         feed: feed.slice(0, 50),

@@ -21,8 +21,8 @@ export const noteTools: Anthropic.Tool[] = [
         },
         noteType: {
           type: "string",
-          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "ayden"],
-          description: "Type of note (default: general)",
+          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "ayden", "research"],
+          description: "Type of note. REQUIRED — pick the most fitting type. Use 'research' for research findings, 'reference' for factual lookups, 'idea' for original thoughts, 'ayden' for personal reflections.",
         },
         domain: {
           type: "string",
@@ -30,7 +30,7 @@ export const noteTools: Anthropic.Tool[] = [
           description: "Domain the note belongs to (default: life)",
         },
       },
-      required: ["title"],
+      required: ["title", "noteType"],
     },
   },
   {

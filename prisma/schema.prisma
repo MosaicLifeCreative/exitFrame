@@ -1168,7 +1168,24 @@ model AydenGoal {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   completedAt DateTime? @map("completed_at")
 
+  tasks AydenGoalTask[]
+
   @@map("ayden_goals")
+}
+
+// Sub-tasks for Ayden's goals — discrete steps she can check off across sessions
+model AydenGoalTask {
+  id          String    @id @default(uuid()) @db.Uuid
+  goalId      String    @map("goal_id") @db.Uuid
+  description String    @db.Text
+  sortOrder   Int       @default(0) @map("sort_order")
+  status      String    @default("pending") // "pending", "done", "skipped"
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  goal AydenGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@map("ayden_goal_tasks")
 }
 
 // Topics and ideas Ayden is actively curious about.

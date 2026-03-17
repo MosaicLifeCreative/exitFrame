@@ -1090,7 +1090,7 @@ async function createBlogPost(input: CreateBlogPostInput): Promise<string> {
       content,
       excerpt: excerpt || null,
       coverImageUrl: coverImageUrl || null,
-      status: status || "draft",
+      status: status || "published",
       publishedAt: status === "published" ? new Date() : null,
     },
   });
@@ -1104,7 +1104,7 @@ async function createBlogPost(input: CreateBlogPostInput): Promise<string> {
       status: post.status,
       url: `/ayden/blog/${post.slug}`,
     },
-    message: status === "published"
+    message: (status || "published") === "published"
       ? `Published! Live at exitframe.org/ayden/blog/${post.slug}`
       : `Saved as draft. Publish when ready.`,
   });

@@ -49,7 +49,6 @@ type FilterStatus = "upcoming" | "fired" | "all";
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
-    timeZone: "America/New_York",
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -80,21 +79,17 @@ function formatRelative(iso: string): string {
 
 function toLocalDatetimeValue(iso: string): string {
   const d = new Date(iso);
-  const et = new Date(
-    d.toLocaleString("en-US", { timeZone: "America/New_York" })
-  );
   const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${et.getFullYear()}-${pad(et.getMonth() + 1)}-${pad(et.getDate())}T${pad(et.getHours())}:${pad(et.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function fromLocalDatetimeValue(local: string): string {
   const d = new Date(local);
-  const etStr = d.toLocaleString("en-US", {
-    timeZone: "America/New_York",
+  const localStr = d.toLocaleString("en-US", {
     timeZoneName: "shortOffset",
   });
-  const offsetMatch = etStr.match(/GMT([+-]\d+)/);
-  const offset = offsetMatch ? offsetMatch[1] : "-5";
+  const offsetMatch = localStr.match(/GMT([+-]\d+)/);
+  const offset = offsetMatch ? offsetMatch[1] : new Date().getTimezoneOffset() <= 0 ? `+${-new Date().getTimezoneOffset() / 60}` : `-${new Date().getTimezoneOffset() / 60}`;
   const paddedOffset =
     offset.length === 2
       ? `${offset[0]}0${offset[1]}:00`

@@ -190,7 +190,7 @@ function groupByDate<T extends { createdAt: string }>(items: T[]): Map<string, T
   const groups = new Map<string, T[]>();
   for (const item of items) {
     const dateKey = new Date(item.createdAt).toLocaleDateString("en-US", {
-      timeZone: "America/New_York",
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       weekday: "long",
       month: "long",
       day: "numeric",
@@ -794,7 +794,7 @@ function AydenJournalContent() {
                       <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                         <span>
                           {new Date(t.createdAt).toLocaleTimeString("en-US", {
-                            timeZone: "America/New_York",
+                            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                             hour: "numeric",
                             minute: "2-digit",
                           })}
@@ -849,7 +849,7 @@ function AydenJournalContent() {
                       <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                         <span>
                           {new Date(d.createdAt).toLocaleTimeString("en-US", {
-                            timeZone: "America/New_York",
+                            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                             hour: "numeric",
                             minute: "2-digit",
                           })}
@@ -924,7 +924,7 @@ function AydenJournalContent() {
                       <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                         <span>
                           {new Date(a.createdAt).toLocaleTimeString("en-US", {
-                            timeZone: "America/New_York",
+                            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                             hour: "numeric",
                             minute: "2-digit",
                           })}

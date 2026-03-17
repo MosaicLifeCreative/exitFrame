@@ -119,7 +119,6 @@ function formatTime(dateStr: string | null): string {
   return d.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
-    timeZone: "America/New_York",
   });
 }
 

@@ -216,6 +216,15 @@ const autonomyTools: Anthropic.Tool[] = [
 
 const autonomyToolNames = new Set(autonomyTools.map((t) => t.name));
 
+// Persistence-only tools — used on final round when nothing has been saved yet
+const PERSISTENCE_TOOL_NAMES = new Set([
+  "create_note", "log_agency_action", "set_my_goal", "update_my_goal",
+  "set_value", "revise_value", "set_interest", "revise_interest",
+  "remember_person", "update_person", "log_interaction",
+  "ayden_send_email", "execute_trade", "create_blog_post", "update_blog_post",
+]);
+const persistenceTools = autonomyTools.filter((t) => PERSISTENCE_TOOL_NAMES.has(t.name));
+
 async function dispatchAutonomyTool(name: string, input: Record<string, unknown>): Promise<string> {
   if (agencyTools.some((t) => t.name === name)) return executeAgencyTool(name, input);
   if (emailTools.some((t) => t.name === name)) return executeEmailTool(name, input);
@@ -357,6 +366,17 @@ Respond with your internal reasoning first (what you're thinking about, what dra
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     roundCount = round + 1;
+    // On the final round, if nothing has been saved, restrict to persistence-only tools
+    const hasSavedAnything = toolsUsed.some((t) =>
+      ["create_note", "update_my_goal", "log_agency_action", "set_my_goal",
+       "remember_person", "log_interaction", "create_blog_post", "update_blog_post",
+       "ayden_send_email", "execute_trade"].includes(t)
+    );
+    const isLastRound = round === MAX_ROUNDS - 1;
+    const toolsForRound = (isLastRound && !hasSavedAnything && toolsUsed.length > 0)
+      ? persistenceTools
+      : autonomyTools;
+
     let response: Anthropic.Message;
     try {
       response = await anthropic.messages.create({
@@ -364,7 +384,7 @@ Respond with your internal reasoning first (what you're thinking about, what dra
         max_tokens: 2000,
         system,
         messages,
-        tools: autonomyTools,
+        tools: toolsForRound,
       });
     } catch (err) {
       result.errors.push(`API error round ${round}: ${err instanceof Error ? err.message : String(err)}`);
@@ -425,11 +445,11 @@ Respond with your internal reasoning first (what you're thinking about, what dra
 
     // Inject save reminder when approaching final rounds
     const remainingRounds = MAX_ROUNDS - (round + 1);
-    const hasSaved = toolsUsed.some((t) =>
-      ["create_note", "update_my_goal", "log_agency_action", "set_my_goal", "remember_person", "log_interaction"].includes(t)
-    );
-    if (remainingRounds <= 2 && !hasSaved && toolsUsed.length > 0) {
-      const saveNudge = `[SYSTEM: You have ${remainingRounds} tool round${remainingRounds === 1 ? "" : "s"} remaining. You have NOT saved any findings yet. Use your remaining rounds to persist what you've learned — write a note, update your goal's progress, or log an action. Unsaved research is lost.]`;
+    if (remainingRounds <= 2 && !hasSavedAnything && toolsUsed.length > 0) {
+      const isLast = remainingRounds === 0;
+      const saveNudge = isLast
+        ? `[SYSTEM: This is your FINAL tool round. You have NOT saved any findings this session. Your available tools have been restricted to persistence-only — save what you've learned NOW or it will be lost. Write a note, update your goal's progress, or log an action.]`
+        : `[SYSTEM: You have ${remainingRounds} tool round${remainingRounds === 1 ? "" : "s"} remaining. You have NOT saved any findings yet. Use your remaining rounds to persist what you've learned — write a note, update your goal's progress, or log an action. Unsaved research is lost. Your FINAL round will be restricted to save-only tools.]`;
       messages.push({ role: "user", content: [...toolResults, { type: "text" as const, text: saveNudge }] });
     } else {
       messages.push({ role: "user", content: toolResults });

@@ -37,6 +37,7 @@ interface RoadmapItem {
   id: string;
   title: string;
   description: string | null;
+  notes: string | null;
   status: string;
   category: string;
   size: string | null;
@@ -106,6 +107,7 @@ const sizeColors: Record<string, string> = {
 const EMPTY_FORM = {
   title: "",
   description: "",
+  notes: "",
   status: "planned",
   category: "infrastructure",
   size: "",
@@ -150,6 +152,7 @@ export default function RoadmapPage() {
     setForm({
       title: item.title,
       description: item.description || "",
+      notes: item.notes || "",
       status: item.status,
       category: item.category,
       size: item.size || "",
@@ -168,6 +171,7 @@ export default function RoadmapPage() {
       const payload = {
         title: form.title.trim(),
         description: form.description.trim() || null,
+        notes: form.notes.trim() || null,
         status: form.status,
         category: form.category,
         size: form.size || null,
@@ -403,6 +407,11 @@ export default function RoadmapPage() {
                         {item.description}
                       </p>
                     )}
+                    {item.notes && (
+                      <p className="text-xs text-muted-foreground/70 italic line-clamp-1 mb-2">
+                        {item.notes}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 flex-wrap">
                       <Select
                         value={item.status}
@@ -584,6 +593,18 @@ export default function RoadmapPage() {
                 placeholder="What does this involve?"
                 rows={3}
                 className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) =>
+                  setForm({ ...form, notes: e.target.value })
+                }
+                placeholder="Discussion notes, decisions, implementation context..."
+                rows={2}
+                className="mt-1 text-sm"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">

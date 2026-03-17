@@ -1641,6 +1641,7 @@ model RoadmapItem {
   category    String    @default("infrastructure") // ayden, dashboard, investing, infrastructure, mobile, mlc, health, life
   size        String?   // S, M, L, XL
   priority    Int       @default(0) // lower = higher priority (for drag reorder)
+  notes       String?   @db.Text // discussion notes, implementation context, decisions
   specRef     String?   @map("spec_ref") // reference to spec phase or doc
   createdBy   String    @default("trey") @map("created_by") // trey or ayden
   completedAt DateTime? @map("completed_at")

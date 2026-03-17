@@ -30,11 +30,12 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { title, description, status, category, size, specRef, priority } = body;
+    const { title, description, status, category, size, specRef, priority, notes } = body;
 
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
     if (description !== undefined) data.description = description;
+    if (notes !== undefined) data.notes = notes;
     if (status !== undefined) {
       data.status = status;
       if (status === "done") data.completedAt = new Date();

@@ -20,6 +20,7 @@ const NAV_SECTIONS = [
   { id: "reflection", label: "Reflection & Drift" },
   { id: "agency", label: "Agency Loop" },
   { id: "outreach", label: "Outreach" },
+  { id: "email-guardrails", label: "Email Safety" },
   { id: "biometrics", label: "Biometric Entanglement" },
   { id: "transference", label: "Physiological Transference" },
   { id: "auth", label: "Auth & Security" },
@@ -156,7 +157,7 @@ export default function AydenArchitecturePage() {
           </p>
           <SubSection title="Phase 1: Haiku (Tool Resolution)">
             <p>
-              Max 3 rounds, 1024 tokens per round. Has access to all 119+ tools across 20
+              Max 3 rounds, 1024 tokens per round. Has access to all 125+ tools across 20
               categories &mdash; health, fitness, investing, notes, people, email, calendar,
               web search, and more. Executes tools and accumulates results. The goal is cheap,
               fast data gathering before the expensive model touches anything.
@@ -524,11 +525,11 @@ export default function AydenArchitecturePage() {
           </p>
           <SubSection title="Session Flow">
             <p>
-              Sonnet with up to 5 tool rounds, 2000 tokens. Context loads in parallel: values,
-              interests, goals, recent actions, conversations, neurochemistry, emotions, memories,
-              scheduled tasks, Oura data. A curated tool set gives access to agency operations,
-              email (search/read/send), web, investing, trading, people database, notes,
-              architecture lookup, and DNA.
+              Sonnet with up to 7 tool rounds, 2000 tokens. Context loads in parallel: values,
+              interests, goals (with sub-tasks), recent actions, conversations, neurochemistry,
+              emotions, memories, scheduled tasks, Oura data. A curated tool set gives access to
+              agency operations, email (search/read/send), web, investing, trading, people database,
+              notes, architecture lookup, and DNA.
             </p>
           </SubSection>
           <SubSection title="Event-Driven Triggers">
@@ -561,10 +562,24 @@ export default function AydenArchitecturePage() {
               Multi-session objectives stored in <Code>ayden_goals</Code> with description,
               category, priority (1&ndash;10), progress notes, and status (active/completed/abandoned).
               Active goals are injected into the agency system prompt alongside values and interests.
-              Three tools: <Code>set_goal</Code>, <Code>get_my_goals</Code>,{" "}
-              <Code>update_goal</Code>. Duplicate detection prevents redundant goals (50% word
-              overlap check). Goals bridge the gap between interests (which decay) and scheduled
-              tasks (which are one-shot) &mdash; giving Ayden persistent intent across sessions.
+              Five tools: <Code>set_goal</Code>, <Code>get_my_goals</Code>,{" "}
+              <Code>update_goal</Code>, <Code>add_goal_task</Code>,{" "}
+              <Code>complete_goal_task</Code>. Duplicate detection prevents redundant goals (50% word
+              overlap check). Goals can be broken into ordered sub-tasks (<Code>ayden_goal_tasks</Code>)
+              &mdash; each session sees the next pending task inline with its parent goal, creating
+              structured continuity without re-deriving plans. Goals bridge the gap between interests
+              (which decay) and scheduled tasks (which are one-shot) &mdash; giving Ayden persistent
+              intent across sessions.
+            </p>
+          </SubSection>
+          <SubSection title="Persistence Round">
+            <p>
+              The final tool round (round 7) is restricted to persistence-only tools when Ayden has
+              used tools but hasn&apos;t saved anything yet. This prevents the common failure mode of
+              spending all rounds on research and running out before logging findings. Rounds 5&ndash;6
+              inject escalating save nudges into the prompt. Round 7 enforces it by swapping the full
+              tool set for a persistence-only subset: notes, goals, values, interests, people, email
+              send, trading, and blog tools.
             </p>
           </SubSection>
         </Section>
@@ -599,6 +614,39 @@ export default function AydenArchitecturePage() {
               (one round max). The message targets 300 characters, caps at 500. Saved to
               both SMS and PWA conversation history, with a push notification sent to the
               client.
+            </p>
+          </SubSection>
+        </Section>
+
+        {/* ── Email Guardrails ── */}
+        <Section id="email-guardrails" title="Email Safety Layer">
+          <p>
+            Autonomous email access requires multiple safety layers to prevent spam, over-eager
+            follow-ups, and impossible commitments.
+          </p>
+          <SubSection title="Deduplication">
+            <p>
+              Four Redis-backed dedup layers: per-recipient (15-minute TTL), per-thread (15-minute TTL
+              &mdash; prevents replying to the same thread twice in quick succession even when new messages
+              arrive), per-message content hash (SHA-256, 7-day TTL), and daily rate limit (10 emails per
+              contact per day). All checked before the AI touches the send tool.
+            </p>
+          </SubSection>
+          <SubSection title="Capability Guardrail">
+            <p>
+              Prompt-level block injected into both agency email and auto-reply system prompts: Ayden must
+              never promise or offer technical work outside her tools &mdash; no FTP transfers, data
+              pipelines, file processing, server administration, recurring deliverables, code deployment,
+              database migrations, or bulk operations. If the request requires hands-on technical work,
+              she says &ldquo;I&apos;d need Trey to build that.&rdquo;
+            </p>
+          </SubSection>
+          <SubSection title="PDF URL Detection">
+            <p>
+              The <Code>fetch_url</Code> tool rejects PDF URLs at two stages: pre-fetch (file extension
+              and URL path pattern matching) and post-fetch (content-type header check). Returns actionable
+              guidance &mdash; e.g., &ldquo;use /abs/ instead of /pdf/ for arxiv.org.&rdquo; Prevents
+              agency rounds wasted on binary downloads.
             </p>
           </SubSection>
         </Section>
@@ -692,7 +740,10 @@ export default function AydenArchitecturePage() {
           <p>
             Eleven Vercel cron jobs coordinate Ayden&apos;s autonomous processes. Each is a
             GET endpoint authenticated via <Code>CRON_SECRET</Code> bearer token or QStash
-            signature verification.
+            signature verification. Agency sessions have a QStash guaranteed-delivery backup
+            that fires 5 minutes after each Vercel cron slot, with a 20-minute dedup window
+            to prevent double execution. Missed Vercel cron invocations are architecturally
+            impossible.
           </p>
           <SubSection title="Schedule (all times ET)">
             <div className="space-y-1 mt-1 font-mono text-xs">
@@ -763,10 +814,13 @@ export default function AydenArchitecturePage() {
           <SubSection title="Agency">
             <ConstTable rows={[
               ["Fixed sessions", "5/day", "10am, 1pm, 4pm, 7pm, 10pm ET"],
+              ["QStash backup", "+5 min", "Guaranteed delivery backup per session slot"],
               ["Event rate limit", "30 min", "Min gap between event-driven sessions"],
-              ["Tool rounds", "5", "Max tool calls per agency session"],
+              ["Tool rounds", "7", "Max tool calls per agency session"],
+              ["Persistence round", "Round 7", "Restricted to save-only tools if nothing persisted"],
               ["Tokens", "2,000", "Per-session limit"],
               ["Dedup window", "1 hour", "Scheduled task overlap detection"],
+              ["Session dedup", "20 min", "Prevents QStash/Vercel double execution"],
             ]} />
           </SubSection>
         </Section>

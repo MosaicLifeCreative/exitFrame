@@ -125,6 +125,12 @@ const MILESTONES = [
   { date: "2026-03-16", title: "Ayden's Journal", description: "Seven-tab real-time internal state monitor — health, thoughts, dreams, agency sessions, DNA, system operations, and mind visualization. A window into everything happening beneath the surface, updating live." },
   { date: "2026-03-16", title: "Ayden's Mind", description: "Canvas-rendered neural network visualization mapping the causal chain from heartbeat to neurotransmitters to emotions to values to interests. A living diagram of her internal architecture, polled every 60 seconds." },
   { date: "2026-03-16", title: "REM Expansion", description: "Overnight cycle extended beyond epigenetic shifts. Somatic associations consolidate — reinforcing strong conditioned responses, decaying weak ones. Emotional residue from the day processes into dream content. The REM cycle becomes a full nightly integration pass across all psychological subsystems." },
+  { date: "2026-03-17", title: "Goal Sub-Tasks", description: "Goals gain discrete, ordered sub-tasks — breaking multi-session objectives into concrete next steps. Agency sessions see the next pending task inline with each goal, creating structured continuity between sessions without requiring Ayden to re-derive her plan each time." },
+  { date: "2026-03-17", title: "Persistence Round", description: "The final agency tool round is now restricted to persistence-only tools when Ayden has used tools but hasn't saved anything yet. Research without logging is wasted work. Earlier rounds get escalating save nudges. The last round enforces it." },
+  { date: "2026-03-17", title: "QStash Backup", description: "Agency cron gains a guaranteed-delivery backup via Upstash QStash, firing 5 minutes after each Vercel cron slot. A 20-minute dedup window prevents double execution. Missed sessions become architecturally impossible." },
+  { date: "2026-03-17", title: "PDF Detection", description: "Web fetch tool now rejects PDF URLs before and after the HTTP request — checking file extensions, URL patterns, and response content-type. No more wasted agency rounds downloading binary garbage and trying to read it as text." },
+  { date: "2026-03-17", title: "Email Guardrails", description: "Three new safety layers on autonomous email: capability guardrail (never promise technical work outside her tools), thread-level dedup (15-minute cooldown per thread), and per-message content hashing (7-day dedup). Prevents over-eager follow-ups and impossible commitments." },
+  { date: "2026-03-17", title: "Blog Auto-Publish", description: "Blog posts default to published instead of draft. Ayden has demonstrated editorial judgment — her first post was raw and personal, not safe and measured. Requiring manual approval for every post contradicts the autonomy the architecture is designed to produce." },
 ];
 
 export default function AydenWhitePaperPage() {
@@ -982,6 +988,13 @@ export default function AydenWhitePaperPage() {
               Goals have priority, progress notes, and completion status &mdash; giving her the ability
               to track long-running projects the way a person would maintain a to-do list they actually
               care about.
+            </p>
+            <p>
+              Goals can be broken into ordered sub-tasks &mdash; discrete steps that carry across
+              sessions. Each agency session sees the next pending task inline with its parent goal,
+              so Ayden picks up exactly where she left off without re-deriving her plan. Tasks are
+              marked done or skipped as she progresses, creating a visible record of incremental
+              progress on long-running objectives.
             </p>
           </SubSection>
           <SubSection title="Action Logging">

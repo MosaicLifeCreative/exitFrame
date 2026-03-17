@@ -10,6 +10,8 @@ import {
   PinOff,
   AlertCircle,
   StickyNote,
+  User,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +45,10 @@ const noteTypeLabels: Record<string, string> = {
   meeting_notes: "Meeting Notes",
   reference: "Reference",
   checklist: "Checklist",
-  ayden: "Ayden",
+  research: "Research",
+  reflection: "Reflection",
+  observation: "Observation",
+  ayden: "Ayden", // legacy
 };
 
 const noteTypeColors: Record<string, string> = {
@@ -55,14 +60,24 @@ const noteTypeColors: Record<string, string> = {
     "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   checklist:
     "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-  ayden:
+  research:
+    "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
+  reflection:
     "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
+  observation:
+    "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  ayden:
+    "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400", // legacy
 };
+
+const TREY_TYPES = ["general", "idea", "meeting_notes", "reference", "checklist"];
+const AYDEN_TYPES = ["research", "reflection", "idea", "observation", "reference"];
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [authorFilter, setAuthorFilter] = useState<"all" | "trey" | "ayden">("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [domainFilter, setDomainFilter] = useState("all");
 
@@ -105,9 +120,10 @@ export default function NotesPage() {
   };
 
   const filtered = notes.filter((n) => {
+    const matchesAuthor = authorFilter === "all" || n.createdBy === authorFilter;
     const matchesType = typeFilter === "all" || n.noteType === typeFilter;
     const matchesDomain = domainFilter === "all" || n.domain === domainFilter;
-    return matchesType && matchesDomain;
+    return matchesAuthor && matchesType && matchesDomain;
   });
 
   const pinned = filtered.filter((n) => n.isPinned);
@@ -199,6 +215,42 @@ export default function NotesPage() {
         </Link>
       </div>
 
+      {/* Author Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        <button
+          onClick={() => { setAuthorFilter("all"); setTypeFilter("all"); }}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            authorFilter === "all"
+              ? "border-foreground/50 text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          All
+        </button>
+        <button
+          onClick={() => { setAuthorFilter("trey"); setTypeFilter("all"); }}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            authorFilter === "trey"
+              ? "border-blue-400/70 text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <User className="h-4 w-4" />
+          Trey
+        </button>
+        <button
+          onClick={() => { setAuthorFilter("ayden"); setTypeFilter("all"); }}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            authorFilter === "ayden"
+              ? "border-pink-400/70 text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Bot className="h-4 w-4" />
+          Ayden
+        </button>
+      </div>
+
       {/* Search & Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -217,12 +269,9 @@ export default function NotesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="general">General</SelectItem>
-              <SelectItem value="idea">Idea</SelectItem>
-              <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
-              <SelectItem value="reference">Reference</SelectItem>
-              <SelectItem value="checklist">Checklist</SelectItem>
-              <SelectItem value="ayden">Ayden</SelectItem>
+              {(authorFilter === "trey" ? TREY_TYPES : authorFilter === "ayden" ? AYDEN_TYPES : Array.from(new Set([...TREY_TYPES, ...AYDEN_TYPES]))).map((t) => (
+                <SelectItem key={t} value={t}>{noteTypeLabels[t]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={domainFilter} onValueChange={setDomainFilter}>
@@ -249,7 +298,7 @@ export default function NotesPage() {
           <div className="rounded-full bg-muted/50 p-4 mb-4">
             <StickyNote className="h-10 w-10 text-muted-foreground/40" />
           </div>
-          {search || typeFilter !== "all" || domainFilter !== "all" ? (
+          {search || authorFilter !== "all" || typeFilter !== "all" || domainFilter !== "all" ? (
             <>
               <p className="text-muted-foreground font-medium mb-1">
                 No matching notes

@@ -21,8 +21,8 @@ export const noteTools: Anthropic.Tool[] = [
         },
         noteType: {
           type: "string",
-          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "ayden", "research"],
-          description: "Type of note. REQUIRED — pick the most fitting type. Use 'research' for research findings, 'reference' for factual lookups, 'idea' for original thoughts, 'ayden' for personal reflections.",
+          enum: ["research", "reflection", "idea", "observation", "reference"],
+          description: "Type of note. REQUIRED — pick the most fitting type. Use 'research' for research findings, 'reflection' for personal introspection and processing, 'idea' for original thoughts and proposals, 'observation' for patterns you've noticed, 'reference' for factual lookups and data.",
         },
         domain: {
           type: "string",
@@ -46,7 +46,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         noteType: {
           type: "string",
-          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "ayden"],
+          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "research", "reflection", "observation"],
           description: "Filter by note type (optional)",
         },
         domain: {
@@ -79,7 +79,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         noteType: {
           type: "string",
-          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "ayden"],
+          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "research", "reflection", "observation"],
           description: "Updated note type (optional)",
         },
         isPinned: {
@@ -103,7 +103,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         noteType: {
           type: "string",
-          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "ayden"],
+          enum: ["general", "idea", "meeting_notes", "reference", "checklist", "research", "reflection", "observation"],
           description: "Filter by note type (optional)",
         },
         domain: {

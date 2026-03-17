@@ -121,6 +121,15 @@ async function fetchUrl(input: FetchUrlInput): Promise<string> {
     return JSON.stringify({ error: "URL must start with http:// or https://" });
   }
 
+  // Reject PDF URLs — they return raw binary that wastes a tool round
+  const urlLower = url.toLowerCase();
+  const urlPath = urlLower.split("?")[0];
+  if (urlPath.endsWith(".pdf") || urlLower.includes("/pdf/")) {
+    return JSON.stringify({
+      error: "This URL points to a PDF file, which cannot be read as text. Try the HTML abstract/summary page instead. For arxiv.org, use /abs/ instead of /pdf/. For other sites, look for an HTML version of the paper.",
+    });
+  }
+
   try {
     const response = await fetch(url, {
       headers: {
@@ -135,6 +144,13 @@ async function fetchUrl(input: FetchUrlInput): Promise<string> {
     }
 
     const contentType = response.headers.get("content-type") || "";
+
+    // Reject binary content types (PDF, images, etc.)
+    if (contentType.includes("application/pdf") || contentType.includes("application/octet-stream")) {
+      return JSON.stringify({
+        error: "This URL returned a PDF/binary file, which cannot be read as text. Try the HTML abstract/summary page instead.",
+      });
+    }
 
     // Handle JSON responses directly
     if (contentType.includes("application/json")) {

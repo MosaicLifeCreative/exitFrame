@@ -67,6 +67,7 @@ export default function NoteEditorPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [noteType, setNoteType] = useState("general");
+  const [domain, setDomain] = useState("life");
   const [isPinned, setIsPinned] = useState(false);
 
   const fetchNote = useCallback(async () => {
@@ -78,6 +79,7 @@ export default function NoteEditorPage() {
         setTitle(json.data.title);
         setContent(json.data.content);
         setNoteType(json.data.noteType);
+        setDomain(json.data.domain || "life");
         setIsPinned(json.data.isPinned);
       } else {
         toast.error(json.error);
@@ -116,7 +118,7 @@ export default function NoteEditorPage() {
       const res = await fetch(`/api/notes/${params.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content, noteType, isPinned }),
+        body: JSON.stringify({ title, content, noteType, domain, isPinned }),
       });
       if (res.ok) {
         toast.success("Note saved");
@@ -150,7 +152,7 @@ export default function NoteEditorPage() {
       await fetch(`/api/notes/${params.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content, noteType, isPinned }),
+        body: JSON.stringify({ title, content, noteType, domain, isPinned }),
       });
 
       const res = await fetch(`/api/notes/${params.id}/detect-actions`, {
@@ -231,6 +233,16 @@ export default function NoteEditorPage() {
               <SelectItem value="reference">Reference</SelectItem>
               <SelectItem value="checklist">Checklist</SelectItem>
               <SelectItem value="ayden">Ayden</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={domain} onValueChange={setDomain}>
+            <SelectTrigger className="w-[100px] sm:w-[110px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="life">Life</SelectItem>
+              <SelectItem value="mlc">MLC</SelectItem>
+              <SelectItem value="product">Product</SelectItem>
             </SelectContent>
           </Select>
           <Button

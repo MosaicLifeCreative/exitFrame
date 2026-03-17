@@ -313,14 +313,15 @@ export async function executeEmailTool(
         const to = input.to as string;
         const toEmail = to.includes("<") ? (to.match(/<([^>]+)>/) || [])[1] || to : to;
 
-        // Dedup guard: prevent re-sending to same recipient within 1 hour
+        // Dedup guard: prevent re-sending to same recipient within 15 minutes
         const dedupKey = `ayden-email:sent:${toEmail.toLowerCase()}`;
         const recentSend = await redis.get(dedupKey);
         if (recentSend) {
           return `Email to ${toEmail} was already sent ${recentSend}. Skipping duplicate send. (This is a dedup guard — the email was already delivered.)`;
         }
 
-        // Thread dedup: if replying to a thread, prevent re-replying within 1 hour
+        // Thread dedup: if replying to a thread, prevent re-replying within 15 minutes
+        // (prevents multiple agency sessions from replying to the same thread)
         const threadId = input.threadId as string | undefined;
         if (threadId) {
           const threadDedupKey = `ayden-email:thread:${threadId}`;
@@ -383,11 +384,11 @@ export async function executeEmailTool(
           },
         });
 
-        // Set dedup keys (1 hour TTL) to prevent duplicate sends
+        // Set dedup keys (15 min TTL) to prevent duplicate sends within same cycle
         const timeStr = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
-        await redis.set(dedupKey, `at ${timeStr}`, { ex: 3600 });
+        await redis.set(dedupKey, `at ${timeStr}`, { ex: 900 });
         if (threadId) {
-          await redis.set(`ayden-email:thread:${threadId}`, `at ${timeStr}`, { ex: 3600 });
+          await redis.set(`ayden-email:thread:${threadId}`, `at ${timeStr}`, { ex: 900 });
         }
 
         return `Email sent from ayden@mosaiclifecreative.com to ${contact.name} (${toEmail}). Message ID: ${sent.id}`;

@@ -20,6 +20,7 @@ import { agencyTools, executeAgencyTool } from "@/lib/agency-tools";
 import { architectureTools, executeArchitectureTool } from "@/lib/architecture-tools";
 import { dnaTools, executeDnaTool, getDnaPrompt } from "@/lib/dna-tools";
 import { reminderTools, executeReminderTool } from "@/lib/reminder-tools";
+import { roadmapTools, handleRoadmapTool } from "@/lib/roadmap-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
 import { getWebContextForMessaging, getCrossChannelContext } from "@/lib/channelContext";
@@ -388,6 +389,7 @@ const allToolNameSets = {
   architecture: new Set(architectureTools.map((t) => t.name)),
   dna: new Set(dnaTools.map((t) => t.name)),
   reminder: new Set(reminderTools.map((t) => t.name)),
+  roadmap: new Set(roadmapTools.map((t) => t.name)),
 };
 
 export async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -411,6 +413,7 @@ export async function executeTool(name: string, input: Record<string, unknown>):
   if (allToolNameSets.architecture.has(name)) return executeArchitectureTool(name, input);
   if (allToolNameSets.dna.has(name)) return executeDnaTool(name, input);
   if (allToolNameSets.reminder.has(name)) return executeReminderTool(name, input);
+  if (allToolNameSets.roadmap.has(name)) return handleRoadmapTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
@@ -435,10 +438,10 @@ export async function runAyden(
   const { messages: historyMessages, lastMessageAt, summary } = await getChannelHistory(channel);
 
   // Haiku gets ALL tools (including memory/emotion for background housekeeping)
-  const allTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools, ...reminderTools];
+  const allTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools, ...reminderTools, ...roadmapTools];
   // Sonnet gets only ACTION tools — no memory/emotion/people (Haiku handles those in Phase 1)
   // This prevents Sonnet from burning all its rounds saving memories instead of responding
-  const sonnetTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools, ...reminderTools];
+  const sonnetTools: Anthropic.Tool[] = [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools, ...reminderTools, ...roadmapTools];
 
   // Add cache_control to last tool in each set so Anthropic caches tool definitions
   if (allTools.length > 0) {

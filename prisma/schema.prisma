@@ -1631,3 +1631,24 @@ model AydenSomaticAssociation {
   @@index([strength(sort: Desc)])
   @@map("ayden_somatic_associations")
 }
+
+// Project roadmap — persistent, editable, reorderable priorities
+model RoadmapItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  title       String
+  description String?   @db.Text
+  status      String    @default("planned") // planned, in_progress, done, deferred
+  category    String    @default("infrastructure") // ayden, dashboard, investing, infrastructure, mobile, mlc, health, life
+  size        String?   // S, M, L, XL
+  priority    Int       @default(0) // lower = higher priority (for drag reorder)
+  specRef     String?   @map("spec_ref") // reference to spec phase or doc
+  createdBy   String    @default("trey") @map("created_by") // trey or ayden
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([category])
+  @@index([priority])
+  @@map("roadmap_items")
+}

@@ -20,6 +20,7 @@ import { architectureTools, executeArchitectureTool } from "@/lib/architecture-t
 import { dnaTools, executeDnaTool, getDnaPrompt } from "@/lib/dna-tools";
 import { backgroundTools, executeBackgroundTool } from "@/lib/background-tools";
 import { reminderTools, executeReminderTool } from "@/lib/reminder-tools";
+import { roadmapTools, handleRoadmapTool } from "@/lib/roadmap-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { applySomaticResponse } from "@/lib/somatic";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
@@ -395,6 +396,7 @@ const toolNameSets = {
   dna: new Set(dnaTools.map((t) => t.name)),
   background: new Set(backgroundTools.map((t) => t.name)),
   reminder: new Set(reminderTools.map((t) => t.name)),
+  roadmap: new Set(roadmapTools.map((t) => t.name)),
 };
 
 async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -419,13 +421,14 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.dna.has(name)) return executeDnaTool(name, input);
   if (toolNameSets.background.has(name)) return executeBackgroundTool(name, input);
   if (toolNameSets.reminder.has(name)) return executeReminderTool(name, input);
+  if (toolNameSets.roadmap.has(name)) return handleRoadmapTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools, ...backgroundTools, ...reminderTools];
+  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools, ...backgroundTools, ...reminderTools, ...roadmapTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];

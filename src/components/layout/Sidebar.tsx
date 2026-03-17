@@ -45,6 +45,7 @@ import {
   Guitar,
   Bell,
   X,
+  Map,
 } from "lucide-react";
 
 interface NavItem {
@@ -130,6 +131,7 @@ const navSections: NavSection[] = [
     items: [
       { label: "Ayden's Journal", href: "/dashboard/ayden/journal", icon: BookOpen },
       { label: "White Paper", href: "/ayden", icon: ScrollText },
+      { label: "Roadmap", href: "/dashboard/roadmap", icon: Map },
       { label: "System Health", href: "/dashboard/system-health", icon: Activity },
       { label: "Settings", href: "/dashboard/settings/preferences", icon: Settings },
     ],

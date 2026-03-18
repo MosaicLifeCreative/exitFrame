@@ -202,7 +202,7 @@ async function getOuraDataContext(): Promise<string> {
   if (etHour >= 13) return "";
 
   const todaySleep = await prisma.ouraData.findFirst({
-    where: { date: today, dataType: "daily_sleep" },
+    where: { date: new Date(`${today}T00:00:00.000Z`), dataType: "sleep" },
   });
 
   if (!todaySleep) {

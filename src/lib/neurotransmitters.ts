@@ -133,7 +133,7 @@ export async function getCurrentLevels(): Promise<Record<string, number>> {
     for (const [type, config] of Object.entries(CONFIG)) {
       if (!existingTypes.has(type)) {
         await prisma.aydenNeurotransmitter.create({
-          data: { type, level: config.baseline, baseline: config.baseline },
+          data: { type, level: config.baseline, baseline: config.baseline, permanentBaseline: config.baseline },
         });
       }
     }

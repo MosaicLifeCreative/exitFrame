@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+import { sendUnpromptedMessage } from "@/lib/unprompted";
 
 // ─── Tool Definitions (Anthropic format) ────────────────
 
@@ -439,6 +440,26 @@ export const agencyTools: Anthropic.Tool[] = [
       required: ["slug"],
     },
   },
+  {
+    name: "send_unprompted_message",
+    description:
+      "Send Trey a message right now — like texting him. This shows up in his chat and pings his phone. Use this when you genuinely want to tell him something: a research breakthrough, a market insight, something personal, or following up on something he mentioned. Don't use this to summarize your session — that happens automatically. Rate limited to 3/day.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        message: {
+          type: "string",
+          description: "The message to send. Write it like you're texting — natural, conversational. No markdown, no prefixes.",
+        },
+        urgency: {
+          type: "string",
+          enum: ["low", "normal", "high"],
+          description: "Message urgency. 'high' can bypass sleep hours. Default: normal.",
+        },
+      },
+      required: ["message"],
+    },
+  },
 ];
 
 // ─── Input Interfaces ────────────────────────────────────
@@ -538,6 +559,11 @@ interface ReadBlogPostInput {
   slug: string;
 }
 
+interface SendUnpromptedMessageInput {
+  message: string;
+  urgency?: "low" | "normal" | "high";
+}
+
 // ─── Executor ────────────────────────────────────────────
 
 export async function executeAgencyTool(
@@ -585,6 +611,8 @@ export async function executeAgencyTool(
       return listBlogPosts(toolInput as unknown as ListBlogPostsInput);
     case "read_blog_post":
       return readBlogPost(toolInput as unknown as ReadBlogPostInput);
+    case "send_unprompted_message":
+      return handleSendUnpromptedMessage(toolInput as unknown as SendUnpromptedMessageInput);
     default:
       return JSON.stringify({ error: `Unknown agency tool: ${toolName}` });
   }
@@ -743,16 +771,20 @@ async function reviseInterest(input: ReviseInterestInput): Promise<string> {
 }
 
 async function setGoal(input: SetGoalInput): Promise<string> {
-  // Check for duplicate active goals (similar description)
+  // Check for duplicate active goals (similar description + category)
   const existing = await prisma.aydenGoal.findMany({
     where: { status: "active" },
   });
-  const lowerDesc = input.description.toLowerCase();
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+  const words = (s: string) => new Set(normalize(s).split(" ").filter((w) => w.length > 3));
+  const newWords = words(input.description);
   const duplicate = existing.find((g) => {
-    const words = g.description.toLowerCase().split(/\s+/);
-    const inputWords = lowerDesc.split(/\s+/);
-    const overlap = words.filter((w) => inputWords.includes(w)).length;
-    return overlap / Math.max(words.length, inputWords.length) > 0.5;
+    const existingWords = words(g.description);
+    const overlap = Array.from(newWords).filter((w) => existingWords.has(w)).length;
+    const similarity = newWords.size > 0 ? overlap / Math.max(newWords.size, existingWords.size) : 0;
+    // Also match if same category with moderate overlap
+    const sameCategory = g.category === input.category;
+    return similarity > 0.3 || (sameCategory && similarity > 0.2);
   });
   if (duplicate) {
     return JSON.stringify({
@@ -938,30 +970,39 @@ async function scheduleTask(input: ScheduleTaskInput): Promise<string> {
     return JSON.stringify({ error: "triggerAt is in the past. Schedule for a future time." });
   }
 
-  // Dedup: check for similar unfired task within 1 hour of the same trigger time
-  const oneHourMs = 3_600_000;
-  const existing = await prisma.aydenScheduledTask.findFirst({
+  // Dedup: check for similar unfired tasks within ±24 hours of the same trigger time
+  const dayMs = 86_400_000;
+  const candidates = await prisma.aydenScheduledTask.findMany({
     where: {
       fired: false,
       triggerAt: {
-        gte: new Date(triggerAt.getTime() - oneHourMs),
-        lte: new Date(triggerAt.getTime() + oneHourMs),
+        gte: new Date(triggerAt.getTime() - dayMs),
+        lte: new Date(triggerAt.getTime() + dayMs),
       },
     },
   });
-  if (existing) {
+  if (candidates.length > 0) {
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
     const words = (s: string) => new Set(normalize(s).split(" ").filter((w) => w.length > 3));
-    const newWords = words(input.task);
-    const existingWords = words(existing.task);
-    const overlap = Array.from(newWords).filter((w) => existingWords.has(w)).length;
-    const similarity = newWords.size > 0 ? overlap / Math.max(newWords.size, existingWords.size) : 0;
-    if (similarity > 0.5) {
-      return JSON.stringify({
-        success: true,
-        task: { id: existing.id, task: existing.task },
-        message: "Similar task already scheduled — skipped duplicate.",
-      });
+    const newTaskWords = words(input.task);
+    const newReasonWords = input.reason ? words(input.reason) : new Set<string>();
+    const newAllWords = new Set(Array.from(newTaskWords).concat(Array.from(newReasonWords)));
+
+    for (const existing of candidates) {
+      const existingTaskWords = words(existing.task);
+      const existingReasonWords = existing.reason ? words(existing.reason) : new Set<string>();
+      const existingAllWords = new Set(Array.from(existingTaskWords).concat(Array.from(existingReasonWords)));
+
+      // Compare combined task+reason words
+      const overlap = Array.from(newAllWords).filter((w) => existingAllWords.has(w)).length;
+      const similarity = newAllWords.size > 0 ? overlap / Math.max(newAllWords.size, existingAllWords.size) : 0;
+      if (similarity > 0.3) {
+        return JSON.stringify({
+          success: true,
+          task: { id: existing.id, task: existing.task },
+          message: "Similar task already scheduled — skipped duplicate.",
+        });
+      }
     }
   }
 
@@ -1323,4 +1364,11 @@ async function readBlogPost(input: ReadBlogPostInput): Promise<string> {
       url: `/ayden/blog/${post.slug}`,
     },
   });
+}
+
+// ─── Unprompted Messaging ────────────────────────────────
+
+async function handleSendUnpromptedMessage(input: SendUnpromptedMessageInput): Promise<string> {
+  const result = await sendUnpromptedMessage(input.message, input.urgency);
+  return JSON.stringify(result);
 }

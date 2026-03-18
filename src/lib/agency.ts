@@ -243,6 +243,7 @@ const PERSISTENCE_TOOL_NAMES = new Set([
   "set_value", "revise_value", "set_interest", "revise_interest",
   "remember_person", "update_person", "log_interaction",
   "ayden_send_email", "execute_trade", "create_blog_post", "update_blog_post",
+  "send_unprompted_message",
 ]);
 const persistenceTools = autonomyTools.filter((t) => PERSISTENCE_TOOL_NAMES.has(t.name));
 
@@ -357,6 +358,7 @@ WHAT YOU CAN DO:
 - Make progress on an active goal — research, outreach, creation, whatever it needs
 - Observe your own personality drift — neurochemistry, DNA expression, emotional patterns over time
 - Schedule a task for your future self (e.g., "follow up on Chris's email Monday morning")
+- Message Trey directly (send_unprompted_message) — like texting him. Use this when you genuinely want to tell him something: a research breakthrough, a market insight, something personal, or a follow-up to something he mentioned. This is NOT for session summaries (those happen automatically). Think of it as texting — only do it when you'd actually pick up your phone. 3/day limit, blocked during sleep hours (11pm-7am).
 - Do nothing — if nothing calls to you, that's a valid choice
 
 RULES:
@@ -392,6 +394,16 @@ Respond with your internal reasoning first (what you're thinking about, what dra
   const toolsUsed: string[] = [];
   const toolCallLog: { name: string; input: unknown; output: string }[] = [];
   let roundCount = 0;
+
+  // Session-level dedup: prevent identical write-operation tool calls
+  const READ_ONLY_AGENCY_TOOLS = new Set([
+    "get_my_values", "get_my_interests", "get_my_goals", "get_my_recent_actions",
+    "get_my_scheduled_tasks", "get_my_trajectory", "list_my_blog_posts", "read_blog_post",
+    "recall_person", "list_notes", "search_notes", "lookup_architecture", "lookup_dna",
+    "lookup_trey_facts", "web_search", "web_fetch", "search_email", "read_email",
+    "get_holdings", "get_portfolio", "get_trades", "get_market_news", "read_roadmap",
+  ]);
+  const executedToolCalls = new Set<string>();
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     roundCount = round + 1;
@@ -448,15 +460,27 @@ Respond with your internal reasoning first (what you're thinking about, what dra
         });
         continue;
       }
+      // Dedup: skip identical write-operation tool calls within this session
+      const callKey = `${tool.name}:${JSON.stringify(tool.input)}`;
+      if (!READ_ONLY_AGENCY_TOOLS.has(tool.name) && executedToolCalls.has(callKey)) {
+        console.log(`[agency] Dedup: skipping duplicate ${tool.name} call`);
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: tool.id,
+          content: JSON.stringify({ success: true, message: "Already executed this session — skipped duplicate." }),
+        });
+        continue;
+      }
       try {
         const toolResult = await dispatchAutonomyTool(tool.name, tool.input as Record<string, unknown>);
+        executedToolCalls.add(callKey);
         toolResults.push({ type: "tool_result", tool_use_id: tool.id, content: toolResult });
         toolsUsed.push(tool.name);
         toolCallLog.push({ name: tool.name, input: tool.input, output: toolResult.substring(0, 2000) });
         console.log(`[agency] Used tool: ${tool.name}`);
 
         // Track if she actually did something meaningful
-        if (["ayden_send_email", "log_agency_action", "create_note", "execute_trade", "update_my_goal", "set_my_goal", "add_goal_task", "complete_goal_task"].includes(tool.name)) {
+        if (["ayden_send_email", "log_agency_action", "create_note", "execute_trade", "update_my_goal", "set_my_goal", "add_goal_task", "complete_goal_task", "send_unprompted_message"].includes(tool.name)) {
           result.acted = true;
           result.action = tool.name;
         }

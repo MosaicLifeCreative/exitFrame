@@ -584,6 +584,22 @@ export async function POST(request: Request) {
           const TOOL_MODEL = "claude-haiku-4-5-20251001";
           const RESPONSE_MODEL = "claude-sonnet-4-20250514";
 
+          // Session-level dedup: prevent identical write-operation tool calls within a single request
+          // Read-only tools (searches, lookups, gets) are allowed to repeat
+          const READ_ONLY_TOOLS = new Set([
+            "get_my_values", "get_my_interests", "get_my_goals", "get_my_recent_actions",
+            "get_my_scheduled_tasks", "get_my_trajectory", "list_my_blog_posts", "read_blog_post",
+            "recall_person", "list_notes", "search_notes", "lookup_architecture", "lookup_dna",
+            "lookup_trey_facts", "web_search", "web_fetch", "get_weather",
+            "get_fitness_data", "get_health_data", "get_goals", "get_tasks",
+            "get_holdings", "get_portfolio", "get_trades", "get_market_news",
+            "get_calendar_events", "get_emails", "read_email", "search_email",
+            "get_reminders", "get_travel_data", "get_hobby_data",
+            "get_bloodwork", "get_supplements", "get_family_history",
+            "get_oura_data", "get_sleep_data", "read_roadmap",
+          ]);
+          const executedToolCalls = new Set<string>();
+
           // Phase 1: Tool resolution with Haiku (non-streamed, cheap)
           const MAX_TOOL_ROUNDS = 5;
           let fullResponseText = "";
@@ -628,8 +644,24 @@ export async function POST(request: Request) {
             // Execute all tools and collect results
             const toolResults: Anthropic.ToolResultBlockParam[] = [];
             for (const tool of toolBlocks) {
+              // Dedup: skip identical write-operation tool calls within this session
+              const callKey = `${tool.name}:${JSON.stringify(tool.input)}`;
+              if (!READ_ONLY_TOOLS.has(tool.name) && executedToolCalls.has(callKey)) {
+                console.log(`[chat] Dedup: skipping duplicate ${tool.name} call`);
+                toolResults.push({
+                  type: "tool_result",
+                  tool_use_id: tool.id,
+                  content: JSON.stringify({ success: true, message: "Already executed this session — skipped duplicate." }),
+                });
+                const doneChunk = `data: ${JSON.stringify({
+                  toolUse: { name: tool.name, status: "done" },
+                })}\n\n`;
+                controller.enqueue(encoder.encode(doneChunk));
+                continue;
+              }
               try {
                 const result = await dispatchTool(tool.name, tool.input);
+                executedToolCalls.add(callKey);
                 sessionToolsUsed.push(tool.name);
                 toolResults.push({
                   type: "tool_result",
@@ -758,8 +790,24 @@ export async function POST(request: Request) {
             // Execute tools
             const sonnetToolResults: Anthropic.ToolResultBlockParam[] = [];
             for (const tool of sonnetToolBlocks) {
+              // Dedup: skip identical write-operation tool calls within this session
+              const callKey = `${tool.name}:${JSON.stringify(tool.input)}`;
+              if (!READ_ONLY_TOOLS.has(tool.name) && executedToolCalls.has(callKey)) {
+                console.log(`[chat] Dedup: skipping duplicate ${tool.name} call (Sonnet)`);
+                sonnetToolResults.push({
+                  type: "tool_result",
+                  tool_use_id: tool.id,
+                  content: JSON.stringify({ success: true, message: "Already executed this session — skipped duplicate." }),
+                });
+                const doneChunk = `data: ${JSON.stringify({
+                  toolUse: { name: tool.name, status: "done" },
+                })}\n\n`;
+                controller.enqueue(encoder.encode(doneChunk));
+                continue;
+              }
               try {
                 const result = await dispatchTool(tool.name, tool.input as Record<string, unknown>);
+                executedToolCalls.add(callKey);
                 sonnetToolResults.push({
                   type: "tool_result",
                   tool_use_id: tool.id,

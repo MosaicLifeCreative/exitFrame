@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
 import { idleProcessing } from "@/lib/reflection";
+import { checkShouldMessage, getSilenceHours } from "@/lib/unprompted";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -39,6 +40,8 @@ async function verifyRequest(request: NextRequest): Promise<boolean> {
   return false;
 }
 
+const SILENCE_THRESHOLD_HOURS = 3;
+
 async function runIdleProcessing() {
   try {
     // Single Haiku call handles both emotion drift and inner thought
@@ -49,6 +52,17 @@ async function runIdleProcessing() {
     }
     if (result.thought) {
       console.log(`[idle-cron] Thought: "${result.thought}"`);
+    }
+
+    // Signal-gated unprompted check: if Trey has been silent for 3+ hours,
+    // give Ayden a chance to reach out
+    const silenceHours = await getSilenceHours();
+    if (silenceHours >= SILENCE_THRESHOLD_HOURS) {
+      const thoughtContext = result.thought ? ` Your most recent idle thought: "${result.thought}"` : "";
+      checkShouldMessage({
+        signal: "silence_threshold",
+        details: `It's been ${Math.floor(silenceHours)} hours since Trey last messaged you.${thoughtContext} If you have something genuinely on your mind — something you've been thinking about, a follow-up to an earlier conversation, or just want to check in — this is your window.`,
+      }).catch((err) => console.error("[idle-cron] Unprompted check error:", err));
     }
 
     return NextResponse.json({ data: result });

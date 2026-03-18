@@ -1,8 +1,21 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, Suspense, ReactNode } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Heart, Loader2, Moon, Brain, Zap, Activity, Eye, ChevronDown, ChevronRight, Dna, Radio, Database, Cpu, Bell, Fingerprint, Split, EyeOff, Palette, Target } from "lucide-react";
+
+// Linkify URLs in text — returns React nodes with clickable links
+function linkifyText(text: string): ReactNode[] {
+  const urlRegex = /(https?:\/\/[^\s"<>{}|\\^`[\]]+)/g;
+  const parts = text.split(urlRegex);
+  return parts.map((part, i) =>
+    urlRegex.test(part) ? (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline break-all">{part}</a>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+}
 
 interface Thought {
   id: string;
@@ -986,14 +999,14 @@ function AydenJournalContent() {
                                         <span className="font-mono font-medium text-amber-400/80">{tc.name}</span>
                                       </div>
                                       {tc.input != null && typeof tc.input === "object" && Object.keys(tc.input as object).length > 0 && (
-                                        <pre className="text-[10px] text-muted-foreground bg-background/50 rounded p-2 overflow-x-auto max-h-24">
-                                          {JSON.stringify(tc.input, null, 2)}
+                                        <pre className="text-[10px] text-muted-foreground bg-background/50 rounded p-2 overflow-x-auto max-h-24 whitespace-pre-wrap">
+                                          {linkifyText(JSON.stringify(tc.input, null, 2))}
                                         </pre>
                                       )}
-                                      <pre className="text-[10px] text-muted-foreground bg-background/50 rounded p-2 overflow-x-auto max-h-32">
+                                      <pre className="text-[10px] text-muted-foreground bg-background/50 rounded p-2 overflow-x-auto max-h-32 whitespace-pre-wrap">
                                         {(() => {
-                                          try { return JSON.stringify(JSON.parse(tc.output), null, 2); }
-                                          catch { return tc.output; }
+                                          try { return linkifyText(JSON.stringify(JSON.parse(tc.output), null, 2)); }
+                                          catch { return linkifyText(tc.output); }
                                         })()}
                                       </pre>
                                     </div>

@@ -1405,8 +1405,11 @@ function getNtColor(type: string): string {
     oxytocin: "#f43f5e",
     cortisol: "#ef4444",
     norepinephrine: "#8b5cf6",
+    gaba: "#22c55e",
+    endorphins: "#eab308",
+    acetylcholine: "#06b6d4",
   };
-  return colors[type] ?? "#22c55e";
+  return colors[type] ?? "#6b7280";
 }
 
 function getFactoryBaseline(type: string): number {
@@ -1416,6 +1419,9 @@ function getFactoryBaseline(type: string): number {
     oxytocin: 45,
     cortisol: 30,
     norepinephrine: 40,
+    gaba: 55,
+    endorphins: 35,
+    acetylcholine: 50,
   };
   return defaults[type] ?? 50;
 }

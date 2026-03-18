@@ -224,6 +224,9 @@ const NEURO_COLORS: Record<string, string> = {
   oxytocin: "bg-pink-400",
   cortisol: "bg-orange-400",
   norepinephrine: "bg-violet-400",
+  gaba: "bg-green-500",
+  endorphins: "bg-yellow-500",
+  acetylcholine: "bg-cyan-500",
 };
 
 const NEURO_LABELS: Record<string, string> = {
@@ -232,6 +235,9 @@ const NEURO_LABELS: Record<string, string> = {
   oxytocin: "Oxytocin",
   cortisol: "Cortisol",
   norepinephrine: "Norepinephrine",
+  gaba: "GABA",
+  endorphins: "Endorphins",
+  acetylcholine: "Acetylcholine",
 };
 
 const FACTORY_DEFAULTS: Record<string, number> = {
@@ -240,6 +246,9 @@ const FACTORY_DEFAULTS: Record<string, number> = {
   oxytocin: 45,
   cortisol: 30,
   norepinephrine: 40,
+  gaba: 55,
+  endorphins: 35,
+  acetylcholine: 50,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {

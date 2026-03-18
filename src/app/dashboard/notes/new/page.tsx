@@ -140,6 +140,25 @@ function NewNoteForm() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
+            <Label>Domain</Label>
+            <Select
+              value={form.domain}
+              onValueChange={(v) =>
+                setForm((p) => ({ ...p, domain: v, domainRefId: "", noteType: "general" }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="life">Life</SelectItem>
+                <SelectItem value="mlc">MLC</SelectItem>
+                <SelectItem value="product">Product</SelectItem>
+                <SelectItem value="ayden">Ayden</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
             <Label>Type</Label>
             <Select
               value={form.noteType}
@@ -151,29 +170,24 @@ function NewNoteForm() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="general">General</SelectItem>
-                <SelectItem value="idea">Idea</SelectItem>
-                <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
-                <SelectItem value="reference">Reference</SelectItem>
-                <SelectItem value="checklist">Checklist</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Domain</Label>
-            <Select
-              value={form.domain}
-              onValueChange={(v) =>
-                setForm((p) => ({ ...p, domain: v, domainRefId: "" }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="life">Life</SelectItem>
-                <SelectItem value="mlc">MLC</SelectItem>
-                <SelectItem value="product">Product</SelectItem>
+                {form.domain === "ayden" ? (
+                  <>
+                    <SelectItem value="general">General</SelectItem>
+                    <SelectItem value="idea">Idea</SelectItem>
+                    <SelectItem value="reference">Reference</SelectItem>
+                    <SelectItem value="research">Research</SelectItem>
+                    <SelectItem value="reflection">Reflection</SelectItem>
+                    <SelectItem value="observation">Observation</SelectItem>
+                  </>
+                ) : (
+                  <>
+                    <SelectItem value="general">General</SelectItem>
+                    <SelectItem value="idea">Idea</SelectItem>
+                    <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
+                    <SelectItem value="reference">Reference</SelectItem>
+                    <SelectItem value="checklist">Checklist</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>

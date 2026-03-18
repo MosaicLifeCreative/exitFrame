@@ -227,36 +227,17 @@ export default function NoteEditorPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {domain === "ayden" ? (
-                <>
-                  <SelectItem value="general">General</SelectItem>
-                  <SelectItem value="idea">Idea</SelectItem>
-                  <SelectItem value="reference">Reference</SelectItem>
-                  <SelectItem value="research">Research</SelectItem>
-                  <SelectItem value="reflection">Reflection</SelectItem>
-                  <SelectItem value="observation">Observation</SelectItem>
-                </>
-              ) : (
-                <>
-                  <SelectItem value="general">General</SelectItem>
-                  <SelectItem value="idea">Idea</SelectItem>
-                  <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
-                  <SelectItem value="reference">Reference</SelectItem>
-                  <SelectItem value="checklist">Checklist</SelectItem>
-                </>
-              )}
+              <SelectItem value="general">General</SelectItem>
+              <SelectItem value="idea">Idea</SelectItem>
+              <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
+              <SelectItem value="reference">Reference</SelectItem>
+              <SelectItem value="checklist">Checklist</SelectItem>
+              <SelectItem value="research">Research</SelectItem>
+              <SelectItem value="reflection">Reflection</SelectItem>
+              <SelectItem value="observation">Observation</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={domain} onValueChange={(val) => {
-            setDomain(val);
-            // Reset noteType to "general" if current type isn't valid for new domain
-            if (val === "ayden" && ["meeting_notes", "checklist"].includes(noteType)) {
-              setNoteType("general");
-            }
-            if (val !== "ayden" && ["research", "reflection", "observation"].includes(noteType)) {
-              setNoteType("general");
-            }
-          }}>
+          <Select value={domain} onValueChange={setDomain}>
             <SelectTrigger className="w-[100px] sm:w-[110px]">
               <SelectValue />
             </SelectTrigger>

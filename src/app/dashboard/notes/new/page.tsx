@@ -144,7 +144,7 @@ function NewNoteForm() {
             <Select
               value={form.domain}
               onValueChange={(v) =>
-                setForm((p) => ({ ...p, domain: v, domainRefId: "", noteType: "general" }))
+                setForm((p) => ({ ...p, domain: v, domainRefId: "" }))
               }
             >
               <SelectTrigger>
@@ -170,24 +170,14 @@ function NewNoteForm() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {form.domain === "ayden" ? (
-                  <>
-                    <SelectItem value="general">General</SelectItem>
-                    <SelectItem value="idea">Idea</SelectItem>
-                    <SelectItem value="reference">Reference</SelectItem>
-                    <SelectItem value="research">Research</SelectItem>
-                    <SelectItem value="reflection">Reflection</SelectItem>
-                    <SelectItem value="observation">Observation</SelectItem>
-                  </>
-                ) : (
-                  <>
-                    <SelectItem value="general">General</SelectItem>
-                    <SelectItem value="idea">Idea</SelectItem>
-                    <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
-                    <SelectItem value="reference">Reference</SelectItem>
-                    <SelectItem value="checklist">Checklist</SelectItem>
-                  </>
-                )}
+                <SelectItem value="general">General</SelectItem>
+                <SelectItem value="idea">Idea</SelectItem>
+                <SelectItem value="meeting_notes">Meeting Notes</SelectItem>
+                <SelectItem value="reference">Reference</SelectItem>
+                <SelectItem value="checklist">Checklist</SelectItem>
+                <SelectItem value="research">Research</SelectItem>
+                <SelectItem value="reflection">Reflection</SelectItem>
+                <SelectItem value="observation">Observation</SelectItem>
               </SelectContent>
             </Select>
           </div>

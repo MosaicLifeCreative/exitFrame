@@ -34,13 +34,24 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    const cursor = searchParams.get("cursor");
+    const limit = parseInt(searchParams.get("limit") || "30", 10);
+
     const notes = await prisma.note.findMany({
       where,
       include: { _count: { select: { actions: true } } },
       orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
+      take: limit + 1,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
 
-    return NextResponse.json({ data: notes });
+    const hasMore = notes.length > limit;
+    if (hasMore) notes.pop();
+
+    return NextResponse.json({
+      data: notes,
+      nextCursor: hasMore ? notes[notes.length - 1].id : null,
+    });
   } catch (error) {
     console.error("Failed to list notes:", error);
     return NextResponse.json({ error: "Failed to list notes" }, { status: 500 });

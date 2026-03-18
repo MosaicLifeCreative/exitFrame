@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -12,6 +12,7 @@ import {
   StickyNote,
   User,
   Bot,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,33 +71,94 @@ const noteTypeColors: Record<string, string> = {
     "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400", // legacy
 };
 
-const TREY_TYPES = ["general", "idea", "meeting_notes", "reference", "checklist"];
-const AYDEN_TYPES = ["research", "reflection", "idea", "observation", "reference"];
+const ALL_TYPES = ["general", "idea", "meeting_notes", "reference", "checklist", "research", "reflection", "observation"];
+
+function getDateGroup(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const noteDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (noteDay.getTime() === today.getTime()) return "Today";
+  if (noteDay.getTime() === yesterday.getTime()) return "Yesterday";
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function timeAgo(date: string) {
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
   const [authorFilter, setAuthorFilter] = useState<"all" | "trey" | "ayden">("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [domainFilter, setDomainFilter] = useState("all");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotes = useCallback(async (cursor?: string) => {
+    if (cursor) setLoadingMore(true);
+    else setLoading(true);
+
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (cursor) params.set("cursor", cursor);
+      params.set("limit", "30");
+      const res = await fetch(`/api/notes?${params}`);
+      const json = await res.json();
+      if (res.ok) {
+        if (cursor) {
+          setNotes((prev) => [...prev, ...json.data]);
+        } else {
+          setNotes(json.data);
+        }
+        setNextCursor(json.nextCursor);
+      }
+    } catch {
+      toast.error("Failed to load notes");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [search]);
 
   useEffect(() => {
-    const fetchNotes = async () => {
-      try {
-        const params = new URLSearchParams();
-        if (search) params.set("search", search);
-        const res = await fetch(`/api/notes?${params}`);
-        const json = await res.json();
-        if (res.ok) setNotes(json.data);
-      } catch {
-        toast.error("Failed to load notes");
-      } finally {
-        setLoading(false);
-      }
-    };
+    setNextCursor(null);
     fetchNotes();
-  }, [search]);
+  }, [fetchNotes]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && nextCursor && !loadingMore) {
+          fetchNotes(nextCursor);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [nextCursor, loadingMore, fetchNotes]);
 
   const togglePin = async (e: React.MouseEvent, note: Note) => {
     e.preventDefault();
@@ -129,20 +191,20 @@ export default function NotesPage() {
   const pinned = filtered.filter((n) => n.isPinned);
   const unpinned = filtered.filter((n) => !n.isPinned);
 
-  const timeAgo = (date: string) => {
-    const diff = Date.now() - new Date(date).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 30) return `${days}d ago`;
-    const months = Math.floor(days / 30);
-    return `${months}mo ago`;
-  };
+  // Group unpinned notes by date
+  const dateGroups: { label: string; notes: Note[] }[] = [];
+  for (const note of unpinned) {
+    const label = getDateGroup(note.updatedAt);
+    const existing = dateGroups.find((g) => g.label === label);
+    if (existing) {
+      existing.notes.push(note);
+    } else {
+      dateGroups.push({ label, notes: [note] });
+    }
+  }
 
   const NoteCard = ({ note }: { note: Note }) => (
-    <Link key={note.id} href={`/dashboard/notes/${note.id}`} className="block group">
+    <Link href={`/dashboard/notes/${note.id}`} className="block group">
       <Card className="transition-all duration-200 hover:shadow-md hover:border-primary/20 dark:hover:border-primary/30">
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3">
@@ -164,7 +226,7 @@ export default function NotesPage() {
                 <Badge variant="outline" className="capitalize text-[10px]">
                   {note.domain}
                 </Badge>
-                {note.createdBy === "ayden" && (
+                {note.createdBy === "ayden" && note.domain !== "ayden" && (
                   <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-pink-500/10 text-pink-400">
                     Ayden
                   </span>
@@ -269,7 +331,7 @@ export default function NotesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
-              {(authorFilter === "trey" ? TREY_TYPES : authorFilter === "ayden" ? AYDEN_TYPES : Array.from(new Set([...TREY_TYPES, ...AYDEN_TYPES]))).map((t) => (
+              {ALL_TYPES.map((t) => (
                 <SelectItem key={t} value={t}>{noteTypeLabels[t]}</SelectItem>
               ))}
             </SelectContent>
@@ -326,7 +388,7 @@ export default function NotesPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Pinned Section */}
           {pinned.length > 0 && (
             <div className="space-y-2">
@@ -341,21 +403,26 @@ export default function NotesPage() {
             </div>
           )}
 
-          {/* Unpinned Section */}
-          {unpinned.length > 0 && (
-            <div className="space-y-2">
-              {pinned.length > 0 && (
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1 mt-4">
-                  All Notes
-                </p>
-              )}
+          {/* Date-grouped sections */}
+          {dateGroups.map((group) => (
+            <div key={group.label} className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">
+                {group.label}
+              </p>
               <div className="space-y-2">
-                {unpinned.map((note) => (
+                {group.notes.map((note) => (
                   <NoteCard key={note.id} note={note} />
                 ))}
               </div>
             </div>
-          )}
+          ))}
+
+          {/* Infinite scroll sentinel */}
+          <div ref={sentinelRef} className="py-4 text-center">
+            {loadingMore && (
+              <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+            )}
+          </div>
         </div>
       )}
     </div>

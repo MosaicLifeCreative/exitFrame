@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
-import { executeOutreach } from "@/lib/outreach";
-import { idleEmotionDrift, generateIdleThought } from "@/lib/reflection";
+import { idleProcessing } from "@/lib/reflection";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -40,49 +39,33 @@ async function verifyRequest(request: NextRequest): Promise<boolean> {
   return false;
 }
 
-async function runOutreach() {
+async function runIdleProcessing() {
   try {
-    // Step 1: Idle emotional drift (non-fatal)
-    let driftResult = null;
-    try {
-      driftResult = await idleEmotionDrift();
-      if (driftResult.updated) {
-        console.log(`[outreach-cron] Idle drift: ${driftResult.changes.join(", ")}`);
-      }
-    } catch (driftErr) {
-      console.error("[outreach-cron] Idle drift error (non-fatal):", driftErr);
+    // Single Haiku call handles both emotion drift and inner thought
+    const result = await idleProcessing();
+
+    if (result.drift.updated) {
+      console.log(`[idle-cron] Drift: ${result.drift.changes.join(", ")}`);
+    }
+    if (result.thought) {
+      console.log(`[idle-cron] Thought: "${result.thought}"`);
     }
 
-    // Step 2: Inner thought (non-fatal)
-    let thoughtResult = null;
-    try {
-      thoughtResult = await generateIdleThought();
-      if (thoughtResult.thought) {
-        console.log(`[outreach-cron] Thought: "${thoughtResult.thought}"`);
-      }
-    } catch (thoughtErr) {
-      console.error("[outreach-cron] Thought generation error (non-fatal):", thoughtErr);
-    }
-
-    // Step 3: Outreach decision + send
-    // NOTE: Silence detection moved to agency system (agency.ts) — she calculates it herself at session time
-    const result = await executeOutreach();
-    console.log(`Outreach cron: sent=${result.sent}, reason=${result.reason}`);
-    return NextResponse.json({ data: { ...result, drift: driftResult, thought: thoughtResult } });
+    return NextResponse.json({ data: result });
   } catch (error) {
-    console.error("Outreach cron error:", error);
+    console.error("Idle processing cron error:", error);
     const msg = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: `Outreach failed: ${msg}` }, { status: 500 });
+    return NextResponse.json({ error: `Idle processing failed: ${msg}` }, { status: 500 });
   }
 }
 
-// GET: Vercel daily cron / manual trigger
+// GET: Vercel cron / manual trigger
 export async function GET(request: NextRequest) {
   const authorized = await verifyRequest(request);
   if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return runOutreach();
+  return runIdleProcessing();
 }
 
 // POST: QStash scheduled call
@@ -91,5 +74,5 @@ export async function POST(request: NextRequest) {
   if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return runOutreach();
+  return runIdleProcessing();
 }

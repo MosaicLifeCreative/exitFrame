@@ -283,6 +283,7 @@ export default function NotesPage() {
               <SelectItem value="life">Life</SelectItem>
               <SelectItem value="mlc">MLC</SelectItem>
               <SelectItem value="product">Product</SelectItem>
+              <SelectItem value="ayden">Ayden</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -26,8 +26,8 @@ export const noteTools: Anthropic.Tool[] = [
         },
         domain: {
           type: "string",
-          enum: ["life", "mlc", "product"],
-          description: "Domain the note belongs to (default: life)",
+          enum: ["life", "mlc", "product", "ayden"],
+          description: "Domain the note belongs to. Use 'ayden' for your own notes (default: ayden)",
         },
       },
       required: ["title", "noteType"],
@@ -51,7 +51,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         domain: {
           type: "string",
-          enum: ["life", "mlc", "product"],
+          enum: ["life", "mlc", "product", "ayden"],
           description: "Filter by domain (optional)",
         },
       },
@@ -108,7 +108,7 @@ export const noteTools: Anthropic.Tool[] = [
         },
         domain: {
           type: "string",
-          enum: ["life", "mlc", "product"],
+          enum: ["life", "mlc", "product", "ayden"],
           description: "Filter by domain (optional)",
         },
         pinnedOnly: {
@@ -179,7 +179,7 @@ async function createNote(input: CreateNoteInput): Promise<string> {
       title: input.title,
       content: input.content || "",
       noteType: input.noteType || "general",
-      domain: input.domain || "life",
+      domain: input.domain || "ayden",
       createdBy: "ayden",
       isPinned: false,
     },

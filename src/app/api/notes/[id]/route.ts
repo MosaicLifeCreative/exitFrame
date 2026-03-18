@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 const updateNoteSchema = z.object({
   title: z.string().min(1).optional(),
   content: z.string().optional(),
-  noteType: z.enum(["general", "idea", "meeting_notes", "reference", "checklist"]).optional(),
-  domain: z.enum(["life", "mlc", "product"]).optional(),
+  noteType: z.enum(["general", "idea", "meeting_notes", "reference", "checklist", "research", "reflection", "observation"]).optional(),
+  domain: z.enum(["life", "mlc", "product", "ayden"]).optional(),
   domainRefId: z.string().uuid().nullable().optional(),
   isPinned: z.boolean().optional(),
 });

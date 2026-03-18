@@ -381,10 +381,9 @@ export async function getNeurotransmitterPrompt(): Promise<string | null> {
     let lastUpdated: Date | null = null;
 
     for (const row of rows) {
-      const adapted = row.adaptedBaseline ?? 0;
-      if (adapted !== 0) {
-        adaptedBaselines[row.type] = adapted;
-      }
+      const perm = getEffectiveBaseline(row);
+      const adapted = row.adaptedBaseline || perm;
+      adaptedBaselines[row.type] = adapted;
       permBaselines[row.type] = getEffectiveBaseline(row);
       if (!lastUpdated || row.updatedAt > lastUpdated) {
         lastUpdated = row.updatedAt;

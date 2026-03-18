@@ -15,12 +15,15 @@ export async function GET() {
       prisma.aydenMemory.count(),
     ]);
 
-    const neurotransmitters = rows.map((row) => ({
-      type: row.type,
-      level: levels[row.type] ?? 0,
-      adaptedBaseline: row.adaptedBaseline ?? 0,
-      permanentBaseline: row.permanentBaseline ?? 0,
-    }));
+    const neurotransmitters = rows.map((row) => {
+      const perm = row.permanentBaseline ?? 0;
+      return {
+        type: row.type,
+        level: levels[row.type] ?? 0,
+        adaptedBaseline: row.adaptedBaseline || perm,
+        permanentBaseline: perm,
+      };
+    });
 
     return NextResponse.json({
       data: {

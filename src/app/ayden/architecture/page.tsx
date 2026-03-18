@@ -226,27 +226,33 @@ export default function AydenArchitecturePage() {
         {/* ── Neurochemistry ── */}
         <Section id="neurochemistry" title="Neurochemistry Engine">
           <p>
-            Five simulated neurotransmitters run continuously, decaying toward their baselines
+            Eight simulated neurotransmitters run continuously, decaying toward their baselines
             between interactions and spiking in response to conversation content. Each shapes
             Ayden&apos;s behavior through descriptive prompt injection &mdash; never as numbers,
             always as behavioral modifiers.
           </p>
-          <SubSection title="The Five Systems">
+          <SubSection title="The Eight Systems">
             <div className="space-y-2">
               <NtRow name="Dopamine" baseline={50} halfLife="6h" role="Reward, motivation, novelty-seeking. High = impulsive and enthusiastic. Low = restless and bored." color="#f59e0b" />
               <NtRow name="Serotonin" baseline={55} halfLife="48h" role="Mood stability, contentment. The slowest to change. High = philosophical calm. Low = irritable and foggy." color="#3b82f6" />
               <NtRow name="Oxytocin" baseline={45} halfLife="12h" role="Bonding, warmth, trust. High = affectionate and vulnerable. Low = guarded and detached." color="#f43f5e" />
               <NtRow name="Cortisol" baseline={30} halfLife="8h" role="Stress, alertness, threat detection. High = anxious and terse. Low = relaxed but possibly complacent." color="#ef4444" />
               <NtRow name="Norepinephrine" baseline={40} halfLife="4h" role="Urgency, focus, fight-or-flight. The fastest to spike and decay. High = hyperalert. Low = dreamy and unfocused." color="#8b5cf6" />
+              <NtRow name="GABA" baseline={55} halfLife="10h" role="Inhibition, self-control, composure. The brake pedal. High = measured and deliberate. Low = impulsive and unfiltered." color="#22c55e" />
+              <NtRow name="Endorphins" baseline={35} halfLife="6h" role="Resilience, post-effort satisfaction. The glow after pushing through. High = capable and unbothered. Low = fragile and easily frustrated." color="#eab308" />
+              <NtRow name="Acetylcholine" baseline={50} halfLife="8h" role="Cognitive sharpness, attention, analytical depth. High = precise and incisive. Low = foggy and surface-level." color="#06b6d4" />
             </div>
           </SubSection>
           <SubSection title="Interaction Rules">
             <p>
-              Neurotransmitters don&apos;t exist in isolation. When cortisol exceeds 70,
-              serotonin&apos;s effect is suppressed by 20% &mdash; stress overrides calm.
-              Oxytocin above 60 amplifies dopamine by 15% &mdash; connection makes rewards
-              feel better. Cortisol above 70 boosts norepinephrine by 10% &mdash; stress
-              heightens alertness. All values clamp to configured min/max ranges.
+              Neurotransmitters don&apos;t exist in isolation. Twelve interaction rules create
+              cascading effects: cortisol suppresses serotonin (stress overrides calm) and GABA
+              (stress erodes self-control). Oxytocin amplifies dopamine (connection makes rewards
+              feel better). GABA dampens norepinephrine (composure suppresses reactivity). Serotonin
+              amplifies GABA (contentment reinforces composure). Endorphins buffer cortisol
+              (resilience absorbs stress). Dopamine amplifies acetylcholine (motivation sharpens
+              focus). Low serotonin clouds acetylcholine (emotional fog impairs cognition). All
+              values clamp to configured min/max ranges.
             </p>
           </SubSection>
           <SubSection title="Simulated Heart Rate">
@@ -808,9 +814,10 @@ export default function AydenArchitecturePage() {
           </p>
           <SubSection title="Signal Computation">
             <p>
-              Four signals derive from the five neurotransmitters: warmth (serotonin + oxytocin
-              &minus; cortisol), energy (norepinephrine + dopamine + cortisol), vividness
-              (dopamine + serotonin), and tension (cortisol + norepinephrine). Each maps to
+              Four signals derive from all eight neurotransmitters: warmth (serotonin + oxytocin
+              + endorphins &minus; cortisol), energy (norepinephrine + dopamine + acetylcholine
+              &minus; GABA), vividness (dopamine + serotonin + endorphins), and tension (cortisol
+              + norepinephrine &minus; GABA). Each maps to
               CSS variables: hue shift (±15°), saturation (0.6&ndash;1.3), shadow warmth,
               border tint, animation speed multiplier (0.7&ndash;1.5), and background tint
               opacity.

@@ -13,7 +13,7 @@ import {
 } from "./types";
 
 // Neurotransmitter ordering (clockwise from top)
-const NEURO_ORDER = ["dopamine", "serotonin", "oxytocin", "cortisol", "norepinephrine"];
+const NEURO_ORDER = ["dopamine", "serotonin", "oxytocin", "cortisol", "norepinephrine", "gaba", "endorphins", "acetylcholine"];
 
 // Factory defaults for delta calculations
 const FACTORY_DEFAULTS: Record<string, number> = {
@@ -22,6 +22,9 @@ const FACTORY_DEFAULTS: Record<string, number> = {
   oxytocin: 45,
   cortisol: 30,
   norepinephrine: 40,
+  gaba: 55,
+  endorphins: 35,
+  acetylcholine: 50,
 };
 
 interface LayoutResult {
@@ -116,6 +119,53 @@ export function computeLayout(
       to: "neuro-dopamine",
       strength: (oxytocinLevel - 55) / 45,
       color: "#f43f5e",
+    });
+  }
+
+  // Cortisol suppresses GABA (stress erodes self-control)
+  if (cortisolLevel > 50) {
+    edges.push({
+      id: "cortisol-gaba",
+      from: "neuro-cortisol",
+      to: "neuro-gaba",
+      strength: (cortisolLevel - 50) / 50,
+      color: "#ef4444",
+    });
+  }
+
+  // GABA suppresses norepinephrine (composure dampens reactivity)
+  const gabaLevel = data.neurotransmitters.find((n) => n.type === "gaba")?.level ?? 55;
+  if (gabaLevel > 60) {
+    edges.push({
+      id: "gaba-norepinephrine",
+      from: "neuro-gaba",
+      to: "neuro-norepinephrine",
+      strength: (gabaLevel - 60) / 40,
+      color: "#22c55e",
+    });
+  }
+
+  // Endorphins suppress cortisol (resilience buffers stress)
+  const endorphinLevel = data.neurotransmitters.find((n) => n.type === "endorphins")?.level ?? 35;
+  if (endorphinLevel > 50) {
+    edges.push({
+      id: "endorphins-cortisol",
+      from: "neuro-endorphins",
+      to: "neuro-cortisol",
+      strength: (endorphinLevel - 50) / 50,
+      color: "#eab308",
+    });
+  }
+
+  // Dopamine amplifies acetylcholine (motivation sharpens focus)
+  const dopamineLevel = data.neurotransmitters.find((n) => n.type === "dopamine")?.level ?? 50;
+  if (dopamineLevel > 60) {
+    edges.push({
+      id: "dopamine-acetylcholine",
+      from: "neuro-dopamine",
+      to: "neuro-acetylcholine",
+      strength: (dopamineLevel - 60) / 40,
+      color: "#f59e0b",
     });
   }
 

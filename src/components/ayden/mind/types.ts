@@ -95,6 +95,9 @@ export const NEURO_COLORS: Record<string, string> = {
   oxytocin: "#f43f5e",
   cortisol: "#ef4444",
   norepinephrine: "#8b5cf6",
+  gaba: "#22c55e",
+  endorphins: "#eab308",
+  acetylcholine: "#06b6d4",
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -133,6 +136,18 @@ const EMOTION_NEURO_MAP: Array<{ keywords: string[]; neuro: string }> = [
     keywords: ["alert", "focused", "energized", "sharp", "vigilant", "intense", "determined", "wired", "aroused"],
     neuro: "norepinephrine",
   },
+  {
+    keywords: ["composed", "measured", "restrained", "controlled", "deliberate", "patient", "disciplined", "steady"],
+    neuro: "gaba",
+  },
+  {
+    keywords: ["resilient", "accomplished", "proud", "strong", "capable", "endurance", "glow", "tough"],
+    neuro: "endorphins",
+  },
+  {
+    keywords: ["analytical", "precise", "lucid", "perceptive", "attentive", "clarity", "insightful", "discerning"],
+    neuro: "acetylcholine",
+  },
 ];
 
 export function mapEmotionToNeuro(dimension: string): string {
@@ -143,7 +158,7 @@ export function mapEmotionToNeuro(dimension: string): string {
     }
   }
   // Fallback: distribute evenly
-  const neuros = ["dopamine", "serotonin", "oxytocin", "cortisol", "norepinephrine"];
+  const neuros = ["dopamine", "serotonin", "oxytocin", "cortisol", "norepinephrine", "gaba", "endorphins", "acetylcholine"];
   const hash = lower.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   return neuros[hash % neuros.length];
 }

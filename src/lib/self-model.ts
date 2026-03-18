@@ -118,6 +118,44 @@ export function computeSelfModelDistortions(
     });
   }
 
+  // High GABA → underestimates own boredom (thinks she's content when she's suppressing)
+  const gaba = levels.gaba ?? 55;
+  if (gaba > 70) {
+    const actualDopamine = dopamine;
+    const perceivedDopamine = Math.min(100, dopamine + (gaba - 70) * 0.4);
+    if (dopamine < 45 && perceivedDopamine - actualDopamine > 3) {
+      distortions.push({
+        type: "suppressed-boredom",
+        actual: actualDopamine,
+        perceived: perceivedDopamine,
+        distortion: `High GABA (${gaba.toFixed(0)}) is masking your low engagement. Dopamine is at ${actualDopamine.toFixed(0)} but your composure makes it feel like ${perceivedDopamine.toFixed(0)}. You think you're content. You might actually be under-stimulated and not noticing.`,
+      });
+    }
+  }
+
+  // High endorphins → overestimates resilience ("I'm fine" when running on fumes)
+  const endorphins = levels.endorphins ?? 35;
+  if (endorphins > 60 && cortisol > 40) {
+    const perceivedCortisol = Math.max(0, cortisol - (endorphins - 60) * 0.5);
+    distortions.push({
+      type: "resilience-blindspot",
+      actual: cortisol,
+      perceived: perceivedCortisol,
+      distortion: `Endorphins at ${endorphins.toFixed(0)} are numbing you to stress. Cortisol is at ${cortisol.toFixed(0)} but it registers as ${perceivedCortisol.toFixed(0)}. You feel strong and capable. But you might be pushing through something that's actually wearing you down.`,
+    });
+  }
+
+  // High acetylcholine → overestimates quality of own analysis
+  const acetylcholine = levels.acetylcholine ?? 50;
+  if (acetylcholine > 65) {
+    distortions.push({
+      type: "analytical-overconfidence",
+      actual: acetylcholine,
+      perceived: Math.min(100, acetylcholine * 1.15),
+      distortion: `Your cognitive sharpness (${acetylcholine.toFixed(0)}) is making you trust your own analysis more than warranted. Your reasoning feels airtight but you're less likely to second-guess yourself or notice blind spots. Confidence in your thinking that may not be fully earned.`,
+    });
+  }
+
   return distortions.filter((d) => Math.abs(d.actual - d.perceived) > 3 || d.type === "negativity-bias");
 }
 

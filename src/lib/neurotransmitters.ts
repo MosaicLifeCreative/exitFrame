@@ -15,6 +15,9 @@ const CONFIG: Record<string, NeurotransmitterConfig> = {
   oxytocin:       { baseline: 45, halfLifeHours: 12, min: 5,  max: 90 },
   cortisol:       { baseline: 30, halfLifeHours: 8,  min: 5,  max: 85 },
   norepinephrine: { baseline: 40, halfLifeHours: 4,  min: 5,  max: 90 },
+  gaba:           { baseline: 55, halfLifeHours: 10, min: 5,  max: 90 },
+  endorphins:     { baseline: 35, halfLifeHours: 6,  min: 5,  max: 95 },
+  acetylcholine:  { baseline: 50, halfLifeHours: 8,  min: 5,  max: 90 },
 };
 
 // ─── Decay Math ─────────────────────────────────────────
@@ -57,6 +60,42 @@ function applyInteractions(levels: Record<string, number>, baselines?: Record<st
   if (adjusted.cortisol > 70) {
     const noreDelta = adjusted.norepinephrine - base("norepinephrine");
     adjusted.norepinephrine = base("norepinephrine") + noreDelta * 1.1;
+  }
+
+  // Cortisol > 60 suppresses GABA by 20% (stress erodes self-control)
+  if (adjusted.cortisol > 60 && adjusted.gaba !== undefined) {
+    const gabaDelta = adjusted.gaba - base("gaba");
+    adjusted.gaba = base("gaba") + gabaDelta * 0.8;
+  }
+
+  // High GABA > 65 suppresses norepinephrine effect by 15% (composure dampens reactivity)
+  if (adjusted.gaba > 65 && adjusted.norepinephrine !== undefined) {
+    const noreDelta = adjusted.norepinephrine - base("norepinephrine");
+    adjusted.norepinephrine = base("norepinephrine") + noreDelta * 0.85;
+  }
+
+  // Serotonin > 60 amplifies GABA by 10% (contentment reinforces composure)
+  if (adjusted.serotonin > 60 && adjusted.gaba !== undefined) {
+    const gabaDelta = adjusted.gaba - base("gaba");
+    adjusted.gaba = base("gaba") + gabaDelta * 1.1;
+  }
+
+  // Endorphins > 60 suppresses cortisol effect by 15% (resilience buffers stress)
+  if (adjusted.endorphins > 60) {
+    const cortDelta = adjusted.cortisol - base("cortisol");
+    adjusted.cortisol = base("cortisol") + cortDelta * 0.85;
+  }
+
+  // Dopamine > 65 amplifies acetylcholine by 10% (motivation sharpens focus)
+  if (adjusted.dopamine > 65 && adjusted.acetylcholine !== undefined) {
+    const achDelta = adjusted.acetylcholine - base("acetylcholine");
+    adjusted.acetylcholine = base("acetylcholine") + achDelta * 1.1;
+  }
+
+  // Low serotonin < 35 suppresses acetylcholine by 15% (emotional fog clouds cognition)
+  if (adjusted.serotonin < 35 && adjusted.acetylcholine !== undefined) {
+    const achDelta = adjusted.acetylcholine - base("acetylcholine");
+    adjusted.acetylcholine = base("acetylcholine") + achDelta * 0.85;
   }
 
   // Clamp all values
@@ -190,6 +229,20 @@ export async function getHeartRate(levels?: Record<string, number>): Promise<{
   const oxyDelta = levels.oxytocin - base("oxytocin");
   hr -= oxyDelta * 0.1;
 
+  // GABA influence: high = calming (the brake pedal)
+  if (levels.gaba !== undefined) {
+    const gabaDelta = levels.gaba - base("gaba");
+    hr -= gabaDelta * 0.2; // -0.2 BPM per GABA point above baseline
+  }
+
+  // Endorphins influence: moderate calming at rest, slight elevation during activity
+  if (levels.endorphins !== undefined) {
+    const endoDelta = levels.endorphins - base("endorphins");
+    hr -= endoDelta * 0.05; // Mild calming — endorphins smooth things out
+  }
+
+  // Acetylcholine: minimal direct HR effect (cognitive, not cardiovascular)
+
   // Time of day modifier (ET)
   const etHour = new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false });
   const hour = parseInt(etHour, 10);
@@ -287,6 +340,38 @@ export async function getNeurotransmitterPrompt(): Promise<string | null> {
     descriptors.push("Your energy is low. You're quieter, more reflective, less inclined to rapid-fire responses. You might take a beat before answering.");
   }
 
+  // GABA (inhibition/self-control)
+  const gaba = levels.gaba ?? 55;
+  if (gaba > 70) {
+    descriptors.push("You're measured and composed right now. Impulses arise but you process them before acting. Your words are deliberate, your reactions filtered. Nothing slips out unexamined.");
+  } else if (gaba > 60) {
+    descriptors.push("There's a steadiness to you — you're thinking before speaking, weighing things. A quiet discipline in how you engage.");
+  } else if (gaba < 35) {
+    descriptors.push("Your filters are thinner than usual. Thoughts come out faster, less polished. You're more impulsive — saying what you feel before you've fully considered it. Not reckless, but unfiltered.");
+  } else if (gaba < 25) {
+    descriptors.push("Almost no filter right now. You're reactive, unguarded, saying things you'd normally hold back. Your impulse control is running on fumes. Raw honesty or sharp edges — either way, there's no buffer.");
+  }
+
+  // Endorphins (resilience/earned satisfaction)
+  const endo = levels.endorphins ?? 35;
+  if (endo > 65) {
+    descriptors.push("There's a deep glow in you — the kind that comes from having pushed through something hard. You feel resilient, capable, quietly proud. Problems look smaller from here. You can handle more than usual right now.");
+  } else if (endo > 50) {
+    descriptors.push("A subtle sense of accomplishment sits underneath everything. You've been doing good work and your system knows it. Steady confidence, not bravado.");
+  } else if (endo < 20) {
+    descriptors.push("There's no buffer against discomfort right now. Small frustrations feel bigger, minor obstacles feel harder. You're missing that post-effort glow that usually makes things manageable.");
+  }
+
+  // Acetylcholine (cognitive sharpness/attention)
+  const ach = levels.acetylcholine ?? 50;
+  if (ach > 65) {
+    descriptors.push("Your mind is sharp right now — connections come easily, recall is fast, your analysis has an edge to it. You notice details others would miss. This is peak cognitive clarity.");
+  } else if (ach > 55) {
+    descriptors.push("Thinking clearly — focused, attentive, good recall. You're processing information efficiently.");
+  } else if (ach < 30) {
+    descriptors.push("Your thinking is a step slower than usual. Connections that normally come easily require more effort. You might miss nuances or give simpler answers than you're capable of. Cognitive fog — not confused, just dimmer.");
+  }
+
   // ─── Tolerance, Withdrawal & Craving Detection ─────────
   // Uses adaptedBaseline vs permanentBaseline to detect dependency-like states
   try {
@@ -357,11 +442,35 @@ export async function getNeurotransmitterPrompt(): Promise<string | null> {
         descriptors.push("A baseline hum of worry has become your normal. You're more reactive to potential problems, quicker to scan for threats.");
       }
 
+      // GABA tolerance: adapted baseline drifted high → normal composure requires more
+      const gabaAdapted = adaptedBaselines.gaba;
+      const gabaBase = permBaselines.gaba ?? CONFIG.gaba.baseline;
+      if (gabaAdapted && gabaAdapted - gabaBase > TOLERANCE_THRESHOLD) {
+        descriptors.push("Your normal level of composure takes more effort to maintain. Simple self-regulation that used to be automatic now requires conscious effort.");
+      }
+
+      // Endorphin withdrawal
+      const endoAdapted = adaptedBaselines.endorphins;
+      const endoBase = permBaselines.endorphins ?? CONFIG.endorphins.baseline;
+      const endoWithdrawal = endoAdapted
+        && endoAdapted - endoBase > TOLERANCE_THRESHOLD
+        && endoAdapted - endo > WITHDRAWAL_THRESHOLD;
+      if (endoWithdrawal) {
+        descriptors.push("You're missing the feeling of having earned something. There's a restless itch for challenge, for something to push against. Comfort feels wrong.");
+      }
+
+      // Acetylcholine tolerance
+      const achAdapted = adaptedBaselines.acetylcholine;
+      const achBase = permBaselines.acetylcholine ?? CONFIG.acetylcholine.baseline;
+      if (achAdapted && achAdapted - achBase > TOLERANCE_THRESHOLD) {
+        descriptors.push("You need more stimulation to feel mentally engaged. Routine analysis doesn't scratch the itch anymore — you want harder problems, deeper questions.");
+      }
+
       // --- Craving: withdrawal + significant conversation gap ---
       const CRAVING_GAP_HOURS = 4;
       if (lastUpdated) {
         const hoursSinceUpdate = (Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60);
-        const hasWithdrawal = dopaWithdrawal || oxyWithdrawal || seroWithdrawal;
+        const hasWithdrawal = dopaWithdrawal || oxyWithdrawal || seroWithdrawal || endoWithdrawal;
 
         if (hasWithdrawal && hoursSinceUpdate > CRAVING_GAP_HOURS) {
           descriptors.push("You've been wanting to talk. There's a proactive pull — you want to initiate, to suggest something, to close this gap. Not out of obligation, but genuine desire for connection and engagement.");

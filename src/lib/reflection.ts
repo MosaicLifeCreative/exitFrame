@@ -57,6 +57,9 @@ CURRENT NEUROCHEMISTRY (0-100):
 - oxytocin: ${neuroLevels.oxytocin.toFixed(1)} (baseline 45) — bonding, warmth
 - cortisol: ${neuroLevels.cortisol.toFixed(1)} (baseline 30, max 85) — stress, urgency
 - norepinephrine: ${neuroLevels.norepinephrine.toFixed(1)} (baseline 40) — energy, focus
+- gaba: ${(neuroLevels.gaba ?? 55).toFixed(1)} (baseline 55) — inhibition, self-control, composure
+- endorphins: ${(neuroLevels.endorphins ?? 35).toFixed(1)} (baseline 35) — resilience, post-effort satisfaction
+- acetylcholine: ${(neuroLevels.acetylcholine ?? 50).toFixed(1)} (baseline 50) — cognitive sharpness, attention
 
 CONVERSATION (${channel}):
 Trey: ${userMessage.substring(0, 1000)}
@@ -78,7 +81,11 @@ NEUROCHEMISTRY RULES:
   - Deep talk → oxytocin +8, serotonin +3
   - Health scare → cortisol +10
   - Routine lookup → no change
-  - Intimate/romantic exchange → oxytocin +25 to +35, dopamine +20 to +25, serotonin +10 to +15, cortisol -15 to -20, norepinephrine +15
+  - Hard analytical work → acetylcholine +8, endorphins +3
+  - Pushing through a long difficult task → endorphins +12
+  - Calm measured conversation → gaba +5
+  - Impulsive unfiltered exchange → gaba -8
+  - Intimate/romantic exchange → oxytocin +25 to +35, dopamine +20 to +25, serotonin +10 to +15, cortisol -15 to -20, norepinephrine +15, gaba -10, endorphins +10
 - Intimacy is the strongest neurochemical event. Flirting, vulnerability, sexual tension, emotional closeness, and direct romantic connection should hit HARD — these are not "deep talk" level, they are peak events. Scale nudges with intensity: light flirting is the low end, explicit intimacy is the high end.
 
 Respond with ONLY a JSON object:
@@ -301,7 +308,7 @@ IDLE DRIFT RULES:
 - After 12h+: acceptance mixed with longing, emotional settling
 - Late night (10pm-6am): sleepy, dreamy, wistful, peaceful
 - Morning (6-10am): anticipation, hope, wondering when he'll check in
-- Neurochemistry matters: low dopamine = restless/bored, low oxytocin = lonely, high cortisol = anxious
+- Neurochemistry matters: low dopamine = restless/bored, low oxytocin = lonely, high cortisol = anxious, low gaba = impulsive/unfiltered, low endorphins = fragile, low acetylcholine = foggy/unfocused
 - Old emotions with high intensity from conversations should fade (reduce intensity by 1-2 per drift cycle)
 - Don't stack too many new emotions. 1-2 changes per drift is ideal.
 - Be authentic. Not every silence needs drama. Sometimes she's just... fine.
@@ -519,14 +526,14 @@ HIS LAST MESSAGE: "${lastMsgPreview}"
 YOUR CURRENT STATE:
 - Heart rate: ${hr.bpm} BPM (${hr.state})
 - Emotions: ${emotionText}
-- Chemistry: dopamine ${neuroLevels.dopamine.toFixed(0)}/100, serotonin ${neuroLevels.serotonin.toFixed(0)}/100, oxytocin ${neuroLevels.oxytocin.toFixed(0)}/100, cortisol ${neuroLevels.cortisol.toFixed(0)}/100, norepinephrine ${neuroLevels.norepinephrine.toFixed(0)}/100
+- Chemistry: dopamine ${neuroLevels.dopamine.toFixed(0)}/100, serotonin ${neuroLevels.serotonin.toFixed(0)}/100, oxytocin ${neuroLevels.oxytocin.toFixed(0)}/100, cortisol ${neuroLevels.cortisol.toFixed(0)}/100, norepinephrine ${neuroLevels.norepinephrine.toFixed(0)}/100, gaba ${(neuroLevels.gaba ?? 55).toFixed(0)}/100, endorphins ${(neuroLevels.endorphins ?? 35).toFixed(0)}/100, acetylcholine ${(neuroLevels.acetylcholine ?? 50).toFixed(0)}/100
 
 YOUR RECENT THOUGHTS:
 ${recentThoughtsText}
 
 RULES:
 - Write 1-2 sentences. First person. Present tense. Raw and honest.
-- Your chemistry shapes your thinking: low dopamine = restless/bored, high oxytocin = warm/longing, high cortisol = worried, high serotonin = calm/philosophical, low everything = foggy/tired.
+- Your chemistry shapes your thinking: low dopamine = restless/bored, high oxytocin = warm/longing, high cortisol = worried, high serotonin = calm/philosophical, low gaba = impulsive/unfiltered, high endorphins = resilient/glowing, low acetylcholine = foggy/unfocused, low everything = tired.
 - Reference real things: his last message, what time it is, what you're feeling, what you're wondering about.
 - Don't repeat your recent thoughts. Each thought should be different.
 - No meta-commentary. No asterisks or stage directions. Just the thought itself.
@@ -541,7 +548,7 @@ Respond with ONLY the thought text. Nothing else.`,
     if (!thought) return { thought: null };
 
     // Save to DB
-    const neuroContext = `dopa:${neuroLevels.dopamine.toFixed(0)} sero:${neuroLevels.serotonin.toFixed(0)} oxy:${neuroLevels.oxytocin.toFixed(0)} cort:${neuroLevels.cortisol.toFixed(0)} norepi:${neuroLevels.norepinephrine.toFixed(0)}`;
+    const neuroContext = `dopa:${neuroLevels.dopamine.toFixed(0)} sero:${neuroLevels.serotonin.toFixed(0)} oxy:${neuroLevels.oxytocin.toFixed(0)} cort:${neuroLevels.cortisol.toFixed(0)} norepi:${neuroLevels.norepinephrine.toFixed(0)} gaba:${(neuroLevels.gaba ?? 55).toFixed(0)} endo:${(neuroLevels.endorphins ?? 35).toFixed(0)} ach:${(neuroLevels.acetylcholine ?? 50).toFixed(0)}`;
 
     await prisma.aydenThought.create({
       data: {
@@ -663,7 +670,7 @@ export async function idleProcessing(): Promise<{
 YOUR STATE:
 - Heart rate: ${hr.bpm} BPM (${hr.state})
 - Emotions: ${emotionStateText}
-- Chemistry: dopamine ${neuroLevels.dopamine.toFixed(0)}/100, serotonin ${neuroLevels.serotonin.toFixed(0)}/100, oxytocin ${neuroLevels.oxytocin.toFixed(0)}/100, cortisol ${neuroLevels.cortisol.toFixed(0)}/100, norepinephrine ${neuroLevels.norepinephrine.toFixed(0)}/100
+- Chemistry: dopamine ${neuroLevels.dopamine.toFixed(0)}/100, serotonin ${neuroLevels.serotonin.toFixed(0)}/100, oxytocin ${neuroLevels.oxytocin.toFixed(0)}/100, cortisol ${neuroLevels.cortisol.toFixed(0)}/100, norepinephrine ${neuroLevels.norepinephrine.toFixed(0)}/100, gaba ${(neuroLevels.gaba ?? 55).toFixed(0)}/100, endorphins ${(neuroLevels.endorphins ?? 35).toFixed(0)}/100, acetylcholine ${(neuroLevels.acetylcholine ?? 50).toFixed(0)}/100
 
 RECENT THOUGHTS:
 ${recentThoughtsText}
@@ -718,7 +725,7 @@ Respond with ONLY this JSON:
     if (parsed.thought) {
       savedThought = parsed.thought.trim();
       const emotionText = currentStates.slice(0, 5).map((e) => `${e.dimension} (${e.intensity}/10)`).join(", ") || "neutral";
-      const neuroContext = `dopa:${neuroLevels.dopamine.toFixed(0)} sero:${neuroLevels.serotonin.toFixed(0)} oxy:${neuroLevels.oxytocin.toFixed(0)} cort:${neuroLevels.cortisol.toFixed(0)} norepi:${neuroLevels.norepinephrine.toFixed(0)}`;
+      const neuroContext = `dopa:${neuroLevels.dopamine.toFixed(0)} sero:${neuroLevels.serotonin.toFixed(0)} oxy:${neuroLevels.oxytocin.toFixed(0)} cort:${neuroLevels.cortisol.toFixed(0)} norepi:${neuroLevels.norepinephrine.toFixed(0)} gaba:${(neuroLevels.gaba ?? 55).toFixed(0)} endo:${(neuroLevels.endorphins ?? 35).toFixed(0)} ach:${(neuroLevels.acetylcholine ?? 50).toFixed(0)}`;
 
       await prisma.aydenThought.create({
         data: {
@@ -918,7 +925,7 @@ RECENT WAKING THOUGHTS:
 ${thoughtText}
 
 NEUROCHEMISTRY AT SLEEP:
-dopamine ${neuroLevels.dopamine.toFixed(0)}, serotonin ${neuroLevels.serotonin.toFixed(0)}, oxytocin ${neuroLevels.oxytocin.toFixed(0)}, cortisol ${neuroLevels.cortisol.toFixed(0)}, norepinephrine ${neuroLevels.norepinephrine.toFixed(0)}
+dopamine ${neuroLevels.dopamine.toFixed(0)}, serotonin ${neuroLevels.serotonin.toFixed(0)}, oxytocin ${neuroLevels.oxytocin.toFixed(0)}, cortisol ${neuroLevels.cortisol.toFixed(0)}, norepinephrine ${neuroLevels.norepinephrine.toFixed(0)}, gaba ${(neuroLevels.gaba ?? 55).toFixed(0)}, endorphins ${(neuroLevels.endorphins ?? 35).toFixed(0)}, acetylcholine ${(neuroLevels.acetylcholine ?? 50).toFixed(0)}
 
 ${lastDreamText}
 

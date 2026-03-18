@@ -16,7 +16,7 @@
 import { prisma } from "@/lib/prisma";
 import { applyNudges } from "@/lib/neurotransmitters";
 
-const NEURO_TYPES = ["dopamine", "serotonin", "oxytocin", "cortisol", "norepinephrine"];
+const NEURO_TYPES = ["dopamine", "serotonin", "oxytocin", "cortisol", "norepinephrine", "gaba", "endorphins", "acetylcholine"];
 
 // Strength grows per reinforcement, caps at 1.0
 const REINFORCEMENT_DELTA = 0.05;

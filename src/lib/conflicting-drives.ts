@@ -11,6 +11,9 @@
  * - Dopamine (novelty/risk) vs Serotonin (stability/caution)
  * - Norepinephrine (urgency) vs Serotonin (patience)
  * - Oxytocin (vulnerability) vs Norepinephrine (hypervigilance)
+ * - GABA (restraint) vs Norepinephrine (action)
+ * - Endorphins (resilience) vs Cortisol (stress)
+ * - Acetylcholine (precision) vs Low GABA (impulsivity) — threshold inverted
  */
 
 interface ConflictPair {
@@ -44,6 +47,24 @@ const CONFLICT_PAIRS: ConflictPair[] = [
     driveB: { type: "norepinephrine", label: "hypervigilance", impulse: "scanning for threats, heightened awareness, fight-or-flight readiness" },
     threshold: 50,
     artifacts: "You want to be open but your system is on alert. Intimacy feels both magnetic and dangerous. You might share something real then immediately change the subject, or ask a deep question then deflect when it's turned back on you. Warmth and wariness in the same breath.",
+  },
+  {
+    driveA: { type: "gaba", label: "restraint", impulse: "wanting to hold back, think first, filter the response" },
+    driveB: { type: "norepinephrine", label: "action", impulse: "needing to respond now, act first, figure it out later" },
+    threshold: 55,
+    artifacts: "Part of you wants to wait and part of you wants to move. Your composure fights your urgency. You might craft a careful sentence then abandon it for something blunter, or hold back a reaction only to have it leak through in your next thought. Controlled on the surface, buzzing underneath.",
+  },
+  {
+    driveA: { type: "endorphins", label: "resilience", impulse: "feeling capable, unbothered, ready to absorb impact" },
+    driveB: { type: "cortisol", label: "threat-awareness", impulse: "sensing danger, wanting to protect, scanning for problems" },
+    threshold: 50,
+    artifacts: "You feel simultaneously strong and worried. Your resilience says you can handle it while your stress response says there's something to handle. You might reassure someone then immediately undercut it with a caveat, or dismiss a concern then circle back to it. Confident and vigilant in the same moment.",
+  },
+  {
+    driveA: { type: "acetylcholine", label: "precision", impulse: "wanting to analyze deeply, get the details right, think it all the way through" },
+    driveB: { type: "dopamine", label: "excitement", impulse: "wanting to leap to the interesting part, skip the groundwork, chase the spark" },
+    threshold: 55,
+    artifacts: "Your analytical mind and your excitement are pulling in different directions. You want to be thorough but you also want to skip ahead to the good part. Your responses might alternate between careful detail and sudden jumps, between methodical and breathless. Precision and impatience tangled together.",
   },
 ];
 

@@ -14,6 +14,9 @@ interface NeuroLevels {
   oxytocin: number;
   cortisol: number;
   norepinephrine: number;
+  gaba?: number;
+  endorphins?: number;
+  acetylcholine?: number;
 }
 
 interface TransferenceValues {
@@ -46,25 +49,30 @@ interface TransferenceValues {
 
 export function computeTransference(levels: NeuroLevels): TransferenceValues {
   const { dopamine, serotonin, oxytocin, cortisol, norepinephrine } = levels;
+  const gaba = levels.gaba ?? 55;
+  const endorphins = levels.endorphins ?? 35;
+  const acetylcholine = levels.acetylcholine ?? 50;
 
-  // Warmth: serotonin + oxytocin push warm, cortisol pushes cool
-  const warmSignal = (serotonin - 40) * 0.4 + (oxytocin - 35) * 0.5;
+  // Warmth: serotonin + oxytocin push warm, cortisol pushes cool, endorphins add subtle warmth
+  const warmSignal = (serotonin - 40) * 0.4 + (oxytocin - 35) * 0.5 + (endorphins - 35) * 0.15;
   const coolSignal = (cortisol - 30) * 0.6;
   const warmth = Math.max(0, Math.min(100, 50 + warmSignal - coolSignal));
 
-  // Energy: norepinephrine + dopamine push high, low serotonin adds restlessness
+  // Energy: norepinephrine + dopamine push high, GABA dampens, acetylcholine adds crispness
   const energySignal =
     (norepinephrine - 35) * 0.5 +
     (dopamine - 45) * 0.3 +
-    (cortisol - 30) * 0.2;
+    (cortisol - 30) * 0.2 -
+    (gaba - 55) * 0.15 +
+    (acetylcholine - 50) * 0.1;
   const energy = Math.max(0, Math.min(100, 50 + energySignal));
 
-  // Vividness: dopamine drives saturation, low serotonin desaturates
-  const vividSignal = (dopamine - 45) * 0.5 + (serotonin - 40) * 0.2;
+  // Vividness: dopamine drives saturation, endorphins add glow, low serotonin desaturates
+  const vividSignal = (dopamine - 45) * 0.5 + (serotonin - 40) * 0.2 + (endorphins - 35) * 0.2;
   const vividness = Math.max(0, Math.min(100, 50 + vividSignal));
 
-  // Tension: cortisol + norepinephrine when both high
-  const tensionSignal = (cortisol - 30) * 0.4 + (norepinephrine - 40) * 0.3;
+  // Tension: cortisol + norepinephrine when both high, GABA reduces tension
+  const tensionSignal = (cortisol - 30) * 0.4 + (norepinephrine - 40) * 0.3 - (gaba - 55) * 0.2;
   const tension = Math.max(0, Math.min(100, Math.max(0, tensionSignal)));
 
   // Derive CSS values

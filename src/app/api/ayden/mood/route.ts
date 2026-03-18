@@ -15,6 +15,9 @@ export async function GET() {
       oxytocin: levels.oxytocin ?? 45,
       cortisol: levels.cortisol ?? 30,
       norepinephrine: levels.norepinephrine ?? 40,
+      gaba: levels.gaba ?? 55,
+      endorphins: levels.endorphins ?? 35,
+      acetylcholine: levels.acetylcholine ?? 50,
     };
 
     const transference = computeTransference(neuroLevels);

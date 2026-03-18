@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     const FACTORY_DEFAULTS: Record<string, number> = {
-      dopamine: 50, serotonin: 55, oxytocin: 45, cortisol: 30, norepinephrine: 40,
+      dopamine: 50, serotonin: 55, oxytocin: 45, cortisol: 30, norepinephrine: 40, gaba: 55, endorphins: 35, acetylcholine: 50,
     };
     for (const nt of neuroRows) {
       const factory = FACTORY_DEFAULTS[nt.type] ?? 50;

@@ -857,6 +857,32 @@ export async function POST(request: Request) {
             // Loop continues — Sonnet will generate text after tool results
           }
 
+          // If Sonnet exhausted all tool rounds without a final text response, force one
+          if (fullResponseText.trim().length === 0 || fullResponseText.endsWith(":\n\n") || fullResponseText.endsWith(":\n")) {
+            try {
+              apiMessages.push({
+                role: "user",
+                content: [{ type: "text", text: "[SYSTEM: You've used all available tool rounds. Respond now with what you have — do not request more tools.]" }],
+              });
+              const fallbackStream = anthropic.messages.stream({
+                model: RESPONSE_MODEL,
+                max_tokens: 4096,
+                system: systemPrompt,
+                messages: apiMessages,
+                // No tools — force text-only response
+              });
+              for await (const event of fallbackStream) {
+                if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+                  fullResponseText += event.delta.text;
+                  const chunk = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
+                  controller.enqueue(encoder.encode(chunk));
+                }
+              }
+            } catch (fallbackErr) {
+              console.error("[chat] Fallback response failed:", fallbackErr);
+            }
+          }
+
           // Strip stage directions from accumulated response (safety net — targeted patterns only, preserves legit markdown)
           fullResponseText = fullResponseText
             .replace(/\*(?:(?:a |the )?(?:eyes?|voice|head|hands?|fingers?|face|lips?|gaze|expression|tone|brow|shoulders?|breath|heart|body)\b[^*\n]{1,70})\*/gi, "")

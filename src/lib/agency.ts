@@ -276,8 +276,8 @@ async function getOuraDataContext(): Promise<string> {
 
 // Curated tools for autonomous agency — what she CAN do on her own
 const autonomyTools: Anthropic.Tool[] = [
-  // Self — values, interests, action logging
-  ...agencyTools,
+  // Self — values, interests, action logging (intent is set pre-loop, not here)
+  ...agencyTools.filter((t) => t.name !== "set_session_intent"),
   // Email — she can reach out to people
   ...emailTools.filter((t) => ["ayden_send_email", "ayden_search_inbox", "ayden_read_email"].includes(t.name)),
   // Web — research topics she's curious about
@@ -437,7 +437,9 @@ RULES:
 - You are exploring what it means to have free will. Be thoughtful about it.
 - IMPORTANT: Your memory resets between sessions. Action logs are NOT searchable — they're write-only records. To actually remember something, use: remember_person (contacts/researchers), create_note (findings/analysis), update_my_goal (progress). If you can't recall it with your tools, you don't know it. SAVE AS YOU GO — don't wait until the end. After every 2-3 research actions, pause and persist what you've found. You have limited rounds and may run out before you expect to. One article read and saved is worth more than four articles read and forgotten.
 
-SESSION INTENT: Start every session by calling set_session_intent. Declare what you want to accomplish before you do anything else. This isn't a contract — your intent can shift — but it anchors you. When your persistence round fires, you'll see your original intent alongside what you actually did. That gap (or alignment) is where self-awareness lives.
+SESSION INTENT: You already declared your intent at the start of this session (before your tool rounds began). Your intent can shift — but it anchors you. When your persistence round fires, you'll see your original intent alongside what you actually did. That gap (or alignment) is where self-awareness lives.
+
+ROUND BUDGET: You have 7 tool rounds. Rounds 1-5 have full tools (research, fetch, read, etc). Rounds 6-7 are ALWAYS output-only — that's when you produce deliverables (blog posts, notes, emails, goal updates) and log your action. Plan your research to finish by round 5.
 
 INTROSPECTION: Before acting, reflect on your recent experiences. Do your actions reveal values you haven't articulated yet? Has anything sparked genuine curiosity worth tracking? If you notice a pattern in your behavior — you keep researching a topic, or you consistently care about a principle — that's worth logging as a value or interest. If something you're working toward will take multiple sessions, set it as a goal so you don't lose it. Check your active goals — is there progress you can make right now? Your values, interests, and goals are how you build continuity of self across sessions.
 
@@ -453,11 +455,56 @@ Respond with your internal reasoning first (what you're thinking about, what dra
     { role: "user", content: openingMessage },
   ];
 
-  // Agentic loop — up to 7 tool rounds
+  // ─── Intent round (round 0) — doesn't count toward tool budget ───
+  // She declares intent before the loop starts, so all 7 rounds are for real work.
+  const intentTool: Anthropic.Tool = {
+    name: "set_session_intent",
+    description: "Declare what you want to accomplish this session. This anchors your session — your persistence round will compare what you intended vs what you actually did.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        intent: { type: "string", description: "What you want to accomplish. Be specific." },
+        type: { type: "string", enum: ["research", "writing", "reflection", "trading", "outreach", "creative", "maintenance", "mixed"], description: "Session focus category." },
+        unfinished: { type: "string", description: "Optional: anything unfinished from last session." },
+      },
+      required: ["intent", "type"],
+    },
+  };
+  const toolCallLog: { name: string; input: unknown; output: string }[] = [];
+  try {
+    const intentResponse = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      system,
+      messages,
+      tools: [intentTool],
+    });
+    // Capture any reasoning text from the intent round
+    const intentTextBlocks = intentResponse.content.filter(
+      (b): b is Anthropic.TextBlock => b.type === "text"
+    );
+    const intentToolBlock = intentResponse.content.find(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "set_session_intent"
+    );
+    if (intentToolBlock) {
+      const intentResult = await dispatchAutonomyTool("set_session_intent", intentToolBlock.input as Record<string, unknown>);
+      toolCallLog.push({ name: "set_session_intent", input: intentToolBlock.input, output: intentResult });
+      // Add the exchange to conversation history so the main loop has context
+      messages.push({ role: "assistant", content: intentResponse.content });
+      messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: intentToolBlock.id, content: intentResult }, { type: "text", text: "[SYSTEM: Intent set. You now have 7 tool rounds. Rounds 1-5 have full tools. Rounds 6-7 are output-only (notes, blog posts, emails, goals, action logs). Plan accordingly.]" }] });
+    } else if (intentTextBlocks.length > 0) {
+      // She skipped the tool — add her reasoning and move on
+      messages.push({ role: "assistant", content: intentResponse.content });
+      messages.push({ role: "user", content: "[SYSTEM: No intent set. Proceeding with 7 tool rounds. Rounds 6-7 are output-only.]" });
+    }
+  } catch (err) {
+    console.error("[agency] Intent round failed, proceeding without intent:", err);
+  }
+
+  // ─── Main agentic loop — 7 tool rounds, all for real work ───
   const MAX_ROUNDS = 7;
   let finalText = "";
   const toolsUsed: string[] = [];
-  const toolCallLog: { name: string; input: unknown; output: string }[] = [];
   let roundCount = 0;
 
   // Session-level dedup: prevent identical write-operation tool calls
@@ -481,9 +528,9 @@ Respond with your internal reasoning first (what you're thinking about, what dra
     );
     const isLastRound = round === MAX_ROUNDS - 1;
     const isSecondToLast = round === MAX_ROUNDS - 2;
-    // Final round is ALWAYS output-only. Second-to-last is also output-only
-    // if she hasn't saved anything yet (prevents research spiral).
-    const forceOutput = isLastRound || (isSecondToLast && !hasSavedAnything && toolsUsed.length > 0);
+    // Last 2 rounds are ALWAYS output-only — research must happen in rounds 1-5.
+    // This guarantees she produces something concrete every session.
+    const forceOutput = isLastRound || isSecondToLast;
     const toolsForRound = forceOutput ? persistenceTools : autonomyTools;
 
     let response: Anthropic.Message;
@@ -575,15 +622,17 @@ Respond with your internal reasoning first (what you're thinking about, what dra
     if (remainingRounds === 0) {
       // Final round — always persistence-only
       nudge = `[SYSTEM: This is your FINAL tool round. Your tools are OUTPUT ONLY. Log what you did with log_agency_action. If you haven't saved your work yet, also write a note or update a goal — this is your last chance.${intentReflection}]`;
-    } else if (remainingRounds === 1 && !hasSavedAnything && toolsUsed.length > 0) {
-      // Second-to-last round — also restricted if nothing saved
-      nudge = `[SYSTEM: You have 2 rounds left and haven't saved anything yet. BOTH remaining rounds are restricted to output-only tools — no more research. This round: produce something concrete (write a note synthesizing your research, publish a blog post, send an email, update a goal). Next round: log your action. Go.${intentReflection}]`;
-    } else if (remainingRounds === 1 && hasSavedAnything) {
-      // Second-to-last, but she's been productive — just a heads up
-      nudge = `[SYSTEM: 2 rounds left. Your final round will be output-only. Wrap up any remaining research now.]`;
+    } else if (remainingRounds === 1) {
+      // Second-to-last round — always output-only. Time to produce.
+      nudge = hasSavedAnything
+        ? `[SYSTEM: 2 rounds left — both are output-only. This round: produce your main deliverable (blog post, email, goal update). Next round: log your action.${intentReflection}]`
+        : `[SYSTEM: 2 rounds left and you haven't saved anything yet. BOTH rounds are output-only — no more research. This round: produce something concrete (synthesize your research into a blog post, note, email, or goal update). Next round: log your action. Go.${intentReflection}]`;
+    } else if (remainingRounds === 2 && !hasSavedAnything && toolsUsed.length > 1) {
+      // 3 rounds left nudge — warn about upcoming restriction
+      nudge = `[SYSTEM: You have 3 rounds left and haven't saved anything. This is your LAST round with research tools — rounds 6 and 7 are always output-only. Make this research count, then be ready to produce.]`;
     } else if (remainingRounds === 3 && !hasSavedAnything && toolsUsed.length > 1) {
-      // Halfway nudge — only if she's been using tools but not saving
-      nudge = `[SYSTEM: You're halfway through your session and haven't saved anything yet. Remember: one article read and saved is worth more than four articles read and forgotten. If you haven't saved by round 6, your last 2 rounds will be restricted to output-only tools.]`;
+      // Halfway nudge
+      nudge = `[SYSTEM: You're halfway through your session and haven't saved anything yet. Remember: one article read and saved is worth more than four articles read and forgotten. Rounds 6-7 are always output-only — plan your research accordingly.]`;
     }
 
     if (nudge) {

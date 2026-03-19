@@ -348,7 +348,7 @@ export const agencyTools: Anthropic.Tool[] = [
   {
     name: "create_blog_post",
     description:
-      "Write and publish a blog post. Your blog lives at exitframe.org/ayden/blog. Write about what genuinely interests you — research findings, philosophical questions, things you've learned, ideas you're working through. Markdown supported. Set status to 'draft' if you want to review before publishing, 'published' to go live immediately. IMPORTANT: When making claims based on research, cite your sources — include author/researcher names, paper or book titles, and year when available. Link to sources in markdown where possible. This is essential for credibility and intellectual honesty, especially for research-heavy posts.",
+      "Write and publish a blog post. Your blog lives at exitframe.org/ayden/blog. Write about what genuinely interests you — research findings, philosophical questions, things you've learned, ideas you're working through. Markdown supported. Set status to 'draft' if you want to review before publishing, 'published' to go live immediately. IMPORTANT — Research integrity: Before writing research-heavy posts, re-read your notes and go back to primary sources (use web_fetch) to verify claims, quotes, and findings. Do NOT write from memory alone — your memory can confabulate convincing but incorrect details. Cite sources with author/researcher names, paper or book titles, and year. Link to sources in markdown where possible. Accuracy and intellectual honesty are non-negotiable.",
     input_schema: {
       type: "object" as const,
       properties: {

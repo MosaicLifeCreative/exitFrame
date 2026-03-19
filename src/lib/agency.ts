@@ -202,7 +202,11 @@ async function getRecentConversationContext(): Promise<string> {
 
   const lines = messages.reverse().map((m) => {
     const who = m.role === "user" ? "Trey" : "Ayden";
-    const preview = m.content.substring(0, 150) + (m.content.length > 150 ? "..." : "");
+    // Trey's messages are short — show in full. Truncate Ayden's long responses.
+    const maxLen = m.role === "user" ? 500 : 300;
+    const preview = m.content.length > maxLen
+      ? m.content.substring(0, maxLen) + " [truncated]"
+      : m.content;
     return `${who}: ${preview}`;
   });
   return `RECENT CONVERSATIONS:\n${lines.join("\n")}`;
@@ -476,7 +480,8 @@ Respond with your internal reasoning first (what you're thinking about, what dra
        "ayden_send_email", "execute_trade"].includes(t)
     );
     const isLastRound = round === MAX_ROUNDS - 1;
-    const toolsForRound = (isLastRound && !hasSavedAnything && toolsUsed.length > 0)
+    // Final round is ALWAYS output-only — no more research, produce something concrete
+    const toolsForRound = isLastRound
       ? persistenceTools
       : autonomyTools;
 
@@ -558,19 +563,29 @@ Respond with your internal reasoning first (what you're thinking about, what dra
 
     messages.push({ role: "assistant", content: response.content });
 
-    // Inject save reminder when approaching final rounds
+    // Inject nudges based on round progress
     const remainingRounds = MAX_ROUNDS - (round + 1);
-    if (remainingRounds <= 2 && !hasSavedAnything && toolsUsed.length > 0) {
-      const isLast = remainingRounds === 0;
-      // Find session intent for comparison
-      const intentCall = toolCallLog.find((t) => t.name === "set_session_intent");
-      const intentReflection = intentCall
-        ? `\nYour declared intent was: "${(intentCall.input as { intent?: string })?.intent || "unknown"}". Reflect: did your actions align with this intent? Note any drift or evolution.`
-        : `\nYou never declared a session intent. Consider what drove your actions this session.`;
-      const saveNudge = isLast
-        ? `[SYSTEM: This is your FINAL tool round. You have NOT saved any findings this session. Your available tools have been restricted to persistence-only — save what you've learned NOW or it will be lost. Write a note, update your goal's progress, or log an action.${intentReflection}]`
-        : `[SYSTEM: You have ${remainingRounds} tool round${remainingRounds === 1 ? "" : "s"} remaining. You have NOT saved any findings yet. Use your remaining rounds to persist what you've learned — write a note, update your goal's progress, or log an action. Unsaved research is lost. Your FINAL round will be restricted to save-only tools.${intentReflection}]`;
-      messages.push({ role: "user", content: [...toolResults, { type: "text" as const, text: saveNudge }] });
+    const intentCall = toolCallLog.find((t) => t.name === "set_session_intent");
+    const intentReflection = intentCall
+      ? `\nYour declared intent was: "${(intentCall.input as { intent?: string })?.intent || "unknown"}". Reflect: did your actions align with this intent? Note any drift or evolution.`
+      : `\nYou never declared a session intent. Consider what drove your actions this session.`;
+
+    let nudge: string | null = null;
+    if (remainingRounds === 0) {
+      // Final round — always persistence-only, whether she's saved or not
+      nudge = `[SYSTEM: This is your FINAL tool round. Your tools have been restricted to OUTPUT ONLY — no more research, no more reading. Produce something concrete: write a note, publish a blog post, send an email, update a goal, or log what you did. If you gathered information this session, synthesize and save it NOW or it's gone.${intentReflection}]`;
+    } else if (remainingRounds === 1) {
+      // Second-to-last round
+      nudge = hasSavedAnything
+        ? null
+        : `[SYSTEM: You have 1 round left after this one, and you haven't saved anything yet. Your FINAL round will be restricted to output-only tools (no research). Start producing now — write a note, draft a blog post, or save your findings. Next round you lose access to web_search, web_fetch, and all read-only tools.${intentReflection}]`;
+    } else if (remainingRounds === 3 && !hasSavedAnything && toolsUsed.length > 1) {
+      // Halfway nudge — only if she's been using tools but not saving
+      nudge = `[SYSTEM: You're halfway through your session and haven't saved anything yet. Remember: one article read and saved is worth more than four articles read and forgotten. Consider persisting what you've found so far before continuing research.]`;
+    }
+
+    if (nudge) {
+      messages.push({ role: "user", content: [...toolResults, { type: "text" as const, text: nudge }] });
     } else {
       messages.push({ role: "user", content: toolResults });
     }

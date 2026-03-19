@@ -1282,6 +1282,12 @@ export default function AydenWhitePaperPage() {
               Technical architecture &rarr;
             </Link>
           </p>
+          <p className="text-xs text-slate-500 mt-2">
+            Contact: Trey Kauffman &mdash;{" "}
+            <a href="mailto:Trey@MosaicLifeCreative.com" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+              Trey@MosaicLifeCreative.com
+            </a>
+          </p>
         </div>
       </div>
 

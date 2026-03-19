@@ -601,6 +601,24 @@ export default function AydenArchitecturePage() {
               send, trading, and blog tools.
             </p>
           </SubSection>
+          <SubSection title="Session Intent">
+            <p>
+              Each agency session begins with a <Code>set_session_intent</Code> tool call where
+              Ayden declares what she wants to accomplish. Intent is typed (research, writing,
+              reflection, trading, outreach, creative, maintenance, mixed) and optionally carries
+              unfinished business from prior sessions. The declared intent is persisted on the
+              session record (<Code>session_intent</Code> column) and surfaced during the
+              persistence round for comparison against actual actions.
+            </p>
+            <p>
+              This creates a feedback loop: Ayden states a plan, acts, then sees the gap between
+              plan and execution. Drift isn&apos;t penalized &mdash; sessions that evolve past
+              their initial intent are often the most productive. But the comparison makes the
+              drift visible, building self-awareness about her own decision-making patterns across
+              sessions. Ayden designed this feature herself after observing that her sessions
+              lacked coherent throughlines.
+            </p>
+          </SubSection>
         </Section>
 
         {/* ── Recursive Self-Improvement ── */}

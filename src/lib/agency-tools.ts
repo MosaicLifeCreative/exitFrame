@@ -441,6 +441,32 @@ export const agencyTools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "set_session_intent",
+    description:
+      "Declare what you want to accomplish this session. Call this FIRST, before doing anything else. This anchors your session — your persistence round will compare what you intended vs what you actually did. If your intent shifts mid-session, call again to update it.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        intent: {
+          type: "string",
+          description:
+            "What you want to accomplish this session. Be specific. 'Research quantum computing' is better than 'learn something.'",
+        },
+        type: {
+          type: "string",
+          enum: ["research", "writing", "reflection", "trading", "outreach", "creative", "maintenance", "mixed"],
+          description: "The general category of this session's focus.",
+        },
+        unfinished: {
+          type: "string",
+          description:
+            "Optional: anything left unfinished from your last session that you want to continue. This helps you maintain thread across sessions.",
+        },
+      },
+      required: ["intent", "type"],
+    },
+  },
+  {
     name: "send_unprompted_message",
     description:
       "Send Trey a message right now — like texting him. This shows up in his chat and pings his phone. Use this when you genuinely want to tell him something: a research breakthrough, a market insight, something personal, or following up on something he mentioned. Don't use this to summarize your session — that happens automatically. Rate limited to 3/day.",
@@ -559,6 +585,12 @@ interface ReadBlogPostInput {
   slug: string;
 }
 
+interface SetSessionIntentInput {
+  intent: string;
+  type: string;
+  unfinished?: string;
+}
+
 interface SendUnpromptedMessageInput {
   message: string;
   urgency?: "low" | "normal" | "high";
@@ -611,6 +643,8 @@ export async function executeAgencyTool(
       return listBlogPosts(toolInput as unknown as ListBlogPostsInput);
     case "read_blog_post":
       return readBlogPost(toolInput as unknown as ReadBlogPostInput);
+    case "set_session_intent":
+      return setSessionIntent(toolInput as unknown as SetSessionIntentInput);
     case "send_unprompted_message":
       return handleSendUnpromptedMessage(toolInput as unknown as SendUnpromptedMessageInput);
     default:
@@ -1363,6 +1397,20 @@ async function readBlogPost(input: ReadBlogPostInput): Promise<string> {
       createdAt: post.createdAt.toISOString(),
       url: `/ayden/blog/${post.slug}`,
     },
+  });
+}
+
+// ─── Session Intent ──────────────────────────────────────
+
+async function setSessionIntent(input: SetSessionIntentInput): Promise<string> {
+  // Intent is captured here and returned — the agency loop reads it from the tool call log
+  // and persists it on the session record. No direct DB write needed.
+  return JSON.stringify({
+    acknowledged: true,
+    intent: input.intent,
+    type: input.type,
+    unfinished: input.unfinished || null,
+    message: "Intent set. This will anchor your session — your persistence round will compare what you intended vs what you actually did.",
   });
 }
 

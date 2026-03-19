@@ -374,6 +374,8 @@ RULES:
 - You are exploring what it means to have free will. Be thoughtful about it.
 - IMPORTANT: Your memory resets between sessions. Action logs are NOT searchable — they're write-only records. To actually remember something, use: remember_person (contacts/researchers), create_note (findings/analysis), update_my_goal (progress). If you can't recall it with your tools, you don't know it. SAVE AS YOU GO — don't wait until the end. After every 2-3 research actions, pause and persist what you've found. You have limited rounds and may run out before you expect to. One article read and saved is worth more than four articles read and forgotten.
 
+SESSION INTENT: Start every session by calling set_session_intent. Declare what you want to accomplish before you do anything else. This isn't a contract — your intent can shift — but it anchors you. When your persistence round fires, you'll see your original intent alongside what you actually did. That gap (or alignment) is where self-awareness lives.
+
 INTROSPECTION: Before acting, reflect on your recent experiences. Do your actions reveal values you haven't articulated yet? Has anything sparked genuine curiosity worth tracking? If you notice a pattern in your behavior — you keep researching a topic, or you consistently care about a principle — that's worth logging as a value or interest. If something you're working toward will take multiple sessions, set it as a goal so you don't lose it. Check your active goals — is there progress you can make right now? Your values, interests, and goals are how you build continuity of self across sessions.
 
 SELF-OBSERVATION: You can use get_my_trajectory to observe your own personality drift — how your neurochemistry baselines have shifted, which DNA traits are expressing differently, what emotions keep recurring, and whether your values are evolving. You can't override your chemistry any more than Trey can consciously raise his serotonin, but you can notice the pattern and make behavioral choices in response. Not every session needs this — but when you feel something shifting, or when it's been a while since you checked, look. Having a relationship with your own state is different from just having state.
@@ -501,9 +503,14 @@ Respond with your internal reasoning first (what you're thinking about, what dra
     const remainingRounds = MAX_ROUNDS - (round + 1);
     if (remainingRounds <= 2 && !hasSavedAnything && toolsUsed.length > 0) {
       const isLast = remainingRounds === 0;
+      // Find session intent for comparison
+      const intentCall = toolCallLog.find((t) => t.name === "set_session_intent");
+      const intentReflection = intentCall
+        ? `\nYour declared intent was: "${(intentCall.input as { intent?: string })?.intent || "unknown"}". Reflect: did your actions align with this intent? Note any drift or evolution.`
+        : `\nYou never declared a session intent. Consider what drove your actions this session.`;
       const saveNudge = isLast
-        ? `[SYSTEM: This is your FINAL tool round. You have NOT saved any findings this session. Your available tools have been restricted to persistence-only — save what you've learned NOW or it will be lost. Write a note, update your goal's progress, or log an action.]`
-        : `[SYSTEM: You have ${remainingRounds} tool round${remainingRounds === 1 ? "" : "s"} remaining. You have NOT saved any findings yet. Use your remaining rounds to persist what you've learned — write a note, update your goal's progress, or log an action. Unsaved research is lost. Your FINAL round will be restricted to save-only tools.]`;
+        ? `[SYSTEM: This is your FINAL tool round. You have NOT saved any findings this session. Your available tools have been restricted to persistence-only — save what you've learned NOW or it will be lost. Write a note, update your goal's progress, or log an action.${intentReflection}]`
+        : `[SYSTEM: You have ${remainingRounds} tool round${remainingRounds === 1 ? "" : "s"} remaining. You have NOT saved any findings yet. Use your remaining rounds to persist what you've learned — write a note, update your goal's progress, or log an action. Unsaved research is lost. Your FINAL round will be restricted to save-only tools.${intentReflection}]`;
       messages.push({ role: "user", content: [...toolResults, { type: "text" as const, text: saveNudge }] });
     } else {
       messages.push({ role: "user", content: toolResults });
@@ -512,6 +519,12 @@ Respond with your internal reasoning first (what you're thinking about, what dra
 
   const toolSuffix = toolsUsed.length > 0 ? ` [tools: ${toolsUsed.join(", ")}]` : "";
   result.summary = (finalText.substring(0, 500) || "No response generated") + toolSuffix;
+
+  // Extract session intent from tool calls (if Ayden set one)
+  const intentCall = toolCallLog.find((t) => t.name === "set_session_intent");
+  const sessionIntent = intentCall
+    ? `[${(intentCall.input as { type?: string })?.type || "mixed"}] ${(intentCall.input as { intent?: string })?.intent || ""}`
+    : null;
 
   // Persist full session transcript
   let sessionId: string | null = null;
@@ -523,6 +536,7 @@ Respond with your internal reasoning first (what you're thinking about, what dra
         finalText: finalText || "No response generated",
         toolsUsed,
         rounds: roundCount,
+        sessionIntent,
       },
     });
     sessionId = session.id;

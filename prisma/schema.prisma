@@ -1232,6 +1232,7 @@ model AydenAgencySession {
   finalText   String   @db.Text @map("final_text") // Her final reasoning/summary
   toolsUsed   String[] @default([]) @map("tools_used") // Simple list of tool names
   rounds      Int      @default(0) // Number of API rounds used
+  sessionIntent String? @db.Text @map("session_intent") // What Ayden declared she wanted to accomplish
   createdAt   DateTime @default(now()) @map("created_at")
 
   action      AydenAgencyAction?

@@ -49,6 +49,7 @@ interface AgencyAction {
 interface AgencySession {
   id: string;
   trigger: string | null;
+  sessionIntent: string | null;
   toolCalls: { name: string; input: unknown; output: string }[];
   finalText: string;
   toolsUsed: string[];
@@ -991,6 +992,12 @@ function AydenJournalContent() {
                                 <span>{session.rounds} round{session.rounds !== 1 ? "s" : ""}</span>
                                 <span>{session.toolsUsed.length} tool call{session.toolsUsed.length !== 1 ? "s" : ""}</span>
                               </div>
+                              {session.sessionIntent && (
+                                <div className="rounded bg-amber-400/10 border border-amber-400/20 px-3 py-2">
+                                  <p className="text-[10px] font-medium text-amber-400/70 uppercase tracking-wider mb-0.5">Session Intent</p>
+                                  <p className="text-xs text-foreground/80">{session.sessionIntent}</p>
+                                </div>
+                              )}
                               {session.toolCalls.length > 0 && (
                                 <div className="space-y-2">
                                   {session.toolCalls.map((tc, idx) => (

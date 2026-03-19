@@ -16,6 +16,7 @@ import {
   Trash2,
   X,
   ArrowLeft,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,14 +200,14 @@ export default function TripDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Dialog states
-  const [showFlightForm, setShowFlightForm] = useState(false);
-  const [showLodgingForm, setShowLodgingForm] = useState(false);
-  const [showTransportForm, setShowTransportForm] = useState(false);
-  const [showItineraryForm, setShowItineraryForm] = useState(false);
-  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  // Dialog states — null = closed, "new" = adding, object = editing existing
+  const [flightFormState, setFlightFormState] = useState<Flight | "new" | null>(null);
+  const [lodgingFormState, setLodgingFormState] = useState<Lodging | "new" | null>(null);
+  const [transportFormState, setTransportFormState] = useState<Transport | "new" | null>(null);
+  const [itineraryFormState, setItineraryFormState] = useState<ItineraryItem | "new" | null>(null);
+  const [expenseFormState, setExpenseFormState] = useState<Expense | "new" | null>(null);
   const [showPackingForm, setShowPackingForm] = useState(false);
-  const [showJournalForm, setShowJournalForm] = useState(false);
+  const [journalFormState, setJournalFormState] = useState<JournalEntry | "new" | null>(null);
 
   const fetchTrip = useCallback(async () => {
     try {
@@ -254,6 +255,12 @@ export default function TripDetailPage() {
   const totalExpenses = trip.expenses.reduce((s, e) => s + parseFloat(e.amount), 0);
   const paidExpenses = trip.expenses.filter((e) => e.isPaid).reduce((s, e) => s + parseFloat(e.amount), 0);
   const packedCount = trip.packingItems.filter((p) => p.isPacked).length;
+
+  // Total trip cost: flights + lodging + transport + budget expenses
+  const flightsCost = trip.flights.reduce((s, f) => s + (f.price ? parseFloat(f.price) : 0), 0);
+  const lodgingCost = trip.lodgings.reduce((s, l) => s + (l.totalPrice ? parseFloat(l.totalPrice) : 0), 0);
+  const transportCost = trip.transports.reduce((s, t) => s + (t.price ? parseFloat(t.price) : 0), 0);
+  const totalTripCost = flightsCost + lodgingCost + transportCost + totalExpenses;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 px-4 sm:px-0">
@@ -350,19 +357,23 @@ export default function TripDetailPage() {
               <CardContent className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Flights</span>
-                  <span>{trip.flights.length}</span>
+                  <span>{trip.flights.length}{flightsCost > 0 && <span className="text-muted-foreground ml-1">(${flightsCost.toFixed(2)})</span>}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Lodging</span>
-                  <span>{trip.lodgings.length}</span>
+                  <span>{trip.lodgings.length}{lodgingCost > 0 && <span className="text-muted-foreground ml-1">(${lodgingCost.toFixed(2)})</span>}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Transport</span>
+                  <span>{trip.transports.length}{transportCost > 0 && <span className="text-muted-foreground ml-1">(${transportCost.toFixed(2)})</span>}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Itinerary Items</span>
                   <span>{trip.itinerary.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Budget</span>
-                  <span>${totalExpenses.toFixed(2)}{paidExpenses > 0 && ` ($${paidExpenses.toFixed(2)} paid)`}</span>
+                  <span className="text-muted-foreground">Other Expenses</span>
+                  <span>${totalExpenses.toFixed(2)}{paidExpenses > 0 && <span className="text-muted-foreground ml-1">({paidExpenses.toFixed(2)} paid)</span>}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Packing</span>
@@ -372,6 +383,12 @@ export default function TripDetailPage() {
                   <span className="text-muted-foreground">Journal</span>
                   <span>{trip.journal.length} entries</span>
                 </div>
+                {totalTripCost > 0 && (
+                  <div className="flex justify-between pt-1.5 mt-1.5 border-t border-border">
+                    <span className="font-medium">Total Trip Cost</span>
+                    <span className="font-medium">${totalTripCost.toFixed(2)}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -400,7 +417,7 @@ export default function TripDetailPage() {
         {/* ── Flights ── */}
         <TabsContent value="flights" className="space-y-4">
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => setShowFlightForm(true)}>
+            <Button size="sm" onClick={() => setFlightFormState("new")}>
               <Plus className="h-4 w-4 mr-1" /> Add Flight
             </Button>
           </div>
@@ -412,7 +429,7 @@ export default function TripDetailPage() {
                 <Card key={f.id}>
                   <CardContent className="pt-4">
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setFlightFormState(f)}>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{f.airline} {f.flightNumber}</span>
                           <span className="text-sm text-muted-foreground">{f.departureAirport} → {f.arrivalAirport}</span>
@@ -431,9 +448,14 @@ export default function TripDetailPage() {
                         </div>
                         {f.notes && <p className="text-xs text-muted-foreground mt-1">{f.notes}</p>}
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => deleteSubResource("flights", "flightId", f.id)}>
-                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                      </Button>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button variant="ghost" size="sm" onClick={() => setFlightFormState(f)}>
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => deleteSubResource("flights", "flightId", f.id)}>
+                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -445,7 +467,7 @@ export default function TripDetailPage() {
         {/* ── Lodging ── */}
         <TabsContent value="lodging" className="space-y-4">
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => setShowLodgingForm(true)}>
+            <Button size="sm" onClick={() => setLodgingFormState("new")}>
               <Plus className="h-4 w-4 mr-1" /> Add Lodging
             </Button>
           </div>
@@ -457,7 +479,7 @@ export default function TripDetailPage() {
                 <Card key={l.id}>
                   <CardContent className="pt-4">
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setLodgingFormState(l)}>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{l.name}</span>
                           <Badge variant="outline" className="text-[10px]">{l.type}</Badge>
@@ -475,9 +497,14 @@ export default function TripDetailPage() {
                         </div>
                         {l.notes && <p className="text-xs text-muted-foreground mt-1">{l.notes}</p>}
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => deleteSubResource("lodging", "lodgingId", l.id)}>
-                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                      </Button>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button variant="ghost" size="sm" onClick={() => setLodgingFormState(l)}>
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => deleteSubResource("lodging", "lodgingId", l.id)}>
+                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -489,7 +516,7 @@ export default function TripDetailPage() {
         {/* ── Transport ── */}
         <TabsContent value="transport" className="space-y-4">
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => setShowTransportForm(true)}>
+            <Button size="sm" onClick={() => setTransportFormState("new")}>
               <Plus className="h-4 w-4 mr-1" /> Add Transport
             </Button>
           </div>
@@ -501,7 +528,7 @@ export default function TripDetailPage() {
                 <Card key={t.id}>
                   <CardContent className="pt-4">
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setTransportFormState(t)}>
                         <div className="flex items-center gap-2">
                           <span className="font-medium capitalize">{t.type.replace("_", " ")}</span>
                           {t.company && <span className="text-sm text-muted-foreground">({t.company})</span>}
@@ -515,9 +542,14 @@ export default function TripDetailPage() {
                         </div>
                         {t.notes && <p className="text-xs text-muted-foreground mt-1">{t.notes}</p>}
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => deleteSubResource("transport", "transportId", t.id)}>
-                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                      </Button>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button variant="ghost" size="sm" onClick={() => setTransportFormState(t)}>
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => deleteSubResource("transport", "transportId", t.id)}>
+                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -529,7 +561,7 @@ export default function TripDetailPage() {
         {/* ── Itinerary ── */}
         <TabsContent value="itinerary" className="space-y-4">
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => setShowItineraryForm(true)}>
+            <Button size="sm" onClick={() => setItineraryFormState("new")}>
               <Plus className="h-4 w-4 mr-1" /> Add Item
             </Button>
           </div>
@@ -545,7 +577,7 @@ export default function TripDetailPage() {
                       <Card key={item.id}>
                         <CardContent className="py-3 px-4">
                           <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-2">
+                            <div className="flex items-start gap-2 flex-1 min-w-0 cursor-pointer" onClick={() => setItineraryFormState(item)}>
                               <span className="text-lg">{categoryIcons[item.category] || "📌"}</span>
                               <div>
                                 <div className="flex items-center gap-2">
@@ -560,9 +592,14 @@ export default function TripDetailPage() {
                                 {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
                               </div>
                             </div>
-                            <Button variant="ghost" size="sm" onClick={() => deleteSubResource("itinerary", "itemId", item.id)}>
-                              <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                            </Button>
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <Button variant="ghost" size="sm" onClick={() => setItineraryFormState(item)}>
+                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => deleteSubResource("itinerary", "itemId", item.id)}>
+                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                              </Button>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -582,7 +619,7 @@ export default function TripDetailPage() {
               {paidExpenses > 0 && <><span className="hidden sm:inline">|</span> <span>Paid: <strong className="text-green-600">${paidExpenses.toFixed(2)}</strong></span></>}
               {totalExpenses - paidExpenses > 0 && <><span className="hidden sm:inline">|</span> <span>Remaining: <strong className="text-orange-500">${(totalExpenses - paidExpenses).toFixed(2)}</strong></span></>}
             </div>
-            <Button size="sm" className="shrink-0 self-end sm:self-auto" onClick={() => setShowExpenseForm(true)}>
+            <Button size="sm" className="shrink-0 self-end sm:self-auto" onClick={() => setExpenseFormState("new")}>
               <Plus className="h-4 w-4 mr-1" /> Add Expense
             </Button>
           </div>
@@ -594,15 +631,18 @@ export default function TripDetailPage() {
                 <Card key={e.id}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-start sm:items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0 cursor-pointer" onClick={() => setExpenseFormState(e)}>
                         <Badge variant="outline" className="text-[10px] shrink-0">{e.category}</Badge>
                         <span className="text-sm">{e.description}</span>
                         <span className="text-sm font-medium">${parseFloat(e.amount)}</span>
                         {e.isPaid && <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 shrink-0">Paid</Badge>}
                         <span className="text-xs text-muted-foreground sm:hidden">{fmtShortDate(e.date)}</span>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-xs text-muted-foreground hidden sm:inline">{fmtShortDate(e.date)}</span>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <span className="text-xs text-muted-foreground hidden sm:inline mr-1">{fmtShortDate(e.date)}</span>
+                        <Button variant="ghost" size="sm" onClick={() => setExpenseFormState(e)}>
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => deleteSubResource("expenses", "expenseId", e.id)}>
                           <Trash2 className="h-3.5 w-3.5 text-red-500" />
                         </Button>
@@ -666,7 +706,7 @@ export default function TripDetailPage() {
         {/* ── Journal ── */}
         <TabsContent value="journal" className="space-y-4">
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => setShowJournalForm(true)}>
+            <Button size="sm" onClick={() => setJournalFormState("new")}>
               <Plus className="h-4 w-4 mr-1" /> New Entry
             </Button>
           </div>
@@ -678,7 +718,7 @@ export default function TripDetailPage() {
                 <Card key={entry.id}>
                   <CardContent className="pt-4">
                     <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setJournalFormState(entry)}>
                         <div className="flex flex-wrap items-center gap-2 mb-2">
                           <span className="text-sm font-medium">{fmtDate(entry.date)}</span>
                           {entry.title && <span className="text-sm text-muted-foreground">— {entry.title}</span>}
@@ -695,9 +735,14 @@ export default function TripDetailPage() {
                         </div>
                         <p className="text-sm whitespace-pre-wrap">{entry.content}</p>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => deleteSubResource("journal", "entryId", entry.id)}>
-                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                      </Button>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button variant="ghost" size="sm" onClick={() => setJournalFormState(entry)}>
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => deleteSubResource("journal", "entryId", entry.id)}>
+                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -708,39 +753,44 @@ export default function TripDetailPage() {
       </Tabs>
 
       {/* ── Form Dialogs ── */}
-      {showFlightForm && (
+      {flightFormState && (
         <FlightFormDialog
           tripId={tripId}
-          onClose={() => setShowFlightForm(false)}
-          onSaved={() => { setShowFlightForm(false); fetchTrip(); }}
+          existing={flightFormState !== "new" ? flightFormState : undefined}
+          onClose={() => setFlightFormState(null)}
+          onSaved={() => { setFlightFormState(null); fetchTrip(); }}
         />
       )}
-      {showLodgingForm && (
+      {lodgingFormState && (
         <LodgingFormDialog
           tripId={tripId}
-          onClose={() => setShowLodgingForm(false)}
-          onSaved={() => { setShowLodgingForm(false); fetchTrip(); }}
+          existing={lodgingFormState !== "new" ? lodgingFormState : undefined}
+          onClose={() => setLodgingFormState(null)}
+          onSaved={() => { setLodgingFormState(null); fetchTrip(); }}
         />
       )}
-      {showTransportForm && (
+      {transportFormState && (
         <TransportFormDialog
           tripId={tripId}
-          onClose={() => setShowTransportForm(false)}
-          onSaved={() => { setShowTransportForm(false); fetchTrip(); }}
+          existing={transportFormState !== "new" ? transportFormState : undefined}
+          onClose={() => setTransportFormState(null)}
+          onSaved={() => { setTransportFormState(null); fetchTrip(); }}
         />
       )}
-      {showItineraryForm && (
+      {itineraryFormState && (
         <ItineraryFormDialog
           tripId={tripId}
-          onClose={() => setShowItineraryForm(false)}
-          onSaved={() => { setShowItineraryForm(false); fetchTrip(); }}
+          existing={itineraryFormState !== "new" ? itineraryFormState : undefined}
+          onClose={() => setItineraryFormState(null)}
+          onSaved={() => { setItineraryFormState(null); fetchTrip(); }}
         />
       )}
-      {showExpenseForm && (
+      {expenseFormState && (
         <ExpenseFormDialog
           tripId={tripId}
-          onClose={() => setShowExpenseForm(false)}
-          onSaved={() => { setShowExpenseForm(false); fetchTrip(); }}
+          existing={expenseFormState !== "new" ? expenseFormState : undefined}
+          onClose={() => setExpenseFormState(null)}
+          onSaved={() => { setExpenseFormState(null); fetchTrip(); }}
         />
       )}
       {showPackingForm && (
@@ -750,11 +800,12 @@ export default function TripDetailPage() {
           onSaved={() => { setShowPackingForm(false); fetchTrip(); }}
         />
       )}
-      {showJournalForm && (
+      {journalFormState && (
         <JournalFormDialog
           tripId={tripId}
-          onClose={() => setShowJournalForm(false)}
-          onSaved={() => { setShowJournalForm(false); fetchTrip(); }}
+          existing={journalFormState !== "new" ? journalFormState : undefined}
+          onClose={() => setJournalFormState(null)}
+          onSaved={() => { setJournalFormState(null); fetchTrip(); }}
         />
       )}
     </div>
@@ -795,11 +846,16 @@ function groupByCategory(items: PackingItem[]): [string, PackingItem[]][] {
 
 // ── Form Dialogs ──
 
-function FlightFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClose: () => void; onSaved: () => void }) {
+function FlightFormDialog({ tripId, existing, onClose, onSaved }: { tripId: string; existing?: Flight; onClose: () => void; onSaved: () => void }) {
+  const isEdit = !!existing;
   const [form, setForm] = useState({
-    airline: "", flightNumber: "", departureAirport: "", arrivalAirport: "",
-    departureTime: "", arrivalTime: "", confirmationCode: "", seatAssignment: "",
-    terminal: "", gate: "", price: "", notes: "",
+    airline: existing?.airline || "", flightNumber: existing?.flightNumber || "",
+    departureAirport: existing?.departureAirport || "", arrivalAirport: existing?.arrivalAirport || "",
+    departureTime: existing ? existing.departureTime.slice(0, 16) : "",
+    arrivalTime: existing ? existing.arrivalTime.slice(0, 16) : "",
+    confirmationCode: existing?.confirmationCode || "", seatAssignment: existing?.seatAssignment || "",
+    terminal: existing?.terminal || "", gate: existing?.gate || "",
+    price: existing?.price ? String(parseFloat(existing.price)) : "", notes: existing?.notes || "",
   });
 
   const handleSave = async () => {
@@ -808,29 +864,31 @@ function FlightFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClos
       return;
     }
     try {
+      const payload = {
+        ...form,
+        price: form.price ? parseFloat(form.price) : null,
+        confirmationCode: form.confirmationCode || null,
+        seatAssignment: form.seatAssignment || null,
+        terminal: form.terminal || null,
+        gate: form.gate || null,
+        notes: form.notes || null,
+        ...(isEdit ? { flightId: existing.id } : {}),
+      };
       const res = await fetch(`/api/travel/${tripId}/flights`, {
-        method: "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          price: form.price ? parseFloat(form.price) : null,
-          confirmationCode: form.confirmationCode || null,
-          seatAssignment: form.seatAssignment || null,
-          terminal: form.terminal || null,
-          gate: form.gate || null,
-          notes: form.notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
-      toast.success("Flight added");
+      toast.success(isEdit ? "Flight updated" : "Flight added");
       onSaved();
-    } catch { toast.error("Failed to add flight"); }
+    } catch { toast.error(`Failed to ${isEdit ? "update" : "add"} flight`); }
   };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Add Flight</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? "Edit Flight" : "Add Flight"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Airline</Label><Input value={form.airline} onChange={(e) => setForm((p) => ({ ...p, airline: e.target.value }))} placeholder="Southwest" /></div>
@@ -856,7 +914,7 @@ function FlightFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClos
           <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} /></div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={handleSave}>Add Flight</Button>
+            <Button size="sm" onClick={handleSave}>{isEdit ? "Save Changes" : "Add Flight"}</Button>
           </div>
         </div>
       </DialogContent>
@@ -864,36 +922,45 @@ function FlightFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClos
   );
 }
 
-function LodgingFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClose: () => void; onSaved: () => void }) {
+function LodgingFormDialog({ tripId, existing, onClose, onSaved }: { tripId: string; existing?: Lodging; onClose: () => void; onSaved: () => void }) {
+  const isEdit = !!existing;
   const [form, setForm] = useState({
-    type: "hotel", name: "", address: "", checkIn: "", checkOut: "",
-    confirmationCode: "", nightlyRate: "", totalPrice: "", url: "", notes: "",
+    type: existing?.type || "hotel", name: existing?.name || "",
+    address: existing?.address || "",
+    checkIn: existing ? existing.checkIn.slice(0, 10) : "",
+    checkOut: existing ? existing.checkOut.slice(0, 10) : "",
+    confirmationCode: existing?.confirmationCode || "",
+    nightlyRate: existing?.nightlyRate ? String(parseFloat(existing.nightlyRate)) : "",
+    totalPrice: existing?.totalPrice ? String(parseFloat(existing.totalPrice)) : "",
+    url: existing?.url || "", notes: existing?.notes || "",
   });
 
   const handleSave = async () => {
     if (!form.name || !form.checkIn || !form.checkOut) { toast.error("Name, check-in, and check-out are required"); return; }
     try {
+      const payload = {
+        ...form,
+        nightlyRate: form.nightlyRate ? parseFloat(form.nightlyRate) : null,
+        totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
+        address: form.address || null, confirmationCode: form.confirmationCode || null,
+        url: form.url || null, notes: form.notes || null,
+        ...(isEdit ? { lodgingId: existing.id } : {}),
+      };
       const res = await fetch(`/api/travel/${tripId}/lodging`, {
-        method: "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          nightlyRate: form.nightlyRate ? parseFloat(form.nightlyRate) : null,
-          totalPrice: form.totalPrice ? parseFloat(form.totalPrice) : null,
-          address: form.address || null, confirmationCode: form.confirmationCode || null,
-          url: form.url || null, notes: form.notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
-      toast.success("Lodging added");
+      toast.success(isEdit ? "Lodging updated" : "Lodging added");
       onSaved();
-    } catch { toast.error("Failed to add lodging"); }
+    } catch { toast.error(`Failed to ${isEdit ? "update" : "add"} lodging`); }
   };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Add Lodging</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? "Edit Lodging" : "Add Lodging"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -923,7 +990,7 @@ function LodgingFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClo
           <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} /></div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={handleSave}>Add Lodging</Button>
+            <Button size="sm" onClick={handleSave}>{isEdit ? "Save Changes" : "Add Lodging"}</Button>
           </div>
         </div>
       </DialogContent>
@@ -931,38 +998,46 @@ function LodgingFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClo
   );
 }
 
-function TransportFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClose: () => void; onSaved: () => void }) {
+function TransportFormDialog({ tripId, existing, onClose, onSaved }: { tripId: string; existing?: Transport; onClose: () => void; onSaved: () => void }) {
+  const isEdit = !!existing;
   const [form, setForm] = useState({
-    type: "rental_car", company: "", confirmationCode: "",
-    pickupLocation: "", dropoffLocation: "", pickupTime: "", dropoffTime: "",
-    vehicleDetails: "", price: "", notes: "",
+    type: existing?.type || "rental_car", company: existing?.company || "",
+    confirmationCode: existing?.confirmationCode || "",
+    pickupLocation: existing?.pickupLocation || "", dropoffLocation: existing?.dropoffLocation || "",
+    pickupTime: existing?.pickupTime ? existing.pickupTime.slice(0, 16) : "",
+    dropoffTime: existing?.dropoffTime ? existing.dropoffTime.slice(0, 16) : "",
+    vehicleDetails: existing?.vehicleDetails || "",
+    price: existing?.price ? String(parseFloat(existing.price)) : "",
+    notes: existing?.notes || "",
   });
 
   const handleSave = async () => {
     if (!form.type) { toast.error("Type is required"); return; }
     try {
+      const payload = {
+        ...form,
+        price: form.price ? parseFloat(form.price) : null,
+        company: form.company || null, confirmationCode: form.confirmationCode || null,
+        pickupLocation: form.pickupLocation || null, dropoffLocation: form.dropoffLocation || null,
+        pickupTime: form.pickupTime || null, dropoffTime: form.dropoffTime || null,
+        vehicleDetails: form.vehicleDetails || null, notes: form.notes || null,
+        ...(isEdit ? { transportId: existing.id } : {}),
+      };
       const res = await fetch(`/api/travel/${tripId}/transport`, {
-        method: "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          price: form.price ? parseFloat(form.price) : null,
-          company: form.company || null, confirmationCode: form.confirmationCode || null,
-          pickupLocation: form.pickupLocation || null, dropoffLocation: form.dropoffLocation || null,
-          pickupTime: form.pickupTime || null, dropoffTime: form.dropoffTime || null,
-          vehicleDetails: form.vehicleDetails || null, notes: form.notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
-      toast.success("Transport added");
+      toast.success(isEdit ? "Transport updated" : "Transport added");
       onSaved();
-    } catch { toast.error("Failed to add transport"); }
+    } catch { toast.error(`Failed to ${isEdit ? "update" : "add"} transport`); }
   };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Add Transport</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? "Edit Transport" : "Add Transport"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -994,7 +1069,7 @@ function TransportFormDialog({ tripId, onClose, onSaved }: { tripId: string; onC
           <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} rows={2} /></div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={handleSave}>Add Transport</Button>
+            <Button size="sm" onClick={handleSave}>{isEdit ? "Save Changes" : "Add Transport"}</Button>
           </div>
         </div>
       </DialogContent>
@@ -1002,37 +1077,44 @@ function TransportFormDialog({ tripId, onClose, onSaved }: { tripId: string; onC
   );
 }
 
-function ItineraryFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClose: () => void; onSaved: () => void }) {
+function ItineraryFormDialog({ tripId, existing, onClose, onSaved }: { tripId: string; existing?: ItineraryItem; onClose: () => void; onSaved: () => void }) {
+  const isEdit = !!existing;
   const [form, setForm] = useState({
-    date: "", startTime: "", endTime: "", title: "", description: "",
-    location: "", category: "activity", estimatedCost: "", url: "", notes: "",
-    isBooked: false,
+    date: existing ? existing.date.slice(0, 10) : "",
+    startTime: existing?.startTime || "", endTime: existing?.endTime || "",
+    title: existing?.title || "", description: existing?.description || "",
+    location: existing?.location || "", category: existing?.category || "activity",
+    estimatedCost: existing?.estimatedCost ? String(parseFloat(existing.estimatedCost)) : "",
+    url: existing?.url || "", notes: existing?.notes || "",
+    isBooked: existing?.isBooked || false,
   });
 
   const handleSave = async () => {
     if (!form.date || !form.title) { toast.error("Date and title are required"); return; }
     try {
+      const payload = {
+        ...form,
+        estimatedCost: form.estimatedCost ? parseFloat(form.estimatedCost) : null,
+        startTime: form.startTime || null, endTime: form.endTime || null,
+        description: form.description || null, location: form.location || null,
+        url: form.url || null, notes: form.notes || null,
+        ...(isEdit ? { itemId: existing.id } : {}),
+      };
       const res = await fetch(`/api/travel/${tripId}/itinerary`, {
-        method: "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          estimatedCost: form.estimatedCost ? parseFloat(form.estimatedCost) : null,
-          startTime: form.startTime || null, endTime: form.endTime || null,
-          description: form.description || null, location: form.location || null,
-          url: form.url || null, notes: form.notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
-      toast.success("Itinerary item added");
+      toast.success(isEdit ? "Item updated" : "Itinerary item added");
       onSaved();
-    } catch { toast.error("Failed to add item"); }
+    } catch { toast.error(`Failed to ${isEdit ? "update" : "add"} item`); }
   };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Add Itinerary Item</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? "Edit Itinerary Item" : "Add Itinerary Item"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder="Garden of the Gods hike" /></div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -1063,7 +1145,7 @@ function ItineraryFormDialog({ tripId, onClose, onSaved }: { tripId: string; onC
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={handleSave}>Add Item</Button>
+            <Button size="sm" onClick={handleSave}>{isEdit ? "Save Changes" : "Add Item"}</Button>
           </div>
         </div>
       </DialogContent>
@@ -1071,34 +1153,39 @@ function ItineraryFormDialog({ tripId, onClose, onSaved }: { tripId: string; onC
   );
 }
 
-function ExpenseFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClose: () => void; onSaved: () => void }) {
+function ExpenseFormDialog({ tripId, existing, onClose, onSaved }: { tripId: string; existing?: Expense; onClose: () => void; onSaved: () => void }) {
+  const isEdit = !!existing;
   const [form, setForm] = useState({
-    category: "other", description: "", amount: "", date: new Date().toISOString().slice(0, 10),
-    isPaid: false, notes: "",
+    category: existing?.category || "other", description: existing?.description || "",
+    amount: existing ? String(parseFloat(existing.amount)) : "",
+    date: existing ? existing.date.slice(0, 10) : new Date().toISOString().slice(0, 10),
+    isPaid: existing?.isPaid || false, notes: existing?.notes || "",
   });
 
   const handleSave = async () => {
     if (!form.description || !form.amount || !form.date) { toast.error("Description, amount, and date are required"); return; }
     try {
+      const payload = {
+        ...form,
+        amount: parseFloat(form.amount),
+        notes: form.notes || null,
+        ...(isEdit ? { expenseId: existing.id } : {}),
+      };
       const res = await fetch(`/api/travel/${tripId}/expenses`, {
-        method: "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          amount: parseFloat(form.amount),
-          notes: form.notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
-      toast.success("Expense added");
+      toast.success(isEdit ? "Expense updated" : "Expense added");
       onSaved();
-    } catch { toast.error("Failed to add expense"); }
+    } catch { toast.error(`Failed to ${isEdit ? "update" : "add"} expense`); }
   };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Add Expense</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? "Edit Expense" : "Add Expense"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -1122,7 +1209,7 @@ function ExpenseFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClo
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={handleSave}>Add Expense</Button>
+            <Button size="sm" onClick={handleSave}>{isEdit ? "Save Changes" : "Add Expense"}</Button>
           </div>
         </div>
       </DialogContent>
@@ -1196,35 +1283,39 @@ function PackingFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClo
   );
 }
 
-function JournalFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClose: () => void; onSaved: () => void }) {
+function JournalFormDialog({ tripId, existing, onClose, onSaved }: { tripId: string; existing?: JournalEntry; onClose: () => void; onSaved: () => void }) {
+  const isEdit = !!existing;
   const [form, setForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
-    title: "", content: "", mood: "", location: "",
+    date: existing ? existing.date.slice(0, 10) : new Date().toISOString().slice(0, 10),
+    title: existing?.title || "", content: existing?.content || "",
+    mood: existing?.mood || "", location: existing?.location || "",
   });
 
   const handleSave = async () => {
     if (!form.content || !form.date) { toast.error("Date and content are required"); return; }
     try {
+      const payload = {
+        ...form,
+        title: form.title || null,
+        mood: form.mood || null,
+        location: form.location || null,
+        ...(isEdit ? { entryId: existing.id } : {}),
+      };
       const res = await fetch(`/api/travel/${tripId}/journal`, {
-        method: "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          title: form.title || null,
-          mood: form.mood || null,
-          location: form.location || null,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
-      toast.success("Journal entry saved");
+      toast.success(isEdit ? "Entry updated" : "Journal entry saved");
       onSaved();
-    } catch { toast.error("Failed to save entry"); }
+    } catch { toast.error(`Failed to ${isEdit ? "update" : "save"} entry`); }
   };
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>New Journal Entry</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? "Edit Journal Entry" : "New Journal Entry"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Date</Label><Input type="date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} /></div>
@@ -1254,7 +1345,7 @@ function JournalFormDialog({ tripId, onClose, onSaved }: { tripId: string; onClo
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={handleSave}>Save Entry</Button>
+            <Button size="sm" onClick={handleSave}>{isEdit ? "Save Changes" : "Save Entry"}</Button>
           </div>
         </div>
       </DialogContent>

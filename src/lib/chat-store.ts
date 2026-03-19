@@ -364,10 +364,21 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const decoder = new TextDecoder();
       let accumulated = "";
       let sseBuffer = "";
+      const STREAM_TIMEOUT_MS = 30_000;
 
       while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const timeoutPromise = new Promise<{ done: true; value: undefined }>((resolve) =>
+          setTimeout(() => resolve({ done: true, value: undefined }), STREAM_TIMEOUT_MS)
+        );
+        const { done, value } = await Promise.race([reader.read(), timeoutPromise]);
+        if (done) {
+          if (!value) {
+            // Timeout — stream went silent
+            console.warn("SSE stream timed out after 30s of silence");
+            reader.cancel().catch(() => {});
+          }
+          break;
+        }
 
         sseBuffer += decoder.decode(value, { stream: true });
         const parts = sseBuffer.split("\n");

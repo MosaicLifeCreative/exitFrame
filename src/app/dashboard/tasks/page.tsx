@@ -565,9 +565,47 @@ function TasksPageContent() {
   // ─── Render ───────────────────────────────────────────
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-8rem)]">
-      {/* Sidebar */}
-      <div className="w-56 shrink-0 space-y-1 overflow-y-auto">
+    <div className="flex flex-col md:flex-row gap-4 md:gap-6 h-[calc(100vh-8rem)]">
+      {/* Mobile group selector — horizontal scroll */}
+      <div className="md:hidden flex gap-2 overflow-x-auto pb-2 shrink-0 -mx-1 px-1 scrollbar-hide">
+        <button
+          onClick={() => setSelectedGroupId("all")}
+          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            selectedGroupId === "all"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground"
+          }`}
+        >
+          All ({totalActive})
+        </button>
+        {groups.flatMap((g) => [g, ...(g.children || [])]).map((group) => {
+          const GroupIcon = group.icon ? GROUP_ICON_MAP[group.icon] : null;
+          return (
+            <button
+              key={group.id}
+              onClick={() => setSelectedGroupId(group.id)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors ${
+                selectedGroupId === group.id
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {GroupIcon ? (
+                <GroupIcon className="h-3 w-3" />
+              ) : group.color ? (
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />
+              ) : null}
+              {group.name}
+              {(group._count?.tasks || 0) > 0 && (
+                <span className="opacity-60">{group._count.tasks}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Sidebar — desktop only */}
+      <div className="hidden md:block w-56 shrink-0 space-y-1 overflow-y-auto">
         <button
           onClick={() => setSelectedGroupId("all")}
           className={`w-full text-left px-3 py-2 rounded-md text-sm flex items-center justify-between ${
@@ -703,7 +741,7 @@ function TasksPageContent() {
       <div className="flex-1 min-w-0 space-y-4 overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">
+          <h1 className="text-lg md:text-2xl font-semibold">
             {selectedGroupId === "all"
               ? "All Tasks"
               : isGroceryMode
@@ -766,8 +804,8 @@ function TasksPageContent() {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 max-w-xs">
+        <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[120px] max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search..."
@@ -777,7 +815,7 @@ function TasksPageContent() {
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[110px] h-8 text-xs">
+            <SelectTrigger className="w-[90px] md:w-[110px] h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -787,7 +825,7 @@ function TasksPageContent() {
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-[110px] h-8 text-xs">
+            <SelectTrigger className="w-[90px] md:w-[110px] h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -799,7 +837,7 @@ function TasksPageContent() {
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[120px] h-8 text-xs">
+            <SelectTrigger className="w-[100px] md:w-[120px] h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

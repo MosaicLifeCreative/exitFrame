@@ -171,6 +171,10 @@
   box-shadow: 0 0 15px rgba(0, 255, 65, 0.05), inset 0 0 15px rgba(0, 255, 65, 0.02);
 }
 
+/* Hide scrollbar for horizontal scrollers */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* PWA safe area support */
 .safe-top {
   padding-top: env(safe-area-inset-top, 0px);
@@ -201,11 +205,15 @@ em-emoji-picker {
 }
 @media (display-mode: standalone) {
   .pwa-only {
-    display: flex !important;
+    display: block !important;
   }
-  /* Lift chat input above bottom nav */
+  /* Lift chat input above bottom nav (56px nav + 8px gap + safe area) */
   .pwa-input-lift {
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 68px) !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 72px) !important;
+  }
+  /* Hide sidebar on PWA — bottom nav replaces it */
+  .pwa-hide-sidebar {
+    display: none !important;
   }
 }
 

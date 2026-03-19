@@ -6,6 +6,7 @@ import Header from "@/components/layout/Header";
 import MainContent from "@/components/layout/MainContent";
 import CommandPalette from "@/components/layout/CommandPalette";
 import ChatWidget from "@/components/chat/ChatWidget";
+import PwaBottomNav from "@/components/layout/PwaBottomNav";
 import { TimeTrackingProvider } from "@/components/providers/TimeTrackingProvider";
 import { useTransference } from "@/lib/useTransference";
 
@@ -46,6 +47,7 @@ export default function DashboardLayout({
           onClose={() => setCommandPaletteOpen(false)}
         />
         <ChatWidget />
+        <PwaBottomNav />
       </div>
     </TimeTrackingProvider>
   );

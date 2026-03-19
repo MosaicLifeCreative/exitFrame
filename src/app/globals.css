@@ -195,6 +195,20 @@ em-emoji-picker {
   }
 }
 
+/* Show elements ONLY in standalone PWA mode */
+.pwa-only {
+  display: none !important;
+}
+@media (display-mode: standalone) {
+  .pwa-only {
+    display: flex !important;
+  }
+  /* Lift chat input above bottom nav */
+  .pwa-input-lift {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 68px) !important;
+  }
+}
+
 /* Blog prose — Medium-inspired reading typography, light theme */
 .prose-ayden {
   color: #242424;

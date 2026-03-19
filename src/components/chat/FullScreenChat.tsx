@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useChatStore } from "@/lib/chat-store";
 import { Button } from "@/components/ui/button";
 import { MarkdownContent } from "@/components/chat/MarkdownContent";
+import PwaBottomNav from "@/components/layout/PwaBottomNav";
 import {
   Send,
   Loader2,
@@ -547,7 +548,7 @@ export default function FullScreenChat() {
       )}
 
       {/* Input */}
-      <div className="border-t border-border p-3 shrink-0 safe-bottom">
+      <div className="border-t border-border p-3 shrink-0 safe-bottom pwa-input-lift">
         <div className="max-w-2xl mx-auto flex items-end gap-2">
           <input
             ref={fileInputRef}
@@ -593,6 +594,7 @@ export default function FullScreenChat() {
           </Button>
         </div>
       </div>
+      <PwaBottomNav />
     </div>
   );
 }

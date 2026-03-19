@@ -1,5 +1,12 @@
-const CACHE_NAME = "ayden-v1";
-const PRECACHE_URLS = ["/dashboard/chat"];
+const CACHE_NAME = "ayden-v2";
+const PRECACHE_URLS = [
+  "/dashboard/chat",
+  "/dashboard/travel",
+  "/dashboard/health/fitness",
+  "/dashboard/notes",
+  "/dashboard/tasks",
+  "/dashboard/reminders",
+];
 
 // Install — cache the chat page shell
 self.addEventListener("install", (event) => {

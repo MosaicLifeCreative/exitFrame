@@ -417,7 +417,7 @@ export default function ChatWidget() {
   }, [images.length]);
 
   return (
-    <>
+    <div className="pwa-hidden">
       {/* ─── Floating Bubble ─────────────────────────────── */}
       {!isOpen && (
         <button
@@ -832,6 +832,6 @@ export default function ChatWidget() {
           100% { transform: scale(1); }
         }
       `}</style>
-    </>
+    </div>
   );
 }

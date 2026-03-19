@@ -7,6 +7,7 @@ const updateGroupSchema = z.object({
   name: z.string().min(1).optional(),
   color: z.string().nullable().optional(),
   icon: z.string().nullable().optional(),
+  parentGroupId: z.string().uuid().nullable().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
 });

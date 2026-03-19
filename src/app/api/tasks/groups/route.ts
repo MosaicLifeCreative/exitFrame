@@ -18,6 +18,9 @@ export async function GET() {
         children: {
           where: { isActive: true },
           orderBy: { sortOrder: "asc" },
+          include: {
+            _count: { select: { tasks: { where: { status: { notIn: ["done", "cancelled"] } } } } },
+          },
         },
         _count: { select: { tasks: { where: { status: { notIn: ["done", "cancelled"] } } } } },
       },

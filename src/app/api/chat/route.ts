@@ -428,7 +428,10 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
 function getToolsForPage(page?: string): Anthropic.Tool[] {
   // Always return tools — Google, memory, emotion, goals, and investing are available on every page
   // Emotion tools are always included so Ayden can track her emotional state from any context
-  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...agencyTools, ...architectureTools, ...dnaTools, ...backgroundTools, ...reminderTools, ...roadmapTools];
+  // set_session_intent is agency-only — it writes to agency sessions, not chat
+  const AGENCY_ONLY_TOOLS = new Set(["set_session_intent"]);
+  const chatAgencyTools = agencyTools.filter((t) => !AGENCY_ONLY_TOOLS.has(t.name));
+  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...chatAgencyTools, ...architectureTools, ...dnaTools, ...backgroundTools, ...reminderTools, ...roadmapTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];

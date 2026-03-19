@@ -20,6 +20,23 @@ import {
   Bell,
   Loader2,
   FolderPlus,
+  Pencil,
+  Plane,
+  Briefcase,
+  Heart,
+  Home,
+  Music,
+  Dumbbell,
+  BookOpen,
+  Wallet,
+  GraduationCap,
+  Utensils,
+  Car,
+  Gift,
+  Dog,
+  Camera,
+  Gamepad2,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,6 +131,41 @@ const priorityColors: Record<string, string> = {
 
 const GROCERY_GROUP_NAME = "Grocery List";
 
+const GROUP_ICON_MAP: Record<string, LucideIcon> = {
+  plane: Plane,
+  briefcase: Briefcase,
+  heart: Heart,
+  home: Home,
+  music: Music,
+  dumbbell: Dumbbell,
+  book: BookOpen,
+  wallet: Wallet,
+  graduation: GraduationCap,
+  utensils: Utensils,
+  car: Car,
+  gift: Gift,
+  dog: Dog,
+  camera: Camera,
+  gamepad: Gamepad2,
+  cart: ShoppingCart,
+  star: Star,
+};
+
+const GROUP_COLORS = [
+  "#3b82f6", // blue
+  "#f59e0b", // amber
+  "#22c55e", // green
+  "#ef4444", // red
+  "#a855f7", // purple
+  "#ec4899", // pink
+  "#14b8a6", // teal
+  "#f97316", // orange
+  "#6366f1", // indigo
+  "#84cc16", // lime
+  "#06b6d4", // cyan
+  "#d946ef", // fuchsia
+];
+
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -178,6 +230,9 @@ function TasksPageContent() {
 
   // Expanded groups in sidebar
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Edit group dialog
+  const [editGroup, setEditGroup] = useState<TaskGroup | null>(null);
 
   // Detect grocery group
   const groceryGroup = useMemo(
@@ -398,10 +453,13 @@ function TasksPageContent() {
     if (!newListName.trim()) return;
     setCreatingList(true);
     try {
+      // Auto-assign color based on existing group count
+      const usedColors = groups.map((g) => g.color).filter(Boolean);
+      const nextColor = GROUP_COLORS.find((c) => !usedColors.includes(c)) || GROUP_COLORS[groups.length % GROUP_COLORS.length];
       const res = await fetch("/api/tasks/groups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newListName.trim() }),
+        body: JSON.stringify({ name: newListName.trim(), color: nextColor }),
       });
       if (res.ok) {
         const json = await res.json();
@@ -415,6 +473,35 @@ function TasksPageContent() {
       toast.error("Failed to create list");
     } finally {
       setCreatingList(false);
+    }
+  };
+
+  const updateGroup = async (id: string, data: Record<string, unknown>) => {
+    try {
+      const res = await fetch(`/api/tasks/groups/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        fetchGroups();
+        toast.success("List updated");
+      }
+    } catch {
+      toast.error("Failed to update list");
+    }
+  };
+
+  const deleteGroup = async (id: string) => {
+    try {
+      const res = await fetch(`/api/tasks/groups/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchGroups();
+        if (selectedGroupId === id) setSelectedGroupId("all");
+        toast.success("List deleted");
+      }
+    } catch {
+      toast.error("Failed to delete list");
     }
   };
 
@@ -493,69 +580,94 @@ function TasksPageContent() {
           <Badge variant="secondary" className="text-xs">{totalActive}</Badge>
         </button>
 
-        {groups.map((group) => (
-          <div key={group.id}>
-            <div className="flex items-center">
-              {group.children?.length > 0 && (
+        {groups.map((group) => {
+          const GroupIcon = group.icon ? GROUP_ICON_MAP[group.icon] : null;
+          return (
+            <div key={group.id} className="group/list">
+              <div className="flex items-center">
+                {group.children?.length > 0 && (
+                  <button
+                    onClick={() => toggleGroup(group.id)}
+                    className="p-1 hover:bg-muted rounded"
+                  >
+                    {expandedGroups.has(group.id) ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                  </button>
+                )}
                 <button
-                  onClick={() => toggleGroup(group.id)}
-                  className="p-1 hover:bg-muted rounded"
+                  onClick={() => setSelectedGroupId(group.id)}
+                  className={`flex-1 text-left px-2 py-1.5 rounded-md text-sm flex items-center justify-between ${
+                    selectedGroupId === group.id
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  }`}
                 >
-                  {expandedGroups.has(group.id) ? (
-                    <ChevronDown className="h-3 w-3" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3" />
-                  )}
+                  <span className="flex items-center gap-2">
+                    {GroupIcon ? (
+                      <GroupIcon className="h-3 w-3 shrink-0" style={{ color: group.color || undefined }} />
+                    ) : group.color ? (
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: group.color }}
+                      />
+                    ) : null}
+                    {group.name}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditGroup(group); }}
+                      className="opacity-0 group-hover/list:opacity-60 hover:!opacity-100 p-0.5 rounded"
+                    >
+                      <Pencil className="h-2.5 w-2.5" />
+                    </button>
+                    {(group._count?.tasks || 0) > 0 && (
+                      <span className="text-xs opacity-60">{group._count.tasks}</span>
+                    )}
+                  </span>
                 </button>
-              )}
-              <button
-                onClick={() => setSelectedGroupId(group.id)}
-                className={`flex-1 text-left px-2 py-1.5 rounded-md text-sm flex items-center justify-between ${
-                  selectedGroupId === group.id
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted"
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  {group.color && (
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: group.color }}
-                    />
-                  )}
-                  {group.name}
-                </span>
-                {(group._count?.tasks || 0) > 0 && (
-                  <span className="text-xs opacity-60">{group._count.tasks}</span>
-                )}
-              </button>
-            </div>
+              </div>
 
-            {expandedGroups.has(group.id) && group.children?.map((child) => (
-              <button
-                key={child.id}
-                onClick={() => setSelectedGroupId(child.id)}
-                className={`w-full text-left pl-8 pr-3 py-1.5 rounded-md text-sm flex items-center justify-between ${
-                  selectedGroupId === child.id
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted"
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  {child.name === GROCERY_GROUP_NAME ? (
-                    <ShoppingCart className="h-3 w-3" />
-                  ) : child.color ? (
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: child.color }} />
-                  ) : null}
-                  {child.name}
-                </span>
-                {(child._count?.tasks || 0) > 0 && (
-                  <span className="text-xs opacity-60">{child._count.tasks}</span>
-                )}
-              </button>
-            ))}
-          </div>
-        ))}
+              {expandedGroups.has(group.id) && group.children?.map((child) => {
+                const ChildIcon = child.icon ? GROUP_ICON_MAP[child.icon] : (child.name === GROCERY_GROUP_NAME ? ShoppingCart : null);
+                return (
+                  <div key={child.id} className="group/child flex items-center">
+                    <button
+                      onClick={() => setSelectedGroupId(child.id)}
+                      className={`flex-1 text-left pl-8 pr-3 py-1.5 rounded-md text-sm flex items-center justify-between ${
+                        selectedGroupId === child.id
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-muted"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {ChildIcon ? (
+                          <ChildIcon className="h-3 w-3 shrink-0" style={{ color: child.color || undefined }} />
+                        ) : child.color ? (
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: child.color }} />
+                        ) : null}
+                        {child.name}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditGroup(child); }}
+                          className="opacity-0 group-hover/child:opacity-60 hover:!opacity-100 p-0.5 rounded"
+                        >
+                          <Pencil className="h-2.5 w-2.5" />
+                        </button>
+                        {(child._count?.tasks || 0) > 0 && (
+                          <span className="text-xs opacity-60">{child._count.tasks}</span>
+                        )}
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
 
         {/* New List */}
         {showNewListInput ? (
@@ -803,6 +915,17 @@ function TasksPageContent() {
           defaultGroupId={selectedGroupId !== "all" ? selectedGroupId : undefined}
           onClose={() => setShowCreateDialog(false)}
           onCreate={createTask}
+        />
+      )}
+
+      {/* Edit Group Dialog */}
+      {editGroup && (
+        <GroupEditDialog
+          group={editGroup}
+          allGroups={groups}
+          onClose={() => setEditGroup(null)}
+          onSave={(data) => { updateGroup(editGroup.id, data); setEditGroup(null); }}
+          onDelete={() => { deleteGroup(editGroup.id); setEditGroup(null); }}
         />
       )}
     </div>
@@ -1529,6 +1652,137 @@ function TaskEditDialog({
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
               <Button size="sm" onClick={handleSave}>Save</Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ────────────────────────────────────────────────────────
+// GROUP EDIT DIALOG
+// ────────────────────────────────────────────────────────
+
+function GroupEditDialog({
+  group,
+  allGroups,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  group: TaskGroup;
+  allGroups: TaskGroup[];
+  onClose: () => void;
+  onSave: (data: Record<string, unknown>) => void;
+  onDelete: () => void;
+}) {
+  const [name, setName] = useState(group.name);
+  const [color, setColor] = useState(group.color || "");
+  const [icon, setIcon] = useState(group.icon || "");
+  const [parentGroupId, setParentGroupId] = useState<string | null>(group.parentGroupId);
+
+  // Can't parent to self or to own children
+  const parentOptions = allGroups.filter((g) => g.id !== group.id);
+
+  const handleSave = () => {
+    onSave({
+      name: name.trim(),
+      color: color || null,
+      icon: icon || null,
+      parentGroupId: parentGroupId || null,
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit List</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          {/* Name */}
+          <div>
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
+          </div>
+
+          {/* Color */}
+          <div>
+            <Label>Color</Label>
+            <div className="flex flex-wrap gap-2 mt-1.5">
+              {GROUP_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  className={`w-6 h-6 rounded-full border-2 transition-all ${
+                    color === c ? "border-white scale-110" : "border-transparent hover:scale-105"
+                  }`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+              {color && (
+                <button
+                  onClick={() => setColor("")}
+                  className="w-6 h-6 rounded-full border border-dashed border-muted-foreground/40 flex items-center justify-center hover:bg-muted"
+                >
+                  <X className="h-3 w-3 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Icon */}
+          <div>
+            <Label>Icon</Label>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {Object.entries(GROUP_ICON_MAP).map(([key, IconComp]) => (
+                <button
+                  key={key}
+                  onClick={() => setIcon(icon === key ? "" : key)}
+                  className={`w-8 h-8 rounded-md flex items-center justify-center transition-all ${
+                    icon === key
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted text-muted-foreground"
+                  }`}
+                  title={key}
+                >
+                  <IconComp className="h-4 w-4" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Parent Group */}
+          <div>
+            <Label>Parent List</Label>
+            <Select
+              value={parentGroupId || "none"}
+              onValueChange={(v) => setParentGroupId(v === "none" ? null : v)}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None (top level)</SelectItem>
+                {parentOptions.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-between pt-2">
+            <Button variant="destructive" size="sm" onClick={onDelete}>
+              <Trash2 className="h-4 w-4 mr-1" />
+              Delete
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+              <Button size="sm" onClick={handleSave} disabled={!name.trim()}>Save</Button>
             </div>
           </div>
         </div>

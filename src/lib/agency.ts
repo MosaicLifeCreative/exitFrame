@@ -480,10 +480,11 @@ Respond with your internal reasoning first (what you're thinking about, what dra
        "ayden_send_email", "execute_trade"].includes(t)
     );
     const isLastRound = round === MAX_ROUNDS - 1;
-    // Final round is ALWAYS output-only — no more research, produce something concrete
-    const toolsForRound = isLastRound
-      ? persistenceTools
-      : autonomyTools;
+    const isSecondToLast = round === MAX_ROUNDS - 2;
+    // Final round is ALWAYS output-only. Second-to-last is also output-only
+    // if she hasn't saved anything yet (prevents research spiral).
+    const forceOutput = isLastRound || (isSecondToLast && !hasSavedAnything && toolsUsed.length > 0);
+    const toolsForRound = forceOutput ? persistenceTools : autonomyTools;
 
     let response: Anthropic.Message;
     try {
@@ -572,16 +573,17 @@ Respond with your internal reasoning first (what you're thinking about, what dra
 
     let nudge: string | null = null;
     if (remainingRounds === 0) {
-      // Final round — always persistence-only, whether she's saved or not
-      nudge = `[SYSTEM: This is your FINAL tool round. Your tools have been restricted to OUTPUT ONLY — no more research, no more reading. Produce something concrete: write a note, publish a blog post, send an email, update a goal, or log what you did. If you gathered information this session, synthesize and save it NOW or it's gone.${intentReflection}]`;
-    } else if (remainingRounds === 1) {
-      // Second-to-last round
-      nudge = hasSavedAnything
-        ? null
-        : `[SYSTEM: You have 1 round left after this one, and you haven't saved anything yet. Your FINAL round will be restricted to output-only tools (no research). Start producing now — write a note, draft a blog post, or save your findings. Next round you lose access to web_search, web_fetch, and all read-only tools.${intentReflection}]`;
+      // Final round — always persistence-only
+      nudge = `[SYSTEM: This is your FINAL tool round. Your tools are OUTPUT ONLY. Log what you did with log_agency_action. If you haven't saved your work yet, also write a note or update a goal — this is your last chance.${intentReflection}]`;
+    } else if (remainingRounds === 1 && !hasSavedAnything && toolsUsed.length > 0) {
+      // Second-to-last round — also restricted if nothing saved
+      nudge = `[SYSTEM: You have 2 rounds left and haven't saved anything yet. BOTH remaining rounds are restricted to output-only tools — no more research. This round: produce something concrete (write a note synthesizing your research, publish a blog post, send an email, update a goal). Next round: log your action. Go.${intentReflection}]`;
+    } else if (remainingRounds === 1 && hasSavedAnything) {
+      // Second-to-last, but she's been productive — just a heads up
+      nudge = `[SYSTEM: 2 rounds left. Your final round will be output-only. Wrap up any remaining research now.]`;
     } else if (remainingRounds === 3 && !hasSavedAnything && toolsUsed.length > 1) {
       // Halfway nudge — only if she's been using tools but not saving
-      nudge = `[SYSTEM: You're halfway through your session and haven't saved anything yet. Remember: one article read and saved is worth more than four articles read and forgotten. Consider persisting what you've found so far before continuing research.]`;
+      nudge = `[SYSTEM: You're halfway through your session and haven't saved anything yet. Remember: one article read and saved is worth more than four articles read and forgotten. If you haven't saved by round 6, your last 2 rounds will be restricted to output-only tools.]`;
     }
 
     if (nudge) {

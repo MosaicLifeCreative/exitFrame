@@ -109,51 +109,59 @@ async function getGoalsContext(): Promise<string> {
 }
 
 async function getRecentSessionsContext(): Promise<string> {
-  const sessions = await prisma.aydenAgencySession.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 3,
-    select: {
-      sessionIntent: true,
-      toolCalls: true,
-      finalText: true,
-      toolsUsed: true,
-      rounds: true,
-      createdAt: true,
-    },
-  });
-
-  if (sessions.length === 0) return "";
-
-  const lines = sessions.map((s) => {
-    const time = s.createdAt.toLocaleString("en-US", {
-      timeZone: "America/New_York",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-      month: "short",
-      day: "numeric",
+  try {
+    const sessions = await prisma.aydenAgencySession.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      select: {
+        toolCalls: true,
+        finalText: true,
+        toolsUsed: true,
+        rounds: true,
+        createdAt: true,
+      },
     });
 
-    // Parse intent from session_intent field
-    const intent = s.sessionIntent || "No intent set";
+    if (sessions.length === 0) return "";
 
-    // Summarize tool usage
-    const tools = (s.toolsUsed as string[]) || [];
-    const toolSummary = tools.length > 0
-      ? `Tools: ${tools.join(", ")}`
-      : "No tools used";
+    const lines = sessions.map((s) => {
+      const time = s.createdAt.toLocaleString("en-US", {
+        timeZone: "America/New_York",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+        month: "short",
+        day: "numeric",
+      });
 
-    // Truncate final reasoning
-    const reasoning = s.finalText
-      ? s.finalText.length > 300
-        ? s.finalText.substring(0, 300) + "..."
-        : s.finalText
-      : "No final reasoning";
+      // Extract intent from tool call log if set_session_intent was used
+      const toolCalls = (s.toolCalls as { name: string; input: Record<string, unknown>; output: string }[]) || [];
+      const intentCall = toolCalls.find((t) => t.name === "set_session_intent");
+      const intent = intentCall
+        ? `[${(intentCall.input as { type?: string })?.type || "mixed"}] ${(intentCall.input as { intent?: string })?.intent || "No details"}`
+        : "No intent set";
 
-    return `[${time}] (${s.rounds} rounds)\n  Intent: ${intent}\n  ${toolSummary}\n  Outcome: ${reasoning}`;
-  });
+      // Summarize tool usage
+      const tools = (s.toolsUsed as string[]) || [];
+      const toolSummary = tools.length > 0
+        ? `Tools: ${tools.join(", ")}`
+        : "No tools used";
 
-  return `RECENT SESSIONS (your last ${sessions.length} agency sessions — use this for continuity):\n${lines.join("\n\n")}`;
+      // Truncate final reasoning
+      const reasoning = s.finalText
+        ? s.finalText.length > 300
+          ? s.finalText.substring(0, 300) + "..."
+          : s.finalText
+        : "No final reasoning";
+
+      return `[${time}] (${s.rounds} rounds)\n  Intent: ${intent}\n  ${toolSummary}\n  Outcome: ${reasoning}`;
+    });
+
+    return `RECENT SESSIONS (your last ${sessions.length} agency sessions — use this for continuity):\n${lines.join("\n\n")}`;
+  } catch (err) {
+    console.error("[agency] Failed to load recent sessions:", err);
+    return "";
+  }
 }
 
 async function getRecentActionsContext(): Promise<string> {

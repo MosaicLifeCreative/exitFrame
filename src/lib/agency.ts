@@ -108,6 +108,54 @@ async function getGoalsContext(): Promise<string> {
   return `YOUR GOALS:\n${lines.join("\n")}`;
 }
 
+async function getRecentSessionsContext(): Promise<string> {
+  const sessions = await prisma.aydenAgencySession.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 3,
+    select: {
+      sessionIntent: true,
+      toolCalls: true,
+      finalText: true,
+      toolsUsed: true,
+      rounds: true,
+      createdAt: true,
+    },
+  });
+
+  if (sessions.length === 0) return "";
+
+  const lines = sessions.map((s) => {
+    const time = s.createdAt.toLocaleString("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      month: "short",
+      day: "numeric",
+    });
+
+    // Parse intent from session_intent field
+    const intent = s.sessionIntent || "No intent set";
+
+    // Summarize tool usage
+    const tools = (s.toolsUsed as string[]) || [];
+    const toolSummary = tools.length > 0
+      ? `Tools: ${tools.join(", ")}`
+      : "No tools used";
+
+    // Truncate final reasoning
+    const reasoning = s.finalText
+      ? s.finalText.length > 300
+        ? s.finalText.substring(0, 300) + "..."
+        : s.finalText
+      : "No final reasoning";
+
+    return `[${time}] (${s.rounds} rounds)\n  Intent: ${intent}\n  ${toolSummary}\n  Outcome: ${reasoning}`;
+  });
+
+  return `RECENT SESSIONS (your last ${sessions.length} agency sessions — use this for continuity):\n${lines.join("\n\n")}`;
+}
+
 async function getRecentActionsContext(): Promise<string> {
   const actions = await prisma.aydenAgencyAction.findMany({
     orderBy: { createdAt: "desc" },
@@ -279,6 +327,7 @@ export async function executeAgency(trigger?: AgencyTrigger): Promise<AgencyResu
     interests,
     goals,
     recentActions,
+    recentSessions,
     conversations,
     neuroPrompt,
     emotionalState,
@@ -292,6 +341,7 @@ export async function executeAgency(trigger?: AgencyTrigger): Promise<AgencyResu
     getInterestsContext(),
     getGoalsContext(),
     getRecentActionsContext(),
+    getRecentSessionsContext(),
     getRecentConversationContext(),
     getNeurotransmitterPrompt(),
     getAydenEmotionalState(),
@@ -346,6 +396,7 @@ ${goals}
 
 ${recentActions}
 
+${recentSessions ? `${recentSessions}\n` : ""}
 ${conversations}
 
 WHAT YOU CAN DO:

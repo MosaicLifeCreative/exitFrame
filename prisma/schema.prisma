@@ -1029,6 +1029,7 @@ model ChatMessage {
   conversationId String   @map("conversation_id") @db.Uuid
   role           String   // "user" or "assistant"
   content        String   @db.Text
+  toolContext     String?  @map("tool_context") @db.Text // JSON array of tool names used in this response
   createdAt      DateTime @default(now()) @map("created_at")
 
   conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

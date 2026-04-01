@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
           title: true,
           slug: true,
           excerpt: true,
+          content: true,
           coverImageUrl: true,
           status: true,
           publishedAt: true,
@@ -33,7 +34,12 @@ export async function GET(request: NextRequest) {
       prisma.blogPost.count({ where }),
     ]);
 
-    return NextResponse.json({ data: posts, total });
+    const postsWithReadTime = posts.map(({ content, ...post }) => ({
+      ...post,
+      readTime: `${Math.max(1, Math.round((content || "").split(/\s+/).length / 250))} min read`,
+    }));
+
+    return NextResponse.json({ data: postsWithReadTime, total });
   } catch (error) {
     console.error("Failed to list blog posts:", error);
     return NextResponse.json({ error: "Failed" }, { status: 500 });

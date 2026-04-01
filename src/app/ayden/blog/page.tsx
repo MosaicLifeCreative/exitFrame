@@ -14,6 +14,7 @@ interface BlogPost {
   status: string;
   publishedAt: string | null;
   createdAt: string;
+  readTime: string;
 }
 
 function formatDate(dateStr: string) {
@@ -22,15 +23,6 @@ function formatDate(dateStr: string) {
     month: "short",
     day: "numeric",
   });
-}
-
-function estimateReadTime(excerpt: string | null): string {
-  // Rough estimate from excerpt — real calculation happens on article page
-  if (!excerpt) return "1 min read";
-  const words = excerpt.split(/\s+/).length;
-  // Excerpt is ~10% of content, so multiply
-  const estimated = Math.max(1, Math.round((words * 10) / 250));
-  return `${estimated} min read`;
 }
 
 const POSTS_PER_PAGE = 10;
@@ -132,7 +124,7 @@ export default function BlogListPage() {
                     </span>
                     <span className="text-[#b8b8b8]">&middot;</span>
                     <span className="text-[13px] text-[#757575]">
-                      {estimateReadTime(post.excerpt)}
+                      {post.readTime}
                     </span>
                   </div>
 

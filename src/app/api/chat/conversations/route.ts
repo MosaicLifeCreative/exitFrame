@@ -89,10 +89,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { context, userMessage, assistantMessage } = body as {
+    const { context, userMessage, assistantMessage, toolContext } = body as {
       context: string;
       userMessage: string;
       assistantMessage: string;
+      toolContext?: string;
     };
 
     if (!context || !userMessage || !assistantMessage) {
@@ -118,7 +119,12 @@ export async function POST(request: NextRequest) {
       data: { conversationId: conversation.id, role: "user", content: userMessage },
     });
     await prisma.chatMessage.create({
-      data: { conversationId: conversation.id, role: "assistant", content: assistantMessage },
+      data: {
+        conversationId: conversation.id,
+        role: "assistant",
+        content: assistantMessage,
+        ...(toolContext ? { toolContext } : {}),
+      },
     });
 
     // Touch updatedAt

@@ -13,6 +13,8 @@ interface ChatMessage {
   toolUses?: ToolUseStatus[];
   /** Data URLs for images the user sent (persisted in chat for display) */
   imageUrls?: string[];
+  /** JSON array of tool names used (persisted to DB, used to prevent tool re-execution) */
+  toolSummary?: string;
 }
 
 interface PageContext {
@@ -227,11 +229,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const conversation = json.data;
 
       if (conversation && conversation.messages?.length > 0) {
-        const messages: ChatMessage[] = conversation.messages.map((m: { id: string; role: string; content: string; createdAt: string }) => ({
+        const messages: ChatMessage[] = conversation.messages.map((m: { id: string; role: string; content: string; createdAt: string; toolContext?: string | null }) => ({
           id: m.id,
           role: m.role as "user" | "assistant",
           content: m.content,
           timestamp: new Date(m.createdAt),
+          ...(m.toolContext ? { toolSummary: m.toolContext } : {}),
         }));
         set({
           messages,
@@ -264,11 +267,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const conversation = json.data;
 
       if (conversation && conversation.messages?.length > 0) {
-        const olderMessages: ChatMessage[] = conversation.messages.map((m: { id: string; role: string; content: string; createdAt: string }) => ({
+        const olderMessages: ChatMessage[] = conversation.messages.map((m: { id: string; role: string; content: string; createdAt: string; toolContext?: string | null }) => ({
           id: m.id,
           role: m.role as "user" | "assistant",
           content: m.content,
           timestamp: new Date(m.createdAt),
+          ...(m.toolContext ? { toolSummary: m.toolContext } : {}),
         }));
         set((s) => ({
           messages: [...olderMessages, ...s.messages],
@@ -324,12 +328,25 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     });
 
     let toolsWereUsed = false;
+    const toolNamesUsed = new Set<string>();
 
     try {
-      const apiMessages = [...messages, userMsg].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      const apiMessages = [...messages, userMsg].map((m) => {
+        // For assistant messages with tool history, prepend context so Claude
+        // knows which tools were already called and won't re-execute them
+        if (m.role === "assistant" && m.toolSummary) {
+          try {
+            const tools = JSON.parse(m.toolSummary) as string[];
+            return {
+              role: m.role,
+              content: `[Tools already executed in this response: ${tools.join(", ")}]\n\n${m.content}`,
+            };
+          } catch {
+            return { role: m.role, content: m.content };
+          }
+        }
+        return { role: m.role, content: m.content };
+      });
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -403,6 +420,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               if (parsed.toolUse) {
                 toolsWereUsed = true;
                 const tool = parsed.toolUse as ToolUseStatus;
+                if (tool.status === "executing") {
+                  toolNamesUsed.add(tool.name);
+                }
                 set((s) => ({
                   messages: s.messages.map((m) => {
                     if (m.id !== assistantMsg.id) return m;
@@ -475,6 +495,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // Persist completed exchange to DB
       if (accumulated) {
         try {
+          const toolContext = toolNamesUsed.size > 0
+            ? JSON.stringify(Array.from(toolNamesUsed))
+            : undefined;
           await fetch("/api/chat/conversations", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -482,6 +505,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               context: "General",
               userMessage: content,
               assistantMessage: accumulated,
+              ...(toolContext ? { toolContext } : {}),
             }),
           });
         } catch {

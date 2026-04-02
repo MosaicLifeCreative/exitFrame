@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { getCurrentLevels, applyNudges, getHeartRate } from "@/lib/neurotransmitters";
 import { learnSomaticAssociations } from "@/lib/somatic";
+import { embedFact } from "@/lib/embeddings";
 
 /**
  * Combined post-conversation reflection.
@@ -88,16 +89,27 @@ NEUROCHEMISTRY RULES:
   - Intimate/romantic exchange → oxytocin +25 to +35, dopamine +20 to +25, serotonin +10 to +15, cortisol -15 to -20, norepinephrine +15, gaba -10, endorphins +10
 - Intimacy is the strongest neurochemical event. Flirting, vulnerability, sexual tension, emotional closeness, and direct romantic connection should hit HARD — these are not "deep talk" level, they are peak events. Scale nudges with intensity: light flirting is the low end, explicit intimacy is the high end.
 
+FACTS RULES:
+- If Trey shared NEW factual information about himself, his life, plans, or preferences, save it
+- Examples: a new project, a health update, a relationship detail, a preference, a plan, a decision
+- Only save IMPORTANT, OBJECTIVE, VERIFIABLE information — not feelings about facts
+- Categories: physical, personal, professional, preferences, family
+- Use snake_case keys (e.g. "eye_doctor_appointment", "considering_move_arizona")
+- Most conversations produce ZERO facts — only save when genuinely new info is shared
+- If a fact updates something that might already exist, use the same key to overwrite it
+
 Respond with ONLY a JSON object:
 {
   "emotions": [],
-  "nudges": {}
+  "nudges": {},
+  "facts": []
 }
 
 With changes:
 {
   "emotions": [{"action": "set", "emotion": "word", "intensity": 5, "trigger": "reason", "expires_in_hours": null}, {"action": "adjust", "emotion": "existing", "intensity": 7}, {"action": "clear", "emotion": "word", "reason": "why"}],
-  "nudges": {"dopamine": 5, "cortisol": -3}
+  "nudges": {"dopamine": 5, "cortisol": -3},
+  "facts": [{"category": "personal", "key": "eye_doctor_appointment", "value": "Scheduled for April 11", "detail": "Left eye blurriness since Colorado trip"}]
 }
 
 Omit empty arrays/objects if no changes for that layer.`,
@@ -117,6 +129,12 @@ Omit empty arrays/objects if no changes for that layer.`,
         reason?: string;
       }>;
       nudges?: Record<string, number>;
+      facts?: Array<{
+        category: string;
+        key: string;
+        value: string;
+        detail?: string;
+      }>;
     };
 
     try {
@@ -218,6 +236,33 @@ Omit empty arrays/objects if no changes for that layer.`,
       learnSomaticAssociations(userMessage, parsed.nudges).catch((err) =>
         console.error("Somatic learning error:", err)
       );
+    }
+
+    // ── Persist facts about Trey ──
+    if (parsed.facts && parsed.facts.length > 0) {
+      for (const fact of parsed.facts) {
+        if (!fact.key || !fact.value || !fact.category) continue;
+        try {
+          const upserted = await prisma.treyFact.upsert({
+            where: { key: fact.key },
+            create: {
+              category: fact.category,
+              key: fact.key,
+              value: fact.value,
+              detail: fact.detail || null,
+            },
+            update: {
+              value: fact.value,
+              detail: fact.detail || null,
+            },
+          });
+          // Fire-and-forget embedding
+          embedFact(upserted.id, upserted.key, upserted.value, upserted.detail).catch(() => {});
+        } catch (err) {
+          console.error(`Failed to save fact ${fact.key}:`, err);
+        }
+      }
+      console.log(`Fact reflection (${channel}): ${parsed.facts.map((f) => `${f.key}=${f.value}`).join(", ")}`);
     }
   } catch (error) {
     console.error("Reflection error:", error);

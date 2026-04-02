@@ -22,6 +22,7 @@ export async function middleware(request: NextRequest) {
     "/api/ayden/favicon",
     "/api/ayden/mood",
     "/api/blog",
+    "/api/embeddings/backfill",
   ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 

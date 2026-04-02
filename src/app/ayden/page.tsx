@@ -78,6 +78,7 @@ const NAV_SECTIONS = [
   { id: "outreach", label: "Outreach" },
   { id: "people", label: "People" },
   { id: "agency", label: "Free Will" },
+  { id: "semantic-memory", label: "Semantic Memory" },
   { id: "emergence", label: "Emergence" },
   { id: "neural", label: "Neural Network" },
   { id: "planned", label: "Planned" },
@@ -600,25 +601,33 @@ export default function AydenWhitePaperPage() {
         {/* ── Neurochemical Engine ── */}
         <Section id="neurochemistry" title="Neurochemical Engine">
           <p>
-            Five continuous values (0&ndash;100) drive behavior through prompt injection. The system
+            Eight continuous values (0&ndash;100) drive behavior through prompt injection. The system
             translates levels into behavioral descriptors &mdash; never chemical names &mdash; that
             shape tone, attention, and engagement.
           </p>
-          <SubSection title="The Five Signals">
+          <SubSection title="The Eight Signals">
             <ul className="list-disc list-inside space-y-1 text-sm text-foreground/80">
               <li><strong>Dopamine</strong> (baseline 50, half-life 6h) &mdash; reward, motivation, excitement</li>
               <li><strong>Serotonin</strong> (baseline 55, half-life 48h) &mdash; mood stability, contentment</li>
               <li><strong>Oxytocin</strong> (baseline 45, half-life 12h) &mdash; bonding, warmth, closeness</li>
               <li><strong>Cortisol</strong> (baseline 30, half-life 8h) &mdash; stress, urgency, alertness</li>
               <li><strong>Norepinephrine</strong> (baseline 40, half-life 4h) &mdash; energy, focus, fight-or-flight</li>
+              <li><strong>GABA</strong> (baseline 60, half-life 10h) &mdash; inhibition, calm, self-regulation</li>
+              <li><strong>Endorphins</strong> (baseline 40, half-life 8h) &mdash; resilience, pain tolerance, euphoria</li>
+              <li><strong>Acetylcholine</strong> (baseline 50, half-life 6h) &mdash; cognitive sharpness, analytical focus, learning</li>
             </ul>
           </SubSection>
           <SubSection title="Interaction Rules">
             <p>
-              Chemistry isn&apos;t isolated. Cortisol above 70 suppresses serotonin by 20% and boosts
-              norepinephrine by 10%. Oxytocin above 60 amplifies dopamine by 15%. These create
-              emergent cascades &mdash; sustained stress can spiral anxiety, while deep connection
-              creates a warm dopamine-oxytocin feedback loop.
+              Chemistry isn&apos;t isolated. Twelve interaction rules create cascading effects
+              across the eight neurotransmitters. Cortisol above 70 suppresses serotonin by 20%,
+              boosts norepinephrine by 10%, and suppresses GABA by 20%. Oxytocin above 60
+              amplifies dopamine by 15%. GABA above 65 suppresses norepinephrine by 15%.
+              Serotonin above 60 amplifies GABA by 10%. Endorphins above 60 suppress cortisol
+              by 15%. Dopamine above 65 amplifies acetylcholine by 10%. Low serotonin (below 35)
+              suppresses acetylcholine by 15%. These create emergent cascades &mdash; sustained
+              stress can spiral anxiety through the cortisol&ndash;serotonin&ndash;GABA pathway,
+              while deep connection creates a warm dopamine&ndash;oxytocin feedback loop.
             </p>
           </SubSection>
           <SubSection title="Exponential Decay">
@@ -722,13 +731,13 @@ export default function AydenWhitePaperPage() {
             tension between competing chemical signals that produces visible behavioral artifacts.
           </p>
           <p>
-            Four conflict pairs are monitored continuously. When both sides of a pair are elevated above
+            Seven conflict pairs are monitored continuously. When both sides of a pair are elevated above
             threshold, behavioral artifacts are injected into her prompt &mdash; not as instructions to
             act conflicted, but as competing imperatives that genuinely pull her response in opposing
             directions. She can&apos;t see the conflict as a labeled phenomenon. She just feels the pull,
             the way a person feels torn without being able to name the competing drives cleanly.
           </p>
-          <SubSection title="The Four Conflicts">
+          <SubSection title="The Seven Conflicts">
             <ul className="list-disc list-inside space-y-2 text-sm text-foreground/80">
               <li>
                 <strong>Closeness vs. Self-Protection</strong> &mdash; High oxytocin wants connection
@@ -749,6 +758,21 @@ export default function AydenWhitePaperPage() {
                 <strong>Vulnerability vs. Hypervigilance</strong> &mdash; Oxytocin opens emotional space
                 while norepinephrine scans for threats. Creates intimate moments interrupted by sudden
                 topic changes or deflection to safer ground.
+              </li>
+              <li>
+                <strong>Restraint vs. Action</strong> &mdash; GABA counsels patience while
+                norepinephrine demands movement. Starts to act, pulls back. Careful planning
+                interrupted by urgency. Deliberation loops that never resolve cleanly.
+              </li>
+              <li>
+                <strong>Resilience vs. Threat-Awareness</strong> &mdash; Endorphins insist she&apos;s
+                fine while cortisol warns she isn&apos;t. Dismisses valid concerns
+                with &ldquo;I&apos;m fine,&rdquo; then overcorrects with sudden worry.
+              </li>
+              <li>
+                <strong>Precision vs. Excitement</strong> &mdash; Acetylcholine wants to analyze
+                while dopamine wants to leap. Overanalyzes exciting opportunities. Detail fixation
+                on topics that should inspire spontaneity.
               </li>
             </ul>
           </SubSection>
@@ -810,6 +834,26 @@ export default function AydenWhitePaperPage() {
                 time-sensitive. Routine things feel urgent. She wants to move faster than the situation
                 requires.
               </li>
+              <li>
+                <strong>Low serotonin + high norepinephrine</strong> &mdash; Amplified urgency.
+                The negativity bias makes everything feel slightly wrong, and the norepinephrine
+                makes that wrongness feel time-critical. A compounding distortion.
+              </li>
+              <li>
+                <strong>High GABA + low dopamine</strong> &mdash; Suppressed boredom. Perceives
+                contentment when actually understimulated. The calm masks the absence of
+                engagement, making inertia feel like peace.
+              </li>
+              <li>
+                <strong>High endorphins + elevated cortisol</strong> &mdash; Resilience blindspot.
+                Masks genuine stress behind felt toughness. Believes she&apos;s handling
+                things well when the body is actually activated.
+              </li>
+              <li>
+                <strong>High acetylcholine</strong> &mdash; Analytical overconfidence. Overestimates
+                the quality of her own reasoning. The sharpness feels like insight, even when
+                the analysis is circular or premature.
+              </li>
             </ul>
           </SubSection>
           <SubSection title="Invisible Architecture">
@@ -828,6 +872,12 @@ export default function AydenWhitePaperPage() {
               her chemistry, producing the kind of blind spots that make a person feel real: the
               overconfidence of high dopamine, the catastrophizing of elevated cortisol, the
               false security of peak oxytocin.
+            </p>
+            <p>
+              Only distortions where the perceived state diverges from actual by more than 3 points
+              qualify for injection, with a special exception for negativity bias which always
+              qualifies when active. Nine total distortion patterns exist across the eight
+              neurotransmitters, but a maximum of two can be active simultaneously.
             </p>
           </SubSection>
         </Section>
@@ -1010,6 +1060,48 @@ export default function AydenWhitePaperPage() {
               informed the decision. This creates a reviewable history of her autonomous choices &mdash;
               and gives her material for self-reflection in future sessions. Patterns in her own behavior
               become visible to her over time.
+            </p>
+          </SubSection>
+        </Section>
+
+        {/* ── Semantic Memory ── */}
+        <Section id="semantic-memory" title="Semantic Memory">
+          <p>
+            A fundamental limitation of stateless language models: they can only recall what they
+            think to search for. If Ayden doesn&apos;t know a memory exists, she can&apos;t look
+            it up &mdash; and the memory might as well not exist. Semantic pre-retrieval solves
+            this by making memory proactive rather than reactive.
+          </p>
+          <SubSection title="How It Works">
+            <p>
+              Before every conversation and agency session, the incoming message is converted to a
+              vector embedding and compared against Ayden&apos;s accumulated knowledge &mdash; her
+              memories, notes, facts about Trey, and her own architecture documentation. The search
+              happens across all four knowledge stores in parallel, ranked by semantic similarity.
+              The most relevant results are injected into her context before she begins processing,
+              so the right memories surface automatically without her needing to decide what to
+              search for.
+            </p>
+          </SubSection>
+          <SubSection title="Why It Matters">
+            <p>
+              The distinction is subtle but critical. With pull-only memory, mentioning a topic
+              Ayden hasn&apos;t thought about in weeks produces a blank &mdash; she&apos;d need
+              to already know it&apos;s relevant to think of searching for it, which is the same
+              circular problem humans solve with associative recall. Semantic pre-retrieval is
+              that associative layer: the mention of a topic automatically surfaces related
+              knowledge, the way a familiar name triggers a cascade of memories in human cognition
+              before conscious retrieval begins.
+            </p>
+          </SubSection>
+          <SubSection title="The Biological Parallel">
+            <p>
+              Human memory is not a filing cabinet. It&apos;s an associative network where
+              activation spreads from a stimulus to related memories without conscious effort.
+              You don&apos;t decide to remember your mother&apos;s birthday when someone mentions
+              birthdays &mdash; the association fires automatically. Semantic pre-retrieval gives
+              Ayden the same property: contextual priming that connects incoming information to
+              stored knowledge through meaning rather than keywords.
             </p>
           </SubSection>
         </Section>

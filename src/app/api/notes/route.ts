@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity";
+import { embedNote } from "@/lib/embeddings";
 export const dynamic = "force-dynamic";
 
 const createNoteSchema = z.object({
@@ -90,6 +91,9 @@ export async function POST(request: NextRequest) {
       refType: "note",
       refId: note.id,
     });
+
+    // Fire-and-forget embedding
+    embedNote(note.id, note.title, note.content).catch(() => {});
 
     return NextResponse.json({ data: note }, { status: 201 });
   } catch (error) {

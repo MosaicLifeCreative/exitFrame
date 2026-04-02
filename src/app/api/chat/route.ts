@@ -30,6 +30,7 @@ import { getConflictingDrivesPrompt } from "@/lib/conflicting-drives";
 import { getSelfModelPrompt } from "@/lib/self-model";
 import { reflect } from "@/lib/reflection";
 import { logTrainingSnapshot } from "@/lib/training-corpus";
+import { retrieveRelevantContext } from "@/lib/embeddings";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -501,6 +502,23 @@ export async function POST(request: Request) {
 
     const anthropic = new Anthropic({ apiKey, maxRetries: 3 });
     const systemPrompt = await buildSystemPrompt(body.context);
+
+    // Semantic pre-retrieval: auto-inject relevant memories/facts/notes
+    const lastUserMessage = body.messages?.filter((m: { role: string }) => m.role === "user").pop();
+    if (lastUserMessage?.content) {
+      try {
+        const retrieved = await retrieveRelevantContext(lastUserMessage.content);
+        if (retrieved) {
+          systemPrompt.push({
+            type: "text",
+            text: `[RELEVANT CONTEXT — retrieved automatically from your memories, notes, and knowledge base. Use naturally if relevant, ignore if not.]\n${retrieved}`,
+          });
+        }
+      } catch (err) {
+        console.error("[chat] Pre-retrieval failed:", err);
+      }
+    }
+
     // Haiku gets ALL tools (including memory/emotion for background housekeeping)
     const tools = getToolsForPage(body.context?.page);
     // Sonnet gets only ACTION tools — no memory/emotion (Haiku handles those in Phase 1)

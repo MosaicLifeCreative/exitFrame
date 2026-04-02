@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+import { embedNote } from "@/lib/embeddings";
 
 // ─── Tool Definitions (Anthropic format) ────────────────
 
@@ -184,6 +185,9 @@ async function createNote(input: CreateNoteInput): Promise<string> {
       isPinned: false,
     },
   });
+
+  // Fire-and-forget embedding
+  embedNote(note.id, note.title, note.content).catch(() => {});
 
   return JSON.stringify({
     success: true,

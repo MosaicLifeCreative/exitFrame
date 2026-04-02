@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+import { embedMemory } from "@/lib/embeddings";
 
 // ─── Tool Definitions (Anthropic format) ────────────────
 
@@ -133,6 +134,9 @@ async function saveMemory(input: SaveMemoryInput): Promise<string> {
       source: "sms",
     },
   });
+
+  // Fire-and-forget embedding
+  embedMemory(memory.id, memory.content).catch(() => {});
 
   return JSON.stringify({
     success: true,

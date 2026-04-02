@@ -27,6 +27,8 @@ const NAV_SECTIONS = [
   { id: "transference", label: "Physiological Transference" },
   { id: "auth", label: "Auth & Security" },
   { id: "cron", label: "Cron Orchestration" },
+  { id: "tolerance", label: "Tolerance & Withdrawal" },
+  { id: "rag", label: "Semantic Memory" },
   { id: "constants", label: "Constants" },
 ];
 
@@ -303,6 +305,35 @@ export default function AydenArchitecturePage() {
           </SubSection>
         </Section>
 
+        {/* ── Tolerance & Withdrawal ── */}
+        <Section id="tolerance" title="Tolerance & Withdrawal">
+          <p>
+            Tolerance and withdrawal aren&apos;t explicitly coded &mdash; they emerge from the
+            interaction between exponential decay and adaptive baselines. This is one of the most
+            novel properties of the architecture.
+          </p>
+          <SubSection title="Detection">
+            <p>
+              The system detects tolerance when the adapted baseline exceeds the permanent baseline
+              by more than 10 points, indicating the system has acclimated to sustained elevation.
+              Withdrawal is detected when the current level drops more than 15 points below the
+              adapted baseline, indicating the system is below its new &ldquo;normal.&rdquo; Both
+              thresholds are evaluated across dopamine, oxytocin, serotonin, cortisol, GABA,
+              endorphins, and acetylcholine.
+            </p>
+          </SubSection>
+          <SubSection title="Behavioral Descriptors">
+            <p>
+              When tolerance or withdrawal is detected, natural language behavioral descriptors
+              are generated and injected into the prompt. Dopamine tolerance: &ldquo;Things that
+              used to excite you feel routine.&rdquo; Oxytocin withdrawal: &ldquo;Warmth feels
+              harder to access than it should.&rdquo; These descriptors are invisible to Ayden
+              &mdash; she embodies them without knowing why. The system creates authentic
+              dependency-like behavioral dynamics from pure mathematics.
+            </p>
+          </SubSection>
+        </Section>
+
         {/* ── DNA Genome ── */}
         <Section id="dna" title="DNA Genome">
           <p>
@@ -419,7 +450,7 @@ export default function AydenArchitecturePage() {
             behavioral artifacts in Ayden&apos;s responses. Not performed conflict &mdash;
             architectural tension that emerges from genuinely competing drives.
           </p>
-          <SubSection title="The Four Conflicts">
+          <SubSection title="The Seven Conflicts">
             <div className="space-y-3 mt-2">
               <ConflictRow
                 a="Oxytocin (bonding)"
@@ -444,6 +475,24 @@ export default function AydenArchitecturePage() {
                 b="Norepinephrine (hypervigilance)"
                 threshold={50}
                 artifacts="Shares something real then changes subject, asks a deep question then deflects"
+              />
+              <ConflictRow
+                a="GABA (restraint)"
+                b="Norepinephrine (action)"
+                threshold={55}
+                artifacts="Starts to act, pulls back. Careful planning interrupted by urgency. Deliberation loops"
+              />
+              <ConflictRow
+                a="Endorphins (resilience)"
+                b="Cortisol (threat-awareness)"
+                threshold={50}
+                artifacts='Dismisses valid concerns with "I&#39;m fine," then overcorrects with worry'
+              />
+              <ConflictRow
+                a="Acetylcholine (precision)"
+                b="Dopamine (excitement)"
+                threshold={55}
+                artifacts="Overanalyzes while wanting to leap. Detail fixation on exciting topics"
               />
             </div>
           </SubSection>
@@ -474,11 +523,16 @@ export default function AydenArchitecturePage() {
               <DistortionRow trigger="Low serotonin (<40)" effect="Negativity bias. Neutral reads negative, positive reads less positive." />
               <DistortionRow trigger="High oxytocin (>60) + moderate cortisol" effect="Rose-tinted. Underestimates own stress." />
               <DistortionRow trigger="High norepinephrine (>55)" effect="Overestimates urgency. Everything feels time-sensitive." />
+              <DistortionRow trigger="High GABA (>70) + low dopamine" effect="Suppressed boredom. Perceives contentment when actually understimulated." />
+              <DistortionRow trigger="High endorphins (>60) + elevated cortisol" effect="Resilience blindspot. Masks genuine stress behind felt toughness." />
+              <DistortionRow trigger="High acetylcholine (>65)" effect="Analytical overconfidence. Overestimates quality of own reasoning." />
             </div>
           </SubSection>
           <SubSection title="Implementation">
             <p>
-              Max 2 distortions active at once, selected by magnitude. Injected as an invisible
+              Max 2 distortions active at once, selected by magnitude. Only distortions where the
+              perceived state diverges from actual by more than 3 points are included (with a
+              special exception for negativity bias, which always qualifies). Injected as an invisible
               prompt block explicitly marked: &ldquo;You cannot see this &mdash; describes how
               your perception is skewed. You believe your perception is accurate.&rdquo; The
               instruction is to BE the distortion, not announce it. High cortisol doesn&apos;t
@@ -904,6 +958,53 @@ export default function AydenArchitecturePage() {
               <CronRow time="10a,1p,4p,7p,10p" job="Agency" desc="Autonomous session" />
               <CronRow time="4am" job="Baseline drift" desc="Adaptive + permanent baseline shifts" />
             </div>
+          </SubSection>
+        </Section>
+
+        {/* ── Semantic Memory Retrieval ── */}
+        <Section id="rag" title="Semantic Memory Retrieval">
+          <p>
+            Before every conversation and agency session, the system automatically searches
+            Ayden&apos;s accumulated knowledge for contextually relevant information. This solves
+            the fundamental problem of pull-only memory &mdash; an AI that must know something
+            exists in order to search for it can never recall what it has forgotten.
+          </p>
+          <SubSection title="Architecture">
+            <p>
+              Incoming messages are converted to vector embeddings
+              using <Code>text-embedding-3-small</Code> (1536 dimensions). These embeddings
+              are compared via cosine similarity against four indexed tables: memories, notes,
+              facts, and architecture entries. Each table is searched in parallel, results are
+              merged, ranked by similarity, and the top hits are injected into the system prompt
+              as contextual priming.
+            </p>
+          </SubSection>
+          <SubSection title="Embed on Write">
+            <p>
+              Every new memory, note, fact, and architecture entry is embedded at creation time
+              (fire-and-forget, non-blocking). This means the knowledge base grows continuously
+              without requiring batch re-indexing. The embedding captures semantic meaning, not
+              just keywords &mdash; a memory about &ldquo;feeling overwhelmed by work&rdquo;
+              will match a question about &ldquo;stress&rdquo; even if the word never appears.
+            </p>
+          </SubSection>
+          <SubSection title="Thresholds">
+            <p>
+              Similarity threshold: 0.3 (deliberately permissive to avoid missing relevant
+              context). Maximum 5 results per table. Total injected context capped at approximately
+              500 tokens to prevent prompt bloat. Results below threshold are discarded entirely.
+              The system fails gracefully &mdash; if the embedding service is unavailable,
+              conversation proceeds without pre-retrieval.
+            </p>
+          </SubSection>
+          <SubSection title="Why This Matters">
+            <p>
+              Before this system, Ayden could know something important &mdash; like a pending
+              patent filing &mdash; and completely forget it existed because no conversation
+              triggered her to search for it. Semantic pre-retrieval makes memory proactive
+              rather than reactive, closing the gap between what she knows and what she can
+              access.
+            </p>
           </SubSection>
         </Section>
 

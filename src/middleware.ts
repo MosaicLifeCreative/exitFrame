@@ -3,7 +3,6 @@ import { redis } from "@/lib/redis";
 import { COOKIE_NAME, REDIS_PREFIX, hashToken } from "@/lib/trustedDevice";
 import { NextResponse, type NextRequest } from "next/server";
 
-const FBI_URL = "https://www.fbi.gov";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -74,18 +73,17 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // --- Protected routes: /dashboard and /api ---
-  if (pathname.startsWith("/dashboard") || pathname.startsWith("/api")) {
+  // --- Protected routes: /dashboard, /api, and /ayden (patent pending) ---
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/api") || pathname.startsWith("/ayden")) {
     if (!user) {
-      // No session at all → FBI
-      return NextResponse.redirect(FBI_URL);
+      // No session at all → login
+      return NextResponse.redirect(new URL("/login", request.url));
     }
 
     if (!hasVerifiedTOTPFactor) {
-      // User exists but no TOTP factor enrolled/verified → FBI
-      // (This shouldn't happen in normal flow — Trey has TOTP set up)
+      // User exists but no TOTP factor enrolled/verified → login
       console.log("[middleware] BLOCKED: user has no verified TOTP factor");
-      return NextResponse.redirect(FBI_URL);
+      return NextResponse.redirect(new URL("/login", request.url));
     }
 
     if (!isFullyAuthenticated) {

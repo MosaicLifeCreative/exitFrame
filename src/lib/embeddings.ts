@@ -157,7 +157,7 @@ export async function retrieveRelevantContext(query: string): Promise<string> {
     all.sort((a, b) => b.similarity - a.similarity);
 
     let context = "";
-    let charBudget = MAX_CONTEXT_TOKENS * 4;
+    const charBudget = MAX_CONTEXT_TOKENS * 4;
 
     for (const item of all.slice(0, MAX_RESULTS)) {
       const line = `[${item.source}] ${item.content}`;

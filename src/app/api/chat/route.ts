@@ -21,6 +21,7 @@ import { dnaTools, executeDnaTool, getDnaPrompt } from "@/lib/dna-tools";
 import { backgroundTools, executeBackgroundTool } from "@/lib/background-tools";
 import { reminderTools, executeReminderTool } from "@/lib/reminder-tools";
 import { roadmapTools, handleRoadmapTool } from "@/lib/roadmap-tools";
+import { homeAssistantTools, executeHomeAssistantTool } from "@/lib/homeassistant-tools";
 import { getUserPreferencesContext } from "@/lib/userPreferences";
 import { applySomaticResponse } from "@/lib/somatic";
 import { getCrossDomainContext } from "@/lib/crossDomainContext";
@@ -370,6 +371,7 @@ const toolNameSets = {
   background: new Set(backgroundTools.map((t) => t.name)),
   reminder: new Set(reminderTools.map((t) => t.name)),
   roadmap: new Set(roadmapTools.map((t) => t.name)),
+  homeAssistant: new Set(homeAssistantTools.map((t) => t.name)),
 };
 
 async function dispatchTool(name: string, input: Record<string, unknown>): Promise<string> {
@@ -395,6 +397,7 @@ async function dispatchTool(name: string, input: Record<string, unknown>): Promi
   if (toolNameSets.background.has(name)) return executeBackgroundTool(name, input);
   if (toolNameSets.reminder.has(name)) return executeReminderTool(name, input);
   if (toolNameSets.roadmap.has(name)) return handleRoadmapTool(name, input);
+  if (toolNameSets.homeAssistant.has(name)) return executeHomeAssistantTool(name, input);
   return JSON.stringify({ error: `Unknown tool: ${name}` });
 }
 
@@ -404,7 +407,7 @@ function getToolsForPage(page?: string): Anthropic.Tool[] {
   // set_session_intent is agency-only — it writes to agency sessions, not chat
   const AGENCY_ONLY_TOOLS = new Set(["set_session_intent"]);
   const chatAgencyTools = agencyTools.filter((t) => !AGENCY_ONLY_TOOLS.has(t.name));
-  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...chatAgencyTools, ...architectureTools, ...dnaTools, ...backgroundTools, ...reminderTools, ...roadmapTools];
+  const shared = [...memoryTools, ...emotionTools, ...peopleTools, ...noteTools, ...hobbyTools, ...emailTools, ...googleTools, ...webTools, ...weatherTools, ...taskTools, ...travelTools, ...chatAgencyTools, ...architectureTools, ...dnaTools, ...backgroundTools, ...reminderTools, ...roadmapTools, ...homeAssistantTools];
 
   if (page === "Fitness") return [...fitnessTools, ...healthTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];
   if (page === "Health") return [...healthTools, ...fitnessTools, ...goalTools, ...investingTools, ...tradingTools, ...shared];

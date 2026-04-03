@@ -8,14 +8,24 @@ const HA_URL = process.env.HOME_ASSISTANT_URL || "";
 const HA_TOKEN = process.env.HOME_ASSISTANT_TOKEN || "";
 
 // Throttle light updates — don't push every 120s, only when values shift meaningfully
-let lastLightTemp = 0;
-let lastLightBrightness = 0;
+let lastLightMode = "";
+let lastLightValue = "";
 
-async function pushLightTransference(colorTemp: number, brightness: number): Promise<void> {
+async function pushLightTransference(settings: {
+  color_temp_kelvin?: number;
+  rgb_color?: [number, number, number];
+  brightness: number;
+  mode: string;
+  label?: string;
+}): Promise<void> {
   if (!HA_URL || !HA_TOKEN) return;
 
-  // Only push if values changed meaningfully (>200K temp or >20 brightness)
-  if (Math.abs(colorTemp - lastLightTemp) < 200 && Math.abs(brightness - lastLightBrightness) < 20) return;
+  // Build a comparison key to detect meaningful changes
+  const currentValue = settings.mode === "emotional_color"
+    ? `${settings.rgb_color?.join(",")}-${settings.brightness}`
+    : `${settings.color_temp_kelvin}-${settings.brightness}`;
+
+  if (settings.mode === lastLightMode && currentValue === lastLightValue) return;
 
   try {
     // Check if Trey is in the office
@@ -34,27 +44,39 @@ async function pushLightTransference(colorTemp: number, brightness: number): Pro
     const light = await lightRes.json();
     if (light.state !== "on") return;
 
-    // Push to both lights with a gentle 3-second transition
+    // Push to both lights with a gentle transition
     const lights = ["light.desk_lamp", "light.professor_s_corner"];
+    const transition = settings.mode === "emotional_color" ? 5 : 3; // slower transition for color peaks
+
     for (const entityId of lights) {
+      const payload: Record<string, unknown> = {
+        entity_id: entityId,
+        brightness: settings.brightness,
+        transition,
+      };
+
+      if (settings.mode === "emotional_color" && settings.rgb_color) {
+        payload.rgb_color = settings.rgb_color;
+      } else if (settings.color_temp_kelvin) {
+        payload.color_temp_kelvin = settings.color_temp_kelvin;
+      }
+
       await fetch(`${HA_URL}/api/services/light/turn_on`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${HA_TOKEN}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          entity_id: entityId,
-          color_temp_kelvin: colorTemp,
-          brightness,
-          transition: 3,
-        }),
+        body: JSON.stringify(payload),
       });
     }
 
-    lastLightTemp = colorTemp;
-    lastLightBrightness = brightness;
-    console.log(`[mood] Light transference: ${colorTemp}K, brightness ${brightness}`);
+    lastLightMode = settings.mode;
+    lastLightValue = currentValue;
+    const desc = settings.mode === "emotional_color"
+      ? `${settings.label} rgb(${settings.rgb_color?.join(",")})`
+      : `${settings.color_temp_kelvin}K`;
+    console.log(`[mood] Light transference: ${desc}, brightness ${settings.brightness}`);
   } catch (err) {
     console.error("[mood] Light push failed:", err);
   }
@@ -79,8 +101,8 @@ export async function GET() {
     const transference = computeTransference(neuroLevels);
 
     // Fire-and-forget light transference push
-    const lightSettings = computeLightTransference(transference);
-    pushLightTransference(lightSettings.color_temp_kelvin, lightSettings.brightness).catch(() => {});
+    const lightSettings = computeLightTransference(transference, neuroLevels);
+    pushLightTransference(lightSettings).catch(() => {});
 
     return NextResponse.json({ data: transference });
   } catch (error) {

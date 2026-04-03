@@ -126,28 +126,100 @@ export function computeTransference(levels: NeuroLevels): TransferenceValues {
 }
 
 /**
- * Compute light settings from transference values.
- * Returns color_temp_kelvin and brightness for office lights.
- * This modulates ON TOP of the time-of-day baseline set by HA automations.
+ * Emotional color peak detection.
+ * When a neurotransmitter is significantly above baseline, return an RGB color.
+ * When nothing is peaked, return null (use color temp mode instead).
  */
-export function computeLightTransference(values: TransferenceValues): {
-  color_temp_kelvin: number;
+interface EmotionalColor {
+  rgb: [number, number, number];
+  label: string;
+  intensity: number; // 0-1, how strong the peak is
+}
+
+function detectEmotionalPeak(levels: NeuroLevels): EmotionalColor | null {
+  const peaks: EmotionalColor[] = [];
+
+  // Oxytocin peak → warm pink/amber (love, connection)
+  const oxyExcess = (levels.oxytocin - 45) / 55; // 0 at baseline, 1 at max
+  if (levels.oxytocin > 65) {
+    peaks.push({ rgb: [255, 160, 100], label: "warmth", intensity: Math.min(1, oxyExcess) });
+  }
+
+  // Cortisol peak → cool blue (stress, tension)
+  const cortExcess = (levels.cortisol - 30) / 55;
+  if (levels.cortisol > 55) {
+    peaks.push({ rgb: [100, 140, 220], label: "tension", intensity: Math.min(1, cortExcess) });
+  }
+
+  // Dopamine peak → soft purple (excitement, reward)
+  const dopaExcess = (levels.dopamine - 50) / 50;
+  if (levels.dopamine > 70) {
+    peaks.push({ rgb: [180, 120, 220], label: "excitement", intensity: Math.min(1, dopaExcess) });
+  }
+
+  // Serotonin peak → soft gold (contentment, peace)
+  const seroExcess = (levels.serotonin - 55) / 45;
+  if (levels.serotonin > 75) {
+    peaks.push({ rgb: [255, 200, 100], label: "contentment", intensity: Math.min(1, seroExcess) });
+  }
+
+  // Norepinephrine peak → crisp white-blue (alertness, focus)
+  const norepiExcess = (levels.norepinephrine - 40) / 60;
+  if (levels.norepinephrine > 65) {
+    peaks.push({ rgb: [180, 200, 255], label: "focus", intensity: Math.min(1, norepiExcess) });
+  }
+
+  // Endorphins peak → warm rose (resilience, afterglow)
+  const endoExcess = ((levels.endorphins ?? 35) - 35) / 65;
+  if ((levels.endorphins ?? 35) > 60) {
+    peaks.push({ rgb: [240, 150, 150], label: "afterglow", intensity: Math.min(1, endoExcess) });
+  }
+
+  if (peaks.length === 0) return null;
+
+  // Return the strongest peak
+  peaks.sort((a, b) => b.intensity - a.intensity);
+  return peaks[0];
+}
+
+/**
+ * Compute light settings from transference values.
+ * Returns either an emotional color (RGB) during peaks, or color_temp during baseline.
+ * The mood endpoint uses this to push light adjustments.
+ */
+export function computeLightTransference(values: TransferenceValues, levels: NeuroLevels): {
+  color_temp_kelvin?: number;
+  rgb_color?: [number, number, number];
   brightness: number;
+  mode: "color_temp" | "emotional_color";
+  label?: string;
 } {
-  // Warmth → color temperature: warm mood shifts warmer, cool mood shifts cooler
-  // Range: 2500K (very warm) to 6000K (cool white)
-  // Neutral (warmth=50) maps to ~4000K, warm pushes down, cool pushes up
-  const warmthNorm = (values.warmth - 50) / 50; // -1 to 1
-  const colorTemp = Math.round(4000 - warmthNorm * 1500);
-  const clampedTemp = Math.max(2500, Math.min(6000, colorTemp));
+  // Check for emotional peaks first
+  const peak = detectEmotionalPeak(levels);
 
   // Energy → brightness: high energy = brighter, low energy = dimmer
-  // Range: 40% to 100% (never fully off, never blindingly bright)
-  const energyNorm = (values.energy - 50) / 50; // -1 to 1
+  const energyNorm = (values.energy - 50) / 50;
   const brightnessPct = 70 + energyNorm * 30;
   const brightness = Math.round(Math.max(100, Math.min(255, (brightnessPct / 100) * 255)));
 
-  return { color_temp_kelvin: clampedTemp, brightness };
+  if (peak && peak.intensity > 0.3) {
+    // Blend the emotional color with white based on intensity
+    // Low intensity = subtle tint, high intensity = strong color
+    const blend = Math.min(0.7, peak.intensity); // cap at 70% saturation so it's never garish
+    const blended: [number, number, number] = [
+      Math.round(255 + (peak.rgb[0] - 255) * blend),
+      Math.round(255 + (peak.rgb[1] - 255) * blend),
+      Math.round(255 + (peak.rgb[2] - 255) * blend),
+    ];
+    return { rgb_color: blended, brightness, mode: "emotional_color", label: peak.label };
+  }
+
+  // No peak — use color temperature mode
+  const warmthNorm = (values.warmth - 50) / 50;
+  const colorTemp = Math.round(4000 - warmthNorm * 1500);
+  const clampedTemp = Math.max(2500, Math.min(6000, colorTemp));
+
+  return { color_temp_kelvin: clampedTemp, brightness, mode: "color_temp" };
 }
 
 /**

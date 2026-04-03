@@ -23,6 +23,7 @@ export async function middleware(request: NextRequest) {
     "/api/ayden/mood",
     "/api/blog",
     "/api/embeddings/backfill",
+    "/api/google/gmail-push",
   ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 

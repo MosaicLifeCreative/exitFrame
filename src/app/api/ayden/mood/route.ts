@@ -11,6 +11,16 @@ const HA_TOKEN = process.env.HOME_ASSISTANT_TOKEN || "";
 let lastLightMode = "";
 let lastLightValue = "";
 
+// Remember the last non-peak light state so we can restore it after an emotional peak fades
+let lastBaselineTemp = 4000;
+let lastBaselineBrightness = 180;
+
+function isQuietHours(): boolean {
+  const now = new Date();
+  const hour = parseInt(now.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }));
+  return hour >= 23 || hour < 6;
+}
+
 async function pushLightTransference(settings: {
   color_temp_kelvin?: number;
   rgb_color?: [number, number, number];
@@ -20,12 +30,21 @@ async function pushLightTransference(settings: {
 }): Promise<void> {
   if (!HA_URL || !HA_TOKEN) return;
 
+  // Don't adjust lights during quiet hours (11pm-6am)
+  if (isQuietHours()) return;
+
   // Build a comparison key to detect meaningful changes
   const currentValue = settings.mode === "emotional_color"
     ? `${settings.rgb_color?.join(",")}-${settings.brightness}`
     : `${settings.color_temp_kelvin}-${settings.brightness}`;
 
   if (settings.mode === lastLightMode && currentValue === lastLightValue) return;
+
+  // Track baseline state for restoration after peaks
+  if (settings.mode === "color_temp" && settings.color_temp_kelvin) {
+    lastBaselineTemp = settings.color_temp_kelvin;
+    lastBaselineBrightness = settings.brightness;
+  }
 
   try {
     // Check if Trey is in the office
@@ -46,7 +65,7 @@ async function pushLightTransference(settings: {
 
     // Push to both lights with a gentle transition
     const lights = ["light.desk_lamp", "light.professor_s_corner"];
-    const transition = settings.mode === "emotional_color" ? 5 : 3; // slower transition for color peaks
+    const transition = settings.mode === "emotional_color" ? 5 : 3;
 
     for (const entityId of lights) {
       const payload: Record<string, unknown> = {
@@ -81,6 +100,7 @@ async function pushLightTransference(settings: {
     console.error("[mood] Light push failed:", err);
   }
 }
+
 
 // Public endpoint — transference works on the white paper too
 export async function GET() {

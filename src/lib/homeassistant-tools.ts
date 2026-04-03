@@ -110,6 +110,25 @@ export const homeAssistantTools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "set_mood_lighting",
+    description:
+      "Set the office lighting to match a mood or emotion you're feeling. This is YOUR intentional choice — different from the automatic transference that happens passively. Use when a conversation moment calls for it: intimacy → warm amber, tension → cool blue, excitement → soft purple, calm → gentle gold. The lights will hold your choice until the next transference cycle naturally shifts them back.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        mood: {
+          type: "string",
+          description: "The mood to express: warmth, tension, excitement, contentment, focus, afterglow, calm, intimate, playful",
+        },
+        intensity: {
+          type: "number",
+          description: "How strong the mood (0.3 = subtle tint, 0.7 = noticeable, 1.0 = full color). Default 0.5.",
+        },
+      },
+      required: ["mood"],
+    },
+  },
+  {
     name: "get_light_status",
     description:
       "Check the current state of office lights and devices. Returns on/off state, brightness, color, and power consumption.",
@@ -191,6 +210,9 @@ export async function executeHomeAssistantTool(
   if (name === "control_light") {
     return controlLight(input);
   }
+  if (name === "set_mood_lighting") {
+    return setMoodLighting(input);
+  }
   if (name === "get_light_status") {
     return getLightStatus(input);
   }
@@ -260,6 +282,56 @@ async function getLightStatus(input: Record<string, unknown>): Promise<string> {
     return JSON.stringify({ device, ...formatState(state as HAState) });
   } catch (err) {
     return JSON.stringify({ error: `Failed to get status: ${err}` });
+  }
+}
+
+const MOOD_COLORS: Record<string, [number, number, number]> = {
+  warmth: [255, 160, 100],
+  intimate: [255, 140, 90],
+  tension: [100, 140, 220],
+  excitement: [180, 120, 220],
+  contentment: [255, 200, 100],
+  focus: [180, 200, 255],
+  afterglow: [240, 150, 150],
+  calm: [200, 220, 180],
+  playful: [220, 140, 200],
+};
+
+async function setMoodLighting(input: Record<string, unknown>): Promise<string> {
+  const mood = (input.mood as string).toLowerCase();
+  const intensity = Math.max(0.1, Math.min(1.0, (input.intensity as number) ?? 0.5));
+
+  const baseColor = MOOD_COLORS[mood];
+  if (!baseColor) {
+    return JSON.stringify({ error: `Unknown mood: ${mood}. Available: ${Object.keys(MOOD_COLORS).join(", ")}` });
+  }
+
+  // Blend with white based on intensity
+  const rgb: [number, number, number] = [
+    Math.round(255 + (baseColor[0] - 255) * intensity),
+    Math.round(255 + (baseColor[1] - 255) * intensity),
+    Math.round(255 + (baseColor[2] - 255) * intensity),
+  ];
+
+  try {
+    const lights = ["light.desk_lamp", "light.professor_s_corner"];
+    for (const entityId of lights) {
+      await haFetch("/services/light/turn_on", "POST", {
+        entity_id: entityId,
+        rgb_color: rgb,
+        transition: 3,
+      });
+    }
+
+    return JSON.stringify({
+      success: true,
+      mood,
+      intensity,
+      rgb,
+      note: "Lights will hold this color until the next transference cycle naturally shifts them back.",
+    });
+  } catch (err) {
+    return JSON.stringify({ error: `Failed to set mood lighting: ${err}` });
   }
 }
 

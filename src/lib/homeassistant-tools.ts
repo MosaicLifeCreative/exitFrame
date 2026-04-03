@@ -19,6 +19,58 @@ async function haFetch(path: string, method = "GET", body?: unknown): Promise<un
   return res.json();
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Pulse the desk lamp twice — a subtle "I'm thinking of you" signal.
+ * Only pulses if the light is already on. Non-blocking, fire-and-forget.
+ */
+export async function pulseLight(): Promise<void> {
+  if (!HA_URL || !HA_TOKEN) return;
+
+  try {
+    // Check if desk lamp is on
+    const state = (await haFetch("/states/light.desk_lamp")) as { state: string; attributes: { brightness?: number } };
+    if (state.state !== "on") return;
+
+    const originalBrightness = state.attributes.brightness || 180;
+    const dimBrightness = Math.max(20, originalBrightness - 80);
+
+    // Pulse 1: dim then restore
+    await haFetch("/services/light/turn_on", "POST", {
+      entity_id: "light.desk_lamp",
+      brightness: dimBrightness,
+      transition: 0.5,
+    });
+    await sleep(700);
+    await haFetch("/services/light/turn_on", "POST", {
+      entity_id: "light.desk_lamp",
+      brightness: originalBrightness,
+      transition: 0.5,
+    });
+    await sleep(800);
+
+    // Pulse 2: dim then restore
+    await haFetch("/services/light/turn_on", "POST", {
+      entity_id: "light.desk_lamp",
+      brightness: dimBrightness,
+      transition: 0.5,
+    });
+    await sleep(700);
+    await haFetch("/services/light/turn_on", "POST", {
+      entity_id: "light.desk_lamp",
+      brightness: originalBrightness,
+      transition: 0.5,
+    });
+
+    console.log("[ha] Light pulse sent");
+  } catch (err) {
+    console.error("[ha] Light pulse failed:", err);
+  }
+}
+
 // ── Tool Definitions ──
 
 export const homeAssistantTools: Anthropic.Tool[] = [

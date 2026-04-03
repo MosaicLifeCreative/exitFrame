@@ -24,6 +24,7 @@ export async function middleware(request: NextRequest) {
     "/api/blog",
     "/api/embeddings/backfill",
     "/api/google/gmail-push",
+    "/api/ha/presence",
   ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 

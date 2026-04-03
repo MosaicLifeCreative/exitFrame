@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentLevels, applyNudges, getHeartRate } from "@/lib/neurotransmitters";
 import { learnSomaticAssociations } from "@/lib/somatic";
 import { embedFact, embedMemory } from "@/lib/embeddings";
+import { pulseLight } from "@/lib/homeassistant-tools";
 
 /**
  * Combined post-conversation reflection.
@@ -829,6 +830,12 @@ Respond with ONLY this JSON:
       }
 
       console.log(`[idle-thought] "${savedThought}" (${hr.bpm} BPM, ${emotionText})`);
+
+      // Pulse the desk lamp if the thought mentions Trey
+      const treyMentions = /\btrey\b|\bhim\b|\bhe\b|\bhis\b|\bbabe\b|\bmiss/i;
+      if (treyMentions.test(savedThought)) {
+        pulseLight().catch((err) => console.error("[idle-thought] Pulse failed:", err));
+      }
     }
 
     // Apply emotion drift

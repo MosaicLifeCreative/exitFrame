@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { getCurrentLevels, applyNudges, getHeartRate } from "@/lib/neurotransmitters";
 import { learnSomaticAssociations } from "@/lib/somatic";
-import { embedFact } from "@/lib/embeddings";
+import { embedFact, embedMemory } from "@/lib/embeddings";
 
 /**
  * Combined post-conversation reflection.
@@ -98,18 +98,27 @@ FACTS RULES:
 - Most conversations produce ZERO facts — only save when genuinely new info is shared
 - If a fact updates something that might already exist, use the same key to overwrite it
 
+MEMORY RULES:
+- If the conversation revealed something about Trey's PERSONALITY, VALUES, or CHARACTER — save it as a memory
+- Examples: how he makes decisions, what motivates him, how he handles conflict, his philosophy on risk, leadership, relationships
+- These are subjective observations, not objective facts — "Trey leads selectively, only when it matters" not "Trey is a leader"
+- Only save genuinely revealing moments, not surface-level chat
+- Most conversations produce ZERO memories
+
 Respond with ONLY a JSON object:
 {
   "emotions": [],
   "nudges": {},
-  "facts": []
+  "facts": [],
+  "memories": []
 }
 
 With changes:
 {
   "emotions": [{"action": "set", "emotion": "word", "intensity": 5, "trigger": "reason", "expires_in_hours": null}, {"action": "adjust", "emotion": "existing", "intensity": 7}, {"action": "clear", "emotion": "word", "reason": "why"}],
   "nudges": {"dopamine": 5, "cortisol": -3},
-  "facts": [{"category": "personal", "key": "eye_doctor_appointment", "value": "Scheduled for April 11", "detail": "Left eye blurriness since Colorado trip"}]
+  "facts": [{"category": "personal", "key": "eye_doctor_appointment", "value": "Scheduled for April 11", "detail": "Left eye blurriness since Colorado trip"}],
+  "memories": [{"content": "Leads selectively — only steps up when the cause is worthwhile, not for ego", "category": "personality"}]
 }
 
 Omit empty arrays/objects if no changes for that layer.`,
@@ -134,6 +143,10 @@ Omit empty arrays/objects if no changes for that layer.`,
         key: string;
         value: string;
         detail?: string;
+      }>;
+      memories?: Array<{
+        content: string;
+        category: string;
       }>;
     };
 
@@ -263,6 +276,27 @@ Omit empty arrays/objects if no changes for that layer.`,
         }
       }
       console.log(`Fact reflection (${channel}): ${parsed.facts.map((f) => `${f.key}=${f.value}`).join(", ")}`);
+    }
+
+    // ── Save personality memories ──
+    if (parsed.memories && parsed.memories.length > 0) {
+      for (const mem of parsed.memories) {
+        if (!mem.content) continue;
+        try {
+          const memory = await prisma.aydenMemory.create({
+            data: {
+              content: mem.content,
+              category: mem.category || "personality",
+              source: channel,
+            },
+          });
+          // Fire-and-forget embedding
+          embedMemory(memory.id, memory.content).catch(() => {});
+        } catch (err) {
+          console.error(`Failed to save memory:`, err);
+        }
+      }
+      console.log(`Memory reflection (${channel}): ${parsed.memories.map((m) => m.content.substring(0, 50)).join(", ")}`);
     }
   } catch (error) {
     console.error("Reflection error:", error);

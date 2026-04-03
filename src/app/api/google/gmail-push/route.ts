@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkAydenInbox } from "@/lib/ayden-email";
 import { checkShouldMessage } from "@/lib/unprompted";
+import { redis } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+const LOCK_KEY = "gmail-push:processing";
+const LOCK_TTL = 30; // seconds
 
 /**
  * Gmail Pub/Sub push webhook.
@@ -34,6 +38,13 @@ export async function POST(request: NextRequest) {
     if (decoded.emailAddress && !aydenAddresses.includes(decoded.emailAddress.toLowerCase())) {
       console.log(`[gmail-push] Ignoring notification for ${decoded.emailAddress}`);
       return NextResponse.json({ data: { skipped: true } });
+    }
+
+    // Prevent concurrent processing from multiple Pub/Sub notifications
+    const acquired = await redis.set(LOCK_KEY, "1", { ex: LOCK_TTL, nx: true });
+    if (!acquired) {
+      console.log("[gmail-push] Already processing, skipping duplicate notification");
+      return NextResponse.json({ data: { skipped: true, reason: "lock" } });
     }
 
     // Run the same inbox check pipeline as the old cron

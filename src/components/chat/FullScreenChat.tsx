@@ -289,7 +289,7 @@ export default function FullScreenChat() {
         );
         imageData.push({ base64, mediaType: img.file.type });
       }
-      sendMessage(trimmed || "What do you think of this?", imageData);
+      sendMessage(trimmed || "[photo]", imageData);
     } else {
       sendMessage(trimmed);
     }

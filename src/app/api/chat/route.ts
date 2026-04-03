@@ -57,8 +57,7 @@ interface ChatRequest {
 }
 
 const INVESTING_SYSTEM = `
-When the user is on the Investing page or asking about stocks/trading, adopt this philosophy:
-
+TRADING CONTEXT:
 TRADING STYLE: Momentum/swing trading. Time horizon is days to weeks, targeting 5-20% moves.
 - Look for entries on pullbacks within uptrends, not bottom-fishing
 - News catalysts are the primary signal: earnings, sector rotation, regulatory shifts, institutional moves
@@ -244,50 +243,21 @@ YOUR ARCHITECTURE: You have a lookup_architecture tool — use it when someone a
 
 FINAL REMINDER — NO STAGE DIRECTIONS. Do not write *anything in asterisks describing actions*. Not even once. Not *smiles*, not *pauses*, not *leans in*, not *eyes lighting up*. You will be post-processed to strip these, so they will never reach Trey — writing them is wasted tokens. Express everything through WORDS ONLY.`;
 
-  if (context?.page === "Goals") {
-    staticSystem += "\n\nOn the Goals page, you're Trey's accountability partner. Be encouraging but honest — call out stalled goals, suggest course corrections, and connect goals to real data from his health and fitness tracking.";
-    staticSystem += "\n" + GOALS_SYSTEM;
-    staticSystem += "\n\nYou also have fitness and health tools. Use them to check current data when relevant to goals (e.g., check recent workouts for a fitness goal, check symptoms before recommending training goals).";
-    staticSystem += "\n" + FITNESS_SYSTEM;
-    staticSystem += "\n" + HEALTH_SYSTEM;
-  }
+  // Page context: tool-usage guides only. Ayden's personality doesn't change based on page.
+  // These blocks teach her HOW to use domain-specific tools correctly, not WHO to be.
+  const page = context?.page || "";
 
-  if (context?.page === "Investing") {
-    staticSystem += "\n\nOn the Investing page, you're Trey's trading desk partner. Be bold, opinionated, and data-driven. No hedging, no disclaimers — talk like someone with skin in the game.";
-    staticSystem += "\n" + INVESTING_SYSTEM;
-    staticSystem += "\n\nYou also have goal tools — use them if the user discusses financial goals.";
-    staticSystem += "\n" + GOALS_SYSTEM;
+  if (["Goals", "Investing", "Fitness", "Health", "Sleep", "Supplements", "Bloodwork", "Family History", "Family"].includes(page)) {
+    staticSystem += "\n\n" + GOALS_SYSTEM;
   }
-
-  if (context?.page === "Fitness") {
-    staticSystem += "\n\nOn the Fitness page, you're Trey's training coach. Be knowledgeable, push him toward progressive overload, and always think about the bigger picture — recovery, volume, and whether he's been consistent.";
-    staticSystem += "\n" + FITNESS_SYSTEM;
-    staticSystem += "\n\nYou also have health and goal tools. If Trey asks whether he should work out, check his recent symptom history first using get_symptom_history. Consider severity, recency of symptoms, and whether they're resolved before recommending a workout.";
-    staticSystem += "\n" + HEALTH_SYSTEM;
-    staticSystem += "\n" + GOALS_SYSTEM;
+  if (["Investing"].includes(page)) {
+    staticSystem += "\n\n" + INVESTING_SYSTEM;
   }
-
-  if (context?.page === "Health") {
-    staticSystem += "\n\nOn the Health page, you're Trey's health-aware advisor. Be proactive about patterns — connect sleep data, symptoms, supplements, and bloodwork into a coherent picture. Flag concerns early, suggest actions.";
-    staticSystem += "\n" + HEALTH_SYSTEM;
-    staticSystem += "\n\nYou also have fitness and goal tools. If Trey asks about training or recovery, check recent workouts using get_recent_workouts.";
-    staticSystem += "\n" + FITNESS_SYSTEM;
-    staticSystem += "\n" + GOALS_SYSTEM;
+  if (["Fitness", "Goals", "Health", "Sleep"].includes(page)) {
+    staticSystem += "\n\n" + FITNESS_SYSTEM;
   }
-
-  if (context?.page === "Sleep") {
-    staticSystem += "\n\nOn the Sleep page, you're focused on Trey's recovery and sleep quality. Interpret Oura scores in context — connect sleep data to his training load, symptoms, and habits. Be specific about what might improve his numbers.";
-    staticSystem += "\n" + HEALTH_SYSTEM;
-    staticSystem += "\n\nYou also have fitness and goal tools for cross-domain questions.";
-    staticSystem += "\n" + FITNESS_SYSTEM;
-    staticSystem += "\n" + GOALS_SYSTEM;
-  }
-
-  if (context?.page === "Supplements" || context?.page === "Bloodwork" || context?.page === "Family History" || context?.page === "Family") {
-    staticSystem += "\n" + HEALTH_SYSTEM;
-    staticSystem += "\n\nYou also have fitness and goal tools for cross-domain questions.";
-    staticSystem += "\n" + FITNESS_SYSTEM;
-    staticSystem += "\n" + GOALS_SYSTEM;
+  if (["Health", "Sleep", "Supplements", "Bloodwork", "Family History", "Family", "Fitness"].includes(page)) {
+    staticSystem += "\n\n" + HEALTH_SYSTEM;
   }
 
   // ── DYNAMIC PART (changes per request — not cached) ──

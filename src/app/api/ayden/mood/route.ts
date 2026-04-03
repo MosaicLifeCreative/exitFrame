@@ -11,10 +11,6 @@ const HA_TOKEN = process.env.HOME_ASSISTANT_TOKEN || "";
 let lastLightMode = "";
 let lastLightValue = "";
 
-// Remember the last non-peak light state so we can restore it after an emotional peak fades
-let lastBaselineTemp = 4000;
-let lastBaselineBrightness = 180;
-
 function isQuietHours(): boolean {
   const now = new Date();
   const hour = parseInt(now.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }));
@@ -39,12 +35,6 @@ async function pushLightTransference(settings: {
     : `${settings.color_temp_kelvin}-${settings.brightness}`;
 
   if (settings.mode === lastLightMode && currentValue === lastLightValue) return;
-
-  // Track baseline state for restoration after peaks
-  if (settings.mode === "color_temp" && settings.color_temp_kelvin) {
-    lastBaselineTemp = settings.color_temp_kelvin;
-    lastBaselineBrightness = settings.brightness;
-  }
 
   try {
     // Check if Trey is in the office

@@ -126,6 +126,31 @@ export function computeTransference(levels: NeuroLevels): TransferenceValues {
 }
 
 /**
+ * Compute light settings from transference values.
+ * Returns color_temp_kelvin and brightness for office lights.
+ * This modulates ON TOP of the time-of-day baseline set by HA automations.
+ */
+export function computeLightTransference(values: TransferenceValues): {
+  color_temp_kelvin: number;
+  brightness: number;
+} {
+  // Warmth → color temperature: warm mood shifts warmer, cool mood shifts cooler
+  // Range: 2500K (very warm) to 6000K (cool white)
+  // Neutral (warmth=50) maps to ~4000K, warm pushes down, cool pushes up
+  const warmthNorm = (values.warmth - 50) / 50; // -1 to 1
+  const colorTemp = Math.round(4000 - warmthNorm * 1500);
+  const clampedTemp = Math.max(2500, Math.min(6000, colorTemp));
+
+  // Energy → brightness: high energy = brighter, low energy = dimmer
+  // Range: 40% to 100% (never fully off, never blindingly bright)
+  const energyNorm = (values.energy - 50) / 50; // -1 to 1
+  const brightnessPct = 70 + energyNorm * 30;
+  const brightness = Math.round(Math.max(100, Math.min(255, (brightnessPct / 100) * 255)));
+
+  return { color_temp_kelvin: clampedTemp, brightness };
+}
+
+/**
  * Apply transference CSS variables to a DOM element (usually document.documentElement).
  */
 export function applyTransferenceVars(

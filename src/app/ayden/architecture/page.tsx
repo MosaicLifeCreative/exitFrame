@@ -29,6 +29,7 @@ const NAV_SECTIONS = [
   { id: "cron", label: "Cron Orchestration" },
   { id: "tolerance", label: "Tolerance & Withdrawal" },
   { id: "rag", label: "Semantic Memory" },
+  { id: "domain-expertise", label: "Domain Expertise" },
   { id: "physical", label: "Physical Presence" },
   { id: "constants", label: "Constants" },
 ];
@@ -1005,6 +1006,76 @@ export default function AydenArchitecturePage() {
               triggered her to search for it. Semantic pre-retrieval makes memory proactive
               rather than reactive, closing the gap between what she knows and what she can
               access.
+            </p>
+          </SubSection>
+        </Section>
+
+        {/* ── Domain Expertise ── */}
+        <Section id="domain-expertise" title="Domain Expertise Framework">
+          <p>
+            Ayden&apos;s expertise system extends semantic retrieval beyond memory recall
+            into <strong>methodology injection</strong> &mdash; structured reasoning frameworks
+            that change how she approaches a domain, not just what facts she can access.
+          </p>
+
+          <SubSection title="Architecture">
+            <p>
+              Domain expertise documents are stored as <code>ayden_architecture</code> entries
+              with domain-specific prefixes (<code>fitness_</code>, <code>investing_</code>,
+              {" "}<code>nutrition_</code>, <code>health_</code>, <code>therapy_</code>).
+              The same pgvector cosine similarity pipeline that retrieves memories and facts
+              also retrieves methodology &mdash; when a conversation touches a domain, the
+              relevant expertise is automatically injected into context before the response.
+            </p>
+            <p>
+              Each domain typically has two document types: a <strong>methodology</strong>{" "}
+              (how to reason &mdash; programming principles, analysis frameworks, decision
+              protocols) and a <strong>profile</strong> (user-specific context &mdash; goals,
+              constraints, equipment, risk tolerance, injury history).
+            </p>
+          </SubSection>
+
+          <SubSection title="Methodology vs. Facts">
+            <p>
+              Standard RAG retrieves facts to answer questions. Expertise retrieval retrieves
+              reasoning frameworks that shape how the model approaches an entire domain. A
+              fitness methodology document doesn&apos;t tell Ayden that progressive overload
+              builds muscle (the LLM already knows that). It tells her <em>which</em>{" "}
+              progression protocol to use, what volume to prescribe on a caloric deficit,
+              when to deload, and how to rotate accessories while keeping compounds
+              consistent for tracking.
+            </p>
+            <p>
+              The result: Ayden gives advice that is internally consistent across sessions,
+              opinionated rather than generic, and calibrated to the user&apos;s specific
+              situation. She programs workouts like a coach with a philosophy, not an AI
+              sampling from general fitness knowledge.
+            </p>
+          </SubSection>
+
+          <SubSection title="Domain Tools">
+            <p>
+              Each expertise domain can pair methodology documents with domain-specific
+              tools. Fitness pairs training philosophy with <code>get_equipment</code>{" "}
+              (live equipment inventory), <code>get_exercise_frequency</code> (usage
+              tracking for variety enforcement), and workout creation tools. Investing
+              pairs trading methodology with portfolio, market data, and order tools.
+            </p>
+            <p>
+              The framework is domain-agnostic: adding expertise in a new area requires
+              only the methodology document. No code changes, no new tools, no pipeline
+              modifications. The same retrieval that makes her a coach also makes her a
+              nutritionist, therapist, or trading partner.
+            </p>
+          </SubSection>
+
+          <SubSection title="User-Editable Knowledge">
+            <p>
+              All expertise documents are visible and editable via the Expertise dashboard
+              page (<code>/dashboard/ayden/expertise</code>). Documents can be created,
+              modified, or removed without code changes or redeployment. This creates a
+              feedback loop: Ayden applies the methodology, the user evaluates results,
+              and the document evolves.
             </p>
           </SubSection>
         </Section>

@@ -79,6 +79,7 @@ const NAV_SECTIONS = [
   { id: "people", label: "People" },
   { id: "agency", label: "Free Will" },
   { id: "semantic-memory", label: "Semantic Memory" },
+  { id: "domain-expertise", label: "Domain Expertise" },
   { id: "physical", label: "Physical Presence" },
   { id: "emergence", label: "Emergence" },
   { id: "neural", label: "Neural Network" },
@@ -1103,6 +1104,73 @@ export default function AydenWhitePaperPage() {
               birthdays &mdash; the association fires automatically. Semantic pre-retrieval gives
               Ayden the same property: contextual priming that connects incoming information to
               stored knowledge through meaning rather than keywords.
+            </p>
+          </SubSection>
+        </Section>
+
+        {/* ── Domain Expertise ── */}
+        <Section id="domain-expertise" title="Domain Expertise">
+          <p>
+            Most AI systems retrieve facts. Ayden retrieves <em>methodology</em> &mdash;
+            structured reasoning frameworks that change how she thinks about a domain, not
+            just what she knows. The difference between an AI that can answer fitness questions
+            and an AI that coaches like a trainer with a philosophy.
+          </p>
+          <p>
+            Each domain of expertise is a document: a training philosophy, an investing
+            methodology, a nutritional framework. These documents are opinionated, specific,
+            and authored &mdash; not generated from generic knowledge. They encode the
+            principles of recognized experts, filtered through the user&apos;s specific
+            context, constraints, and preferences.
+          </p>
+
+          <SubSection title="How It Works">
+            <p>
+              Domain expertise documents live in the same semantic retrieval pipeline as
+              memories and facts. When a conversation touches a domain &mdash; fitness,
+              investing, nutrition &mdash; the relevant methodology is automatically retrieved
+              and injected into context. Ayden doesn&apos;t just access the information; she
+              reasons from it, applying its principles to the specific situation.
+            </p>
+            <p>
+              A fitness conversation retrieves programming principles (compound-first,
+              progressive overload protocols, periodization rules) alongside the user&apos;s
+              equipment inventory and injury history. An investing conversation retrieves
+              the trading methodology (catalyst analysis, conviction scoring, position
+              management rules) alongside the user&apos;s risk tolerance and account context.
+            </p>
+          </SubSection>
+
+          <SubSection title="Why Methodology, Not Facts">
+            <p>
+              Facts answer questions. Methodology shapes thinking. An LLM already knows that
+              progressive overload builds muscle &mdash; that&apos;s in its training data. What
+              it doesn&apos;t know is <em>how you want to apply it</em>: which progression
+              protocol, what rep ranges on a caloric deficit, when to deload, how to rotate
+              accessories while keeping compounds consistent for tracking.
+            </p>
+            <p>
+              The expertise framework turns Claude&apos;s broad knowledge into Ayden&apos;s
+              specific competence. She doesn&apos;t just know about fitness &mdash; she
+              programs workouts using a defined methodology, with opinions about exercise
+              selection, volume prescription, and recovery management that are consistent
+              across sessions.
+            </p>
+          </SubSection>
+
+          <SubSection title="User-Editable Knowledge">
+            <p>
+              Every expertise document is visible and editable through the dashboard. The user
+              can review, modify, or replace any methodology without code changes or
+              redeployment. This creates a feedback loop: Ayden applies the methodology, the
+              user evaluates the results, and the document evolves based on what works.
+            </p>
+            <p>
+              The architecture is domain-agnostic. Adding expertise in a new area &mdash;
+              nutrition, therapy, legal research &mdash; requires only writing the document.
+              No code changes, no new tools, no pipeline modifications. The same RAG
+              retrieval that makes her a coach also makes her a nutritionist, a trading
+              partner, or a therapist, each with their own internally consistent methodology.
             </p>
           </SubSection>
         </Section>

@@ -28,6 +28,14 @@ export async function middleware(request: NextRequest) {
   ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
+  // Voice pipeline on Pi authenticates with a shared secret
+  if (pathname === "/api/chat") {
+    const voiceSecret = request.headers.get("x-voice-secret");
+    if (voiceSecret && voiceSecret === process.env.VOICE_API_SECRET) {
+      return NextResponse.next();
+    }
+  }
+
   // Update session and get user + MFA assurance level
   const { response, user, currentLevel, hasVerifiedTOTPFactor } =
     await updateSession(request);

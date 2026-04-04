@@ -14,7 +14,7 @@ let lastLightValue = "";
 function isQuietHours(): boolean {
   const now = new Date();
   const hour = parseInt(now.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }));
-  return hour >= 23 || hour < 6;
+  return hour >= 22 || hour < 6;
 }
 
 async function pushLightTransference(settings: {

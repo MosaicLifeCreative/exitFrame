@@ -40,6 +40,7 @@ import {
   Users2,
   Settings,
   BookOpen,
+  GraduationCap,
   ScrollText,
   Plane,
   Guitar,
@@ -130,6 +131,7 @@ const navSections: NavSection[] = [
     title: "System",
     items: [
       { label: "Ayden's Journal", href: "/dashboard/ayden/journal", icon: BookOpen },
+      { label: "Expertise", href: "/dashboard/ayden/expertise", icon: GraduationCap },
       { label: "White Paper", href: "/ayden", icon: ScrollText },
       { label: "Roadmap", href: "/dashboard/roadmap", icon: Map },
       { label: "System Health", href: "/dashboard/system-health", icon: Activity },

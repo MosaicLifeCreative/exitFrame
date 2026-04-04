@@ -97,7 +97,7 @@ interface WorkoutTemplate {
 
 // ─── Tab type ───────────────────────────────────────────
 
-type Tab = "log" | "history" | "exercises" | "templates" | "cardio";
+type Tab = "log" | "history" | "exercises" | "templates" | "cardio" | "equipment";
 
 // ─── Muscle group display ───────────────────────────────
 
@@ -316,6 +316,7 @@ export default function FitnessPage() {
     { id: "exercises", label: "Exercises", icon: Library },
     { id: "templates", label: "Templates", icon: LayoutTemplate },
     { id: "cardio", label: "Cardio", icon: Waves },
+    { id: "equipment", label: "Equipment", icon: Dumbbell },
   ];
 
   if (loading) {
@@ -456,6 +457,7 @@ export default function FitnessPage() {
         />
       )}
       {activeTab === "cardio" && <CardioTab />}
+      {activeTab === "equipment" && <EquipmentTab />}
     </div>
   );
 }
@@ -2532,5 +2534,226 @@ function CardioForm({
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Equipment Tab ─────────────────────────────────────
+
+interface EquipmentItem {
+  id: string;
+  name: string;
+  category: string;
+  details: string | null;
+  isActive: boolean;
+}
+
+const equipmentCategories: Record<string, string> = {
+  free_weights: "Free Weights",
+  machines: "Machines",
+  cardio: "Cardio",
+  accessories: "Accessories",
+  bodyweight: "Bodyweight",
+};
+
+function EquipmentTab() {
+  const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("free_weights");
+  const [details, setDetails] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const fetchEquipment = useCallback(async () => {
+    try {
+      const res = await fetch("/api/fitness/equipment");
+      const json = await res.json();
+      if (json.data) setEquipment(json.data);
+    } catch {
+      toast.error("Failed to load equipment");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEquipment();
+  }, [fetchEquipment]);
+
+  const resetForm = () => {
+    setName("");
+    setCategory("free_weights");
+    setDetails("");
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const startEdit = (item: EquipmentItem) => {
+    setName(item.name);
+    setCategory(item.category);
+    setDetails(item.details || "");
+    setEditingId(item.id);
+    setShowForm(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+
+    try {
+      const method = editingId ? "PUT" : "POST";
+      const body = editingId
+        ? { id: editingId, name: name.trim(), category, details: details.trim() || null }
+        : { name: name.trim(), category, details: details.trim() || null };
+
+      const res = await fetch("/api/fitness/equipment", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) throw new Error();
+      toast.success(editingId ? "Equipment updated" : "Equipment added");
+      resetForm();
+      fetchEquipment();
+    } catch {
+      toast.error("Failed to save equipment");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/fitness/equipment?id=${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Equipment removed");
+      fetchEquipment();
+    } catch {
+      toast.error("Failed to delete equipment");
+    }
+  };
+
+  // Group by category
+  const grouped = equipment.reduce<Record<string, EquipmentItem[]>>((acc, item) => {
+    if (!acc[item.category]) acc[item.category] = [];
+    acc[item.category].push(item);
+    return acc;
+  }, {});
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {equipment.length} piece{equipment.length !== 1 ? "s" : ""} of equipment
+        </p>
+        <Button size="sm" variant={showForm ? "outline" : "default"} onClick={() => showForm ? resetForm() : setShowForm(true)}>
+          {showForm ? <X className="h-4 w-4 mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+          {showForm ? "Cancel" : "Add Equipment"}
+        </Button>
+      </div>
+
+      {showForm && (
+        <Card>
+          <CardContent className="pt-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Name</label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g., Adjustable Dumbbells"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Category</label>
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(equipmentCategories).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Details (optional)</label>
+                <Input
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
+                  placeholder="e.g., 5-52.5 lbs each, Bowflex SelectTech"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={resetForm}>Cancel</Button>
+                <Button type="submit" size="sm" disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? "Update" : "Add"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {equipment.length === 0 && !showForm ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            <Dumbbell className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>No equipment added yet</p>
+            <p className="text-xs mt-1">Add your home gym equipment so Ayden can program workouts around what you have.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        Object.entries(grouped).map(([cat, items]) => (
+          <Card key={cat}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                {equipmentCategories[cat] || cat}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between py-2 border-b last:border-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm">{item.name}</p>
+                      {item.details && (
+                        <p className="text-xs text-muted-foreground truncate">{item.details}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 ml-2 shrink-0">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(item)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => handleDelete(item.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
+    </div>
   );
 }

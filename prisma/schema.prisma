@@ -774,6 +774,24 @@ model ExerciseSet {
 
 
 // ============================================
+// FITNESS — EQUIPMENT
+// ============================================
+
+// Home gym equipment inventory
+model Equipment {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   // "Adjustable Dumbbells", "Barbell", etc.
+  category  String   // "free_weights", "machines", "cardio", "accessories", "bodyweight"
+  details   String?  @db.Text // weight range, brand, notes (e.g., "5-52.5 lbs each")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("equipment")
+}
+
+
+// ============================================
 // FITNESS — CARDIO
 // ============================================
 

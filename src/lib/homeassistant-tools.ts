@@ -23,19 +23,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isQuietHours(): boolean {
-  const now = new Date();
-  const hour = parseInt(now.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }));
-  return hour >= 22 || hour < 6;
-}
-
 /**
  * Pulse the desk lamp twice — a subtle "I'm thinking of you" signal.
- * Only pulses if the light is already on AND not during quiet hours.
+ * Only pulses if the light is already on.
  */
 export async function pulseLight(): Promise<void> {
   if (!HA_URL || !HA_TOKEN) return;
-  if (isQuietHours()) return;
 
   try {
     // Check if desk lamp is on — strict check, don't pulse if off

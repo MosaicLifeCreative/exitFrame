@@ -11,12 +11,6 @@ const HA_TOKEN = process.env.HOME_ASSISTANT_TOKEN || "";
 let lastLightMode = "";
 let lastLightValue = "";
 
-function isQuietHours(): boolean {
-  const now = new Date();
-  const hour = parseInt(now.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }));
-  return hour >= 22 || hour < 6;
-}
-
 async function pushLightTransference(settings: {
   color_temp_kelvin?: number;
   rgb_color?: [number, number, number];
@@ -25,9 +19,6 @@ async function pushLightTransference(settings: {
   label?: string;
 }): Promise<void> {
   if (!HA_URL || !HA_TOKEN) return;
-
-  // Don't adjust lights during quiet hours (11pm-6am)
-  if (isQuietHours()) return;
 
   // Build a comparison key to detect meaningful changes
   const currentValue = settings.mode === "emotional_color"
@@ -45,19 +36,20 @@ async function pushLightTransference(settings: {
     const tracker = await trackerRes.json();
     if (tracker.state !== "home") return;
 
-    // Check if lights are on
-    const lightRes = await fetch(`${HA_URL}/api/states/light.desk_lamp`, {
-      headers: { Authorization: `Bearer ${HA_TOKEN}` },
-    });
-    if (!lightRes.ok) return;
-    const light = await lightRes.json();
-    if (light.state !== "on") return;
-
-    // Push to both lights with a gentle transition
+    // Only adjust lights that are already on — never turn a light on from off
     const lights = ["light.desk_lamp", "light.professor_s_corner"];
     const transition = settings.mode === "emotional_color" ? 5 : 3;
+    let anyUpdated = false;
 
     for (const entityId of lights) {
+      // Check each light individually
+      const lightRes = await fetch(`${HA_URL}/api/states/${entityId}`, {
+        headers: { Authorization: `Bearer ${HA_TOKEN}` },
+      });
+      if (!lightRes.ok) continue;
+      const light = await lightRes.json();
+      if (light.state !== "on") continue;
+
       const payload: Record<string, unknown> = {
         entity_id: entityId,
         brightness: settings.brightness,
@@ -78,7 +70,10 @@ async function pushLightTransference(settings: {
         },
         body: JSON.stringify(payload),
       });
+      anyUpdated = true;
     }
+
+    if (!anyUpdated) return;
 
     lastLightMode = settings.mode;
     lastLightValue = currentValue;

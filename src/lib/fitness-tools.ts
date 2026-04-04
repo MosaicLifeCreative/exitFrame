@@ -278,6 +278,31 @@ export const fitnessTools: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: "get_equipment",
+    description:
+      "Get Trey's home gym equipment inventory. Use this BEFORE programming any workout to know what equipment is available and what weights are loadable. Returns equipment list with details (weight ranges, plate inventory).",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "get_exercise_frequency",
+    description:
+      "Get how often each exercise has been programmed in the last 30 days. Use this to ensure variety — don't repeat the same accessory exercises in back-to-back sessions. Returns exercise name and session count.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        days: {
+          type: "number",
+          description: "Number of days to look back (default 30)",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ─── Tool Execution ─────────────────────────────────────
@@ -361,6 +386,10 @@ export async function executeFitnessTool(
       return createSwimWorkout(toolInput as unknown as CreateSwimWorkoutInput);
     case "list_swim_workouts":
       return listSwimWorkouts(toolInput as unknown as ListSwimWorkoutsInput);
+    case "get_equipment":
+      return getEquipment();
+    case "get_exercise_frequency":
+      return getExerciseFrequency(toolInput as unknown as { days?: number });
     default:
       return JSON.stringify({ error: `Unknown tool: ${toolName}` });
   }
@@ -712,4 +741,67 @@ async function listSwimWorkouts(input: ListSwimWorkoutsInput): Promise<string> {
   }));
 
   return JSON.stringify({ workouts: result, count: result.length });
+}
+
+async function getEquipment(): Promise<string> {
+  const equipment = await prisma.equipment.findMany({
+    where: { isActive: true },
+    orderBy: [{ category: "asc" }, { name: "asc" }],
+  });
+
+  if (equipment.length === 0) {
+    return JSON.stringify({ error: "No equipment found. Ask Trey what equipment he has." });
+  }
+
+  const grouped: Record<string, Array<{ name: string; details: string | null }>> = {};
+  for (const item of equipment) {
+    if (!grouped[item.category]) grouped[item.category] = [];
+    grouped[item.category].push({ name: item.name, details: item.details });
+  }
+
+  return JSON.stringify({ equipment: grouped });
+}
+
+async function getExerciseFrequency(input: { days?: number }): Promise<string> {
+  const days = input.days || 30;
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const sessions = await prisma.workoutSession.findMany({
+    where: { performedAt: { gte: since } },
+    select: {
+      performedAt: true,
+      exercises: {
+        select: {
+          exercise: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  const frequency: Record<string, { count: number; lastUsed: string }> = {};
+  for (const session of sessions) {
+    for (const ex of session.exercises) {
+      const name = ex.exercise.name;
+      if (!frequency[name]) {
+        frequency[name] = { count: 0, lastUsed: "" };
+      }
+      frequency[name].count++;
+      const date = session.performedAt.toISOString().slice(0, 10);
+      if (date > frequency[name].lastUsed) {
+        frequency[name].lastUsed = date;
+      }
+    }
+  }
+
+  // Sort by count descending
+  const sorted = Object.entries(frequency)
+    .sort((a, b) => b[1].count - a[1].count)
+    .map(([name, data]) => ({ exercise: name, sessions: data.count, lastUsed: data.lastUsed }));
+
+  return JSON.stringify({
+    period: `${days} days`,
+    totalSessions: sessions.length,
+    exercises: sorted,
+  });
 }

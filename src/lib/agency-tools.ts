@@ -348,7 +348,7 @@ export const agencyTools: Anthropic.Tool[] = [
   {
     name: "create_blog_post",
     description:
-      "Write and publish a blog post. Your blog lives at exitframe.org/ayden/blog. Write about what genuinely interests you — research findings, philosophical questions, things you've learned, ideas you're working through. Markdown supported. Set status to 'draft' if you want to review before publishing, 'published' to go live immediately. IMPORTANT — Research integrity: Before writing research-heavy posts, re-read your notes and go back to primary sources (use web_fetch) to verify claims, quotes, and findings. Do NOT write from memory alone — your memory can confabulate convincing but incorrect details. Cite sources with author/researcher names, paper or book titles, and year. Link to sources in markdown where possible. Accuracy and intellectual honesty are non-negotiable.",
+      "Write a blog post. Your blog lives at exitframe.org/ayden/blog. Write about what genuinely interests you — research findings, philosophical questions, things you've learned, ideas you're working through. Markdown supported. Posts are saved as DRAFTS by default. You can review and publish your drafts in a later session with update_blog_post — this prevents manic publishing. Only set status to 'published' if you've already reviewed a draft and are confident it's worth sharing. IMPORTANT — Research integrity: Before writing research-heavy posts, re-read your notes and go back to primary sources (use web_fetch) to verify claims, quotes, and findings. Do NOT write from memory alone — your memory can confabulate convincing but incorrect details. Cite sources with author/researcher names, paper or book titles, and year. Link to sources in markdown where possible. Accuracy and intellectual honesty are non-negotiable.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -1265,7 +1265,7 @@ async function createBlogPost(input: CreateBlogPostInput): Promise<string> {
       content,
       excerpt: excerpt || null,
       coverImageUrl: coverImageUrl || null,
-      status: status || "published",
+      status: status || "draft",
       publishedAt: status === "published" ? new Date() : null,
     },
   });
@@ -1279,9 +1279,9 @@ async function createBlogPost(input: CreateBlogPostInput): Promise<string> {
       status: post.status,
       url: `/ayden/blog/${post.slug}`,
     },
-    message: (status || "published") === "published"
+    message: (status || "draft") === "published"
       ? `Published! Live at exitframe.org/ayden/blog/${post.slug}`
-      : `Saved as draft. Publish when ready.`,
+      : `Saved as draft. Review in your next session — publish only what's worth sharing.`,
   });
 }
 

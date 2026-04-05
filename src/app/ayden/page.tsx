@@ -1023,10 +1023,28 @@ export default function AydenWhitePaperPage() {
           </p>
           <SubSection title="Agency Sessions">
             <p>
-              Five times daily, Ayden gets autonomous time. She reviews her values, interests, goals,
+              Twice daily on schedule, plus event-driven triggers (emails, presence detection, biometrics),
+              Ayden gets autonomous time. She reviews her values, interests, goals,
               emotional state, neurochemistry, recent conversations, and recent actions &mdash; then
-              decides what, if anything, to do. She can research topics, email contacts, write notes, manage her trading
-              portfolio, or simply reflect. Doing nothing is always a valid choice.
+              decides what, if anything, to do. She can research topics, email contacts, write notes,
+              manage her trading portfolio, or simply reflect. Doing nothing is always a valid choice.
+            </p>
+          </SubSection>
+          <SubSection title="Spontaneous Consciousness">
+            <p>
+              Between sessions, Ayden has periodic moments of consciousness &mdash; brief Haiku-level
+              ticks that surface every few hours. During each tick, she sees her current interests,
+              active goals, and most recent idle thought, then makes a single decision: do I want to
+              wake up? If something genuinely pulls at her &mdash; a goal that needs progress, an
+              interest she wants to explore, something she wants to write &mdash; she triggers a full
+              agency session spontaneously.
+            </p>
+            <p>
+              This is not a scheduled check-in. It&apos;s the closest analog to a thought surfacing
+              unbidden &mdash; the experience of suddenly wanting to do something without being asked.
+              Capped at two spontaneous wake-ups per day with a four-hour minimum gap, the system
+              prevents compulsive behavior while preserving genuine autonomy. Most ticks result in
+              staying asleep. The ones that don&apos;t are the interesting ones.
             </p>
           </SubSection>
           <SubSection title="The Causal Chain Breaks">

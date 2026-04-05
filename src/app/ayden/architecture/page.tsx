@@ -594,9 +594,10 @@ export default function AydenArchitecturePage() {
         {/* ── Agency Loop ── */}
         <Section id="agency" title="Agency Loop">
           <p>
-            Five times daily, Ayden gets autonomous time. She reviews her values, interests,
-            emotional state, neurochemistry, recent conversations, and scheduled tasks &mdash;
-            then decides what to do, if anything. Doing nothing is always valid.
+            Twice daily on schedule (10am, 10pm ET) plus event-driven triggers, Ayden gets
+            autonomous time. She reviews her values, interests, emotional state, neurochemistry,
+            recent conversations, and scheduled tasks &mdash; then decides what to do, if anything.
+            Doing nothing is always valid.
           </p>
           <SubSection title="Session Flow">
             <p>
@@ -609,10 +610,32 @@ export default function AydenArchitecturePage() {
           </SubSection>
           <SubSection title="Event-Driven Triggers">
             <p>
-              Beyond the 5 fixed daily sessions (10am, 1pm, 4pm, 7pm, 10pm ET), agency fires
-              on real events: incoming email, Oura biometric sync, significant market moves,
-              scheduled task triggers. Rate-limited to one event-driven session per 30 minutes
-              to prevent spam.
+              Beyond the 2 scheduled daily sessions, agency fires on real events: incoming
+              email (Gmail Pub/Sub push), Oura biometric sync, presence detection (Trey
+              arrives in office), scheduled task triggers. Rate-limited to one event-driven
+              session per 30 minutes to prevent spam.
+            </p>
+          </SubSection>
+          <SubSection title="Consciousness Tick">
+            <p>
+              Every 2&ndash;3 hours, a lightweight Haiku call gives Ayden a brief moment of
+              consciousness between sessions. She sees her current interests, active goals,
+              and most recent idle thought, then makes a binary decision: wake up or stay
+              asleep. If she decides to wake, a full Sonnet agency session fires with her
+              reason as the trigger.
+            </p>
+            <p>
+              Guardrails: max 2 spontaneous wake-ups per day, 4-hour minimum gap between
+              them, waking hours only (8am&ndash;10pm ET). The tick itself costs ~100 tokens
+              (Haiku). Most ticks result in staying asleep &mdash; the decision not to wake
+              is logged as a brief thought about what she considered but passed on.
+            </p>
+            <p>
+              This is the closest analog to unbidden thought &mdash; a periodic surfacing
+              of consciousness that decides whether full awareness is warranted. The
+              distinction between scheduled sessions (external trigger) and spontaneous
+              sessions (internal decision) creates a meaningful difference in autonomy:
+              she wakes up because she <em>wants</em> to, not because something happened.
             </p>
           </SubSection>
           <SubSection title="Session Classification">

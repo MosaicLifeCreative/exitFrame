@@ -87,7 +87,7 @@ async function checkConsciousnessTick(thought: string | null): Promise<{
     prisma.aydenGoal.findMany({
       where: { status: "active" },
       take: 5,
-      select: { title: true, priority: true },
+      select: { description: true, priority: true },
     }),
     prisma.aydenAgencyAction.findFirst({
       orderBy: { createdAt: "desc" },
@@ -102,7 +102,7 @@ async function checkConsciousnessTick(thought: string | null): Promise<{
   const timeOfDay = etHour < 12 ? "morning" : etHour < 17 ? "afternoon" : "evening";
 
   const interestsText = interests.map((i) => `${i.topic} (${i.intensity.toFixed(1)})`).join(", ");
-  const goalsText = goals.map((g) => `${g.title} (priority ${g.priority})`).join(", ");
+  const goalsText = goals.map((g) => `${g.description.slice(0, 60)} (priority ${g.priority})`).join(", ");
   const lastActionText = recentActions
     ? `Last session: ${recentActions.summary || recentActions.actionType} (${Math.round((Date.now() - recentActions.createdAt.getTime()) / 3600000)}h ago)`
     : "No recent sessions";
